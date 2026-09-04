@@ -70,7 +70,15 @@ EOF
 /etc/init.d/andeyproxy disable 2>/dev/null
 exit 0
 EOF
-  chmod 755 "$root/control/postinst" "$root/control/prerm"
+  cat > "$root/control/postrm" <<'EOF'
+#!/bin/sh
+# 卸载后清理：运行数据（config.json/证书/缓存）与 opkg 留下的 conffile 备份
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+rm -rf /etc/andeyproxy
+rm -f /etc/config/andeyproxy-opkg
+exit 0
+EOF
+  chmod 755 "$root/control/postinst" "$root/control/prerm" "$root/control/postrm"
 
   local taropt="--uid=0 --gid=0 --numeric-owner"
   (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
@@ -86,6 +94,44 @@ make_run() {
   mkdir -p "$root/payload"
   cp "$WORK/bin_$suffix" "$root/payload/andeyproxy"
   cp package/openwrt/files/andeyproxy.init "$root/payload/andeyproxy.init"
+
+  cat > "$root/payload/andeyproxy-uninstall" <<'UNEOF'
+#!/bin/sh
+# andey-Proxy 卸载程序：停止并删除服务、二进制、配置文件与全部运行数据（证书/缓存）
+set -e
+BIN_NAME=andeyproxy
+
+if [ "$(id -u)" != "0" ]; then
+  echo "请使用 root 运行: sudo $0"; exit 1
+fi
+
+echo "正在卸载 andey-Proxy ..."
+
+# 停止并移除服务
+if [ -f /etc/init.d/$BIN_NAME ]; then
+  /etc/init.d/$BIN_NAME stop 2>/dev/null || true
+  /etc/init.d/$BIN_NAME disable 2>/dev/null || true
+  rm -f /etc/init.d/$BIN_NAME
+fi
+if command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/$BIN_NAME.service ]; then
+  systemctl stop $BIN_NAME 2>/dev/null || true
+  systemctl disable $BIN_NAME 2>/dev/null || true
+  rm -f /etc/systemd/system/$BIN_NAME.service
+  systemctl daemon-reload 2>/dev/null || true
+fi
+
+# 删除二进制、配置文件、运行数据（config.json、ACME 证书、日志缓存）
+rm -f /usr/bin/$BIN_NAME
+rm -rf /etc/andeyproxy
+rm -f /etc/config/andeyproxy
+
+echo "andey-Proxy 已完全卸载（配置与缓存已清空）"
+
+# 自删除（延迟执行，避免 shell 正在读取脚本）
+(sleep 1; rm -f /usr/bin/andeyproxy-uninstall) &
+exit 0
+UNEOF
+  chmod 755 "$root/payload/andeyproxy-uninstall"
 
   cat > "$root/install.sh" <<'INSTEOF'
 #!/bin/sh
@@ -109,6 +155,7 @@ tail -n +"$LINE" "$0" | tar xz -C "$TMP"
 
 echo "安装 andey-Proxy $VERSION ..."
 install -m 755 "$TMP/andeyproxy" "$INSTALL_DIR/$BIN_NAME"
+install -m 755 "$TMP/andeyproxy-uninstall" "$INSTALL_DIR/andeyproxy-uninstall"
 mkdir -p "$CONF_DIR"
 
 if [ -d /etc/init.d ]; then
@@ -137,6 +184,7 @@ fi
 
 echo ""
 echo "安装完成！后台管理: http://<本机IP>:16601  默认账号密码 666/666（首次登录请修改）"
+echo "卸载: sudo andeyproxy-uninstall"
 exit 0
 __PAYLOAD_BELOW__
 INSTEOF

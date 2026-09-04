@@ -75,5 +75,13 @@ echo "启动: /etc/init.d/andeyproxy start（或将 /etc/config/andeyproxy 中 e
 exit 0
 endef
 
+define Package/andeyproxy/postrm
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+rm -rf /etc/andeyproxy
+rm -f /etc/config/andeyproxy-opkg
+exit 0
+endef
+
 $(eval $(call GoBinPackage,andeyproxy))
 $(eval $(call BuildPackage,andeyproxy))
