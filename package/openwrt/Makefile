@@ -70,6 +70,10 @@ define Package/andey-proxy/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 /etc/init.d/andey-proxy enable
+# 升级场景：旧包 prerm 停了服务，若用户已启用则自动拉起
+if [ "$$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
+	/etc/init.d/andey-proxy restart 2>/dev/null
+fi
 echo "andey-Proxy 已安装，后台: http://<路由IP>:16601  默认账号密码 666/666"
 echo "启动: /etc/init.d/andey-proxy start（或将 /etc/config/andey-proxy 中 enabled 置 1 后 reload）"
 exit 0
@@ -77,7 +81,9 @@ endef
 
 define Package/andey-proxy/postrm
 #!/bin/sh
+# 升级时 opkg 也会执行旧包 postrm（参数 upgrade），绝不能删数据
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
+[ "$$1" = "upgrade" ] && exit 0
 rm -rf /etc/andey-proxy
 rm -f /etc/config/andey-proxy-opkg
 exit 0

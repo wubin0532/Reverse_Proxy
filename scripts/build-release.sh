@@ -55,10 +55,17 @@ Description: andey-Proxy DDNS/反向代理/ACME证书一体工具
  默认后台端口 16601，默认账号密码 666/666，首次登录请修改
 EOF
 
+  # conffiles：升级时保留用户的 UCI 配置（不声明会被包内默认配置覆盖）
+  printf '/etc/config/andey-proxy\n' > "$root/control/conffiles"
+
   cat > "$root/control/postinst" <<'EOF'
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
 /etc/init.d/andey-proxy enable
+# 升级场景：旧包 prerm 停了服务，若用户已启用则自动拉起
+if [ "$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
+  /etc/init.d/andey-proxy restart 2>/dev/null
+fi
 echo "andey-Proxy 已安装，后台: http://<路由IP>:16601  默认账号密码 666/666"
 echo "启动: /etc/init.d/andey-proxy start"
 exit 0
@@ -67,13 +74,16 @@ EOF
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
 /etc/init.d/andey-proxy stop 2>/dev/null
+[ "$1" = "upgrade" ] && exit 0
 /etc/init.d/andey-proxy disable 2>/dev/null
 exit 0
 EOF
   cat > "$root/control/postrm" <<'EOF'
 #!/bin/sh
 # 卸载后清理：运行数据（config.json/证书/缓存）与 opkg 留下的 conffile 备份
+# 升级时 opkg 也会执行旧包 postrm（参数 upgrade），绝不能删数据
 [ -n "${IPKG_INSTROOT}" ] && exit 0
+[ "$1" = "upgrade" ] && exit 0
 rm -rf /etc/andey-proxy
 rm -f /etc/config/andey-proxy-opkg
 exit 0
