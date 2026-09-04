@@ -1,0 +1,53 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go vet ./...
+      - run: go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goarch: amd64, suffix: x86_64 }
+          - { goarch: arm64, suffix: arm64 }
+          - { goarch: arm, suffix: armv7, goarm: "7" }
+          - { goarch: mipsle, suffix: mipsle, gomips: softfloat }
+          - { goarch: mips, suffix: mips, gomips: softfloat }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: build web assets
+        run: |
+          cd web && npm ci && npm run build
+      - name: build binary
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          GOMIPS: ${{ matrix.gomips }}
+          CGO_ENABLED: "0"
+        run: |
+          VERSION=${GITHUB_REF_NAME:-dev}
+          go build -tags adminweb -ldflags "-s -w -X main.version=$VERSION" \
+            -o luckyx_${VERSION}_linux_${{ matrix.suffix }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luckyx_linux_${{ matrix.suffix }}
+          path: luckyx_*_linux_*

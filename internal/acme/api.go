@@ -1,0 +1,302 @@
+package acme
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+
+	"luckyx/internal/api"
+	"luckyx/internal/config"
+)
+
+type handler struct {
+	cfg *config.Config
+	m   *Manager
+}
+
+// RegisterRoutes 在已认证的 chi.Group 中挂载证书相关路由。
+func RegisterRoutes(r chi.Router, cfg *config.Config, m *Manager) {
+	h := &handler{cfg: cfg, m: m}
+	r.Get("/api/certs", h.listCerts)
+	r.Post("/api/certs", h.createCert)
+	r.Put("/api/certs/{id}", h.updateCert)
+	r.Delete("/api/certs/{id}", h.deleteCert)
+	r.Post("/api/certs/{id}/toggle", h.toggleCert)
+	r.Post("/api/certs/{id}/obtain", h.obtainCert)
+	r.Get("/api/certs/{id}/download", h.downloadCert)
+}
+
+func newID() string {
+	buf := make([]byte, 4)
+	rand.Read(buf)
+	return hex.EncodeToString(buf)
+}
+
+// certView 列表视图：附带运行状态。
+type certView struct {
+	config.CertConf
+	Status    string `json:"status"`    // pending / ok / expiring / expired / error
+	Obtaining bool   `json:"obtaining"` // 是否正在申请中
+}
+
+// statusOf 根据配置计算证书状态。
+func statusOf(c *config.CertConf, now time.Time) string {
+	if c.NotAfter == "" {
+		if c.LastError != "" {
+			return "error"
+		}
+		return "pending"
+	}
+	notAfter, err := time.Parse(time.RFC3339, c.NotAfter)
+	if err != nil {
+		return "error"
+	}
+	if !notAfter.After(now) {
+		return "expired"
+	}
+	if !notAfter.After(now.Add(time.Duration(renewDaysOf(c)) * 24 * time.Hour)) {
+		return "expiring"
+	}
+	return "ok"
+}
+
+func (h *handler) listCerts(w http.ResponseWriter, r *http.Request) {
+	h.cfg.RLock()
+	certs := make([]config.CertConf, len(h.cfg.Certs))
+	copy(certs, h.cfg.Certs)
+	h.cfg.RUnlock()
+	now := time.Now()
+	views := make([]certView, 0, len(certs))
+	for i := range certs {
+		c := &certs[i]
+		views = append(views, certView{
+			CertConf:  *c,
+			Status:    statusOf(c, now),
+			Obtaining: h.m.Obtaining(c.ID),
+		})
+	}
+	api.OK(w, views)
+}
+
+func (h *handler) validateCert(c *config.CertConf) (int, string) {
+	if c.Name == "" {
+		return 400, "证书名称不能为空"
+	}
+	if len(c.Domains) == 0 {
+		return 400, "域名列表不能为空"
+	}
+	for _, d := range c.Domains {
+		d = strings.TrimSpace(d)
+		if d == "" || strings.ContainsAny(d, " /\\") {
+			return 400, "域名格式不正确: " + d
+		}
+	}
+	h.cfg.RLock()
+	found := false
+	for _, p := range h.cfg.Providers {
+		if p.ID == c.ProviderID {
+			found = true
+			break
+		}
+	}
+	h.cfg.RUnlock()
+	if !found {
+		return 400, "引用的服务商凭据不存在"
+	}
+	return 0, ""
+}
+
+func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
+	var c config.CertConf
+	if err := api.DecodeBody(r, &c); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	c.ID = ""
+	c.CertFile, c.KeyFile, c.NotAfter, c.LastError = "", "", "", ""
+	if code, msg := h.validateCert(&c); code != 0 {
+		api.Fail(w, code, msg)
+		return
+	}
+	c.ID = newID()
+	h.cfg.Lock()
+	h.cfg.Certs = append(h.cfg.Certs, c)
+	h.cfg.Unlock()
+	if err := h.cfg.Save(); err != nil {
+		api.Fail(w, 500, "保存配置失败")
+		return
+	}
+	api.OK(w, c)
+}
+
+func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var c config.CertConf
+	if err := api.DecodeBody(r, &c); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	c.ID = id
+	if code, msg := h.validateCert(&c); code != 0 {
+		api.Fail(w, code, msg)
+		return
+	}
+	h.cfg.Lock()
+	idx := -1
+	for i := range h.cfg.Certs {
+		if h.cfg.Certs[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		old := h.cfg.Certs[idx]
+		// 保留原有证书文件与状态；域名变化时作废，等待重新申请
+		c.CertFile, c.KeyFile = old.CertFile, old.KeyFile
+		c.NotAfter, c.LastError = old.NotAfter, old.LastError
+		if !sameDomains(old.Domains, c.Domains) {
+			c.CertFile, c.KeyFile, c.NotAfter, c.LastError = "", "", "", ""
+		}
+		h.cfg.Certs[idx] = c
+	}
+	h.cfg.Unlock()
+	if idx < 0 {
+		api.Fail(w, 404, "证书不存在")
+		return
+	}
+	if err := h.cfg.Save(); err != nil {
+		api.Fail(w, 500, "保存配置失败")
+		return
+	}
+	h.m.invalidate(id)
+	api.OK(w, c)
+}
+
+func sameDomains(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !strings.EqualFold(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (h *handler) deleteCert(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.cfg.Lock()
+	idx := -1
+	for i := range h.cfg.Certs {
+		if h.cfg.Certs[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	var removed config.CertConf
+	if idx >= 0 {
+		removed = h.cfg.Certs[idx]
+		h.cfg.Certs = append(h.cfg.Certs[:idx], h.cfg.Certs[idx+1:]...)
+	}
+	h.cfg.Unlock()
+	if idx < 0 {
+		api.Fail(w, 404, "证书不存在")
+		return
+	}
+	if err := h.cfg.Save(); err != nil {
+		api.Fail(w, 500, "保存配置失败")
+		return
+	}
+	h.m.RemoveFiles(&removed)
+	api.OK(w, nil)
+}
+
+func (h *handler) toggleCert(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.cfg.Lock()
+	idx := -1
+	for i := range h.cfg.Certs {
+		if h.cfg.Certs[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	var enabled bool
+	if idx >= 0 {
+		h.cfg.Certs[idx].Enabled = !h.cfg.Certs[idx].Enabled
+		enabled = h.cfg.Certs[idx].Enabled
+	}
+	h.cfg.Unlock()
+	if idx < 0 {
+		api.Fail(w, 404, "证书不存在")
+		return
+	}
+	if err := h.cfg.Save(); err != nil {
+		api.Fail(w, 500, "保存配置失败")
+		return
+	}
+	if !enabled {
+		h.m.invalidate(id)
+	}
+	api.OK(w, map[string]bool{"enabled": enabled})
+}
+
+// obtainCert 异步申请/重签，立即返回，状态轮询 GET /api/certs。
+func (h *handler) obtainCert(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if _, ok := h.m.findCert(id); !ok {
+		api.Fail(w, 404, "证书不存在")
+		return
+	}
+	if h.m.Obtaining(id) {
+		api.Fail(w, 400, "该证书正在申请中")
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		h.m.Obtain(ctx, id) // 结果回写到 LastError / NotAfter，前端轮询即可
+	}()
+	api.OK(w, map[string]bool{"obtaining": true})
+}
+
+// downloadCert 下载证书或私钥文件。
+func (h *handler) downloadCert(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	c, ok := h.m.findCert(id)
+	if !ok {
+		api.Fail(w, 404, "证书不存在")
+		return
+	}
+	part := r.URL.Query().Get("part")
+	certFile, keyFile := h.m.certPath(&c)
+	var fp, ext string
+	switch part {
+	case "cert":
+		fp, ext = certFile, ".crt"
+	case "key":
+		fp, ext = keyFile, ".key"
+	default:
+		api.Fail(w, 400, "part 必须是 cert 或 key")
+		return
+	}
+	data, err := os.ReadFile(fp)
+	if err != nil {
+		api.Fail(w, 404, "证书文件不存在，请先申请")
+		return
+	}
+	name := c.Name
+	if name == "" {
+		name = c.ID
+	}
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+name+ext+"\"")
+	w.Write(data)
+}
