@@ -35,6 +35,7 @@ type Worker struct {
 	smu    sync.Mutex
 	lastIP map[string]string
 	status map[string]*TaskStatus
+	taskMu map[string]*sync.Mutex // 任务级互斥锁，防手动执行与调度并发
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -42,7 +43,21 @@ func NewWorker(cfg *config.Config) *Worker {
 		cfg:    cfg,
 		lastIP: make(map[string]string),
 		status: make(map[string]*TaskStatus),
+		taskMu: make(map[string]*sync.Mutex),
 	}
+}
+
+// lockTask 取任务级互斥锁并加锁。
+func (w *Worker) lockTask(taskID string) *sync.Mutex {
+	w.smu.Lock()
+	m, ok := w.taskMu[taskID]
+	if !ok {
+		m = &sync.Mutex{}
+		w.taskMu[taskID] = m
+	}
+	w.smu.Unlock()
+	m.Lock()
+	return m
 }
 
 // Start 启动所有已启用任务的调度。
@@ -193,6 +208,9 @@ func (w *Worker) providerFor(providerID string) (Provider, error) {
 
 // runTask 执行一次任务。force 为 true 时忽略 IP 缓存强制更新。
 func (w *Worker) runTask(ctx context.Context, task config.DDNSTask, force bool) error {
+	m := w.lockTask(task.ID)
+	defer m.Unlock()
+
 	ip, iface, err := GetIPDetail(ctx, task)
 	if err != nil {
 		w.failWithNotify(task, "", "", err.Error())
