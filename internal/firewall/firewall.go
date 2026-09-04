@@ -171,7 +171,13 @@ func (m *Manager) reconcileLocked() error {
 	sort.Slice(toAdd, func(i, j int) bool { return toAdd[i].Key < toAdd[j].Key })
 
 	for _, key := range toDel {
-		sec := m.added[key].section
+		// uci add 返回的匿名段名在 commit 后即失效，位置名（@rule[N]）又随
+		// 增删平移，因此每次删除前都按规则名实时解析当前 section。
+		sec, err := m.findSectionLocked(key)
+		if err != nil {
+			log.Printf("[firewall] 定位规则 %s 失败: %v", key, err)
+			continue
+		}
 		if _, err := m.execFn("uci", "delete", "firewall."+sec); err != nil {
 			log.Printf("[firewall] 删除规则 %s (section %s) 失败: %v", key, sec, err)
 			continue
@@ -191,6 +197,20 @@ func (m *Manager) reconcileLocked() error {
 	}
 	m.reloadFirewall()
 	return nil
+}
+
+// findSectionLocked 实时解析指定 Key 当前的防火墙 section 名。
+// 调用方须持有 m.mu。
+func (m *Manager) findSectionLocked(key string) (string, error) {
+	out, err := m.execFn("uci", "show", "firewall")
+	if err != nil {
+		return "", err
+	}
+	pr, ok := parseAndeyRules(out)[key]
+	if !ok {
+		return "", fmt.Errorf("规则 andey-proxy-%s 不存在", key)
+	}
+	return pr.section, nil
 }
 
 // addRuleLocked 通过 uci 添加一条 WAN 侧放行规则。调用方须持有 m.mu。

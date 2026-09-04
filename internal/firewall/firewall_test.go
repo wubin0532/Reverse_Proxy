@@ -1,6 +1,8 @@
 package firewall
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -75,21 +77,133 @@ func TestNormalizeProto(t *testing.T) {
 	}
 }
 
-// newFakeManager 构造使用假 exec 的 Manager，返回记录到的命令列表。
-// showOutput 为 `uci show firewall` 的返回内容；uci add 固定返回 section 名 cfgNEW。
+// fakeUCISection 模拟一条 uci section。
+type fakeUCISection struct {
+	name  string
+	typ   string
+	attrs map[string]string
+}
+
+// fakeUCI 最小 uci 状态机模拟：支持 add/set/delete/show，供测试追踪真实状态变化。
+type fakeUCI struct {
+	sections []*fakeUCISection
+	added    int
+}
+
+// parseFakeShow 把 `uci show firewall` 风格的文本还原为 section 列表。
+func parseFakeShow(show string) *fakeUCI {
+	f := &fakeUCI{}
+	byName := map[string]*fakeUCISection{}
+	for _, line := range strings.Split(show, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "firewall.") {
+			continue
+		}
+		eq := strings.IndexByte(line, '=')
+		if eq < 0 {
+			continue
+		}
+		left := strings.TrimPrefix(line[:eq], "firewall.")
+		val := strings.Trim(strings.TrimSpace(line[eq+1:]), "'")
+		dot := strings.LastIndexByte(left, '.')
+		var secName, field string
+		if dot < 0 {
+			secName = left
+		} else {
+			secName, field = left[:dot], left[dot+1:]
+		}
+		sec := byName[secName]
+		if sec == nil {
+			sec = &fakeUCISection{name: secName, attrs: map[string]string{}}
+			byName[secName] = sec
+			f.sections = append(f.sections, sec)
+		}
+		if field == "" {
+			sec.typ = val
+		} else {
+			sec.attrs[field] = val
+		}
+	}
+	return f
+}
+
+// show 渲染当前状态为 `uci show firewall` 风格输出。
+func (f *fakeUCI) show() string {
+	var b strings.Builder
+	for _, sec := range f.sections {
+		fmt.Fprintf(&b, "firewall.%s=%s\n", sec.name, sec.typ)
+		keys := make([]string, 0, len(sec.attrs))
+		for k := range sec.attrs {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&b, "firewall.%s.%s='%s'\n", sec.name, k, sec.attrs[k])
+		}
+	}
+	return b.String()
+}
+
+// exec 模拟一次 uci 调用。
+func (f *fakeUCI) exec(args ...string) (string, error) {
+	switch args[0] {
+	case "show":
+		return f.show(), nil
+	case "add":
+		// 模拟真实 uci：返回匿名段名
+		f.added++
+		name := "cfgNEW"
+		if f.added > 1 {
+			name = fmt.Sprintf("cfgNEW%d", f.added)
+		}
+		f.sections = append(f.sections, &fakeUCISection{name: name, typ: args[2], attrs: map[string]string{}})
+		return name + "\n", nil
+	case "set":
+		// firewall.<sec>.<k>=<v>
+		kv := strings.TrimPrefix(args[1], "firewall.")
+		eq := strings.IndexByte(kv, '=')
+		dot := strings.LastIndexByte(kv[:eq], '.')
+		sec := f.find(kv[:dot])
+		if sec == nil {
+			return "", fmt.Errorf("Entry not found")
+		}
+		sec.attrs[kv[dot+1:eq]] = kv[eq+1:]
+		return "", nil
+	case "delete":
+		name := strings.TrimPrefix(args[1], "firewall.")
+		for i, sec := range f.sections {
+			if sec.name == name {
+				f.sections = append(f.sections[:i], f.sections[i+1:]...)
+				return "", nil
+			}
+		}
+		return "", fmt.Errorf("Entry not found")
+	case "commit":
+		return "", nil
+	}
+	return "", nil
+}
+
+func (f *fakeUCI) find(name string) *fakeUCISection {
+	for _, sec := range f.sections {
+		if sec.name == name {
+			return sec
+		}
+	}
+	return nil
+}
+
+// newFakeManager 构造使用假 uci 的 Manager，返回记录到的命令列表。
+// showOutput 为初始的 `uci show firewall` 状态。
 func newFakeManager(openwrt bool, showOutput string) (*Manager, *[]string) {
 	cmds := &[]string{}
+	fake := parseFakeShow(showOutput)
 	m := NewManager()
 	m.detectFn = func() bool { return openwrt }
 	m.execFn = func(name string, args ...string) (string, error) {
 		*cmds = append(*cmds, name+" "+strings.Join(args, " "))
 		if name == "uci" && len(args) >= 1 {
-			switch args[0] {
-			case "show":
-				return showOutput, nil
-			case "add":
-				return "cfgNEW\n", nil
-			}
+			return fake.exec(args...)
 		}
 		return "", nil
 	}
