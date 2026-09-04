@@ -88,6 +88,52 @@ EOF
   echo "==> IPK: andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
 }
 
+make_luci_ipk() {
+  local root="$WORK/ipk_luci"
+  mkdir -p "$root/data" "$root/control"
+  cp -r package/luci-app-andeyproxy/root/. "$root/data/"
+  chmod 644 "$root/data/usr/share/luci/menu.d/luci-app-andeyproxy.json" \
+            "$root/data/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" \
+            "$root/data/usr/share/luci/resources/view/andeyproxy/settings.js" \
+            "$root/data/usr/share/luci/resources/view/andeyproxy/panel.js"
+
+  local size
+  size=$(du -sk "$root/data" | cut -f1)
+  cat > "$root/control/control" <<EOF
+Package: luci-app-andeyproxy
+Version: $VERSION-$PKG_RELEASE
+Depends: andey-proxy, luci-base
+Section: luci
+Architecture: all
+Installed-Size: $size
+Maintainer: andey
+Description: LuCI support for andey-Proxy
+ LuCI 菜单入口（服务 -> andey-Proxy）与基本设置页
+EOF
+
+  cat > "$root/control/postinst" <<'EOF'
+#!/bin/sh
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+echo "andey-Proxy LuCI 菜单已安装，刷新 LuCI 页面后在 服务 菜单查看"
+exit 0
+EOF
+  cat > "$root/control/postrm" <<'EOF'
+#!/bin/sh
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+exit 0
+EOF
+  chmod 755 "$root/control/postinst" "$root/control/postrm"
+
+  local taropt="--uid=0 --gid=0 --numeric-owner"
+  (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
+  (cd "$root/control" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/control.tar.gz" .)
+  echo "2.0" > "$root/debian-binary"
+  (cd "$root" && COPYFILE_DISABLE=1 tar $taropt -czf "$OUT/luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz)
+  echo "==> IPK: luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk"
+}
+
 make_run() {
   local suffix=$1
   local root="$WORK/run_$suffix"
@@ -203,6 +249,7 @@ for t in "${TARGETS[@]}"; do
   make_ipk "$suffix" "$opkgarch"
   make_run "$suffix"
 done
+make_luci_ipk
 
 (cd "$OUT" && for f in *.ipk *.run; do shasum -a 256 "$f"; done > checksums.txt)
 rm -rf "$WORK"

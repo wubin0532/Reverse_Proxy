@@ -1,0 +1,14 @@
+{
+	"luci-app-andeyproxy": {
+		"description": "andey-Proxy 设置访问权限",
+		"read": {
+			"uci": [ "andey-proxy" ]
+		},
+		"write": {
+			"uci": [ "andey-proxy" ],
+			"ubus": {
+				"luci": [ "setInitAction" ]
+			}
+		}
+	}
+}

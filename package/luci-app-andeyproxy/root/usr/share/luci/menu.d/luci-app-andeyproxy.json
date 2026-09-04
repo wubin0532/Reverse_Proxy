@@ -1,0 +1,25 @@
+{
+	"admin/services/andeyproxy": {
+		"title": "andey-Proxy",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "andeyproxy/settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-andeyproxy" ],
+			"uci": { "andey-proxy": true }
+		}
+	},
+	"admin/services/andeyproxy/panel": {
+		"title": "管理面板",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "andeyproxy/panel"
+		},
+		"depends": {
+			"acl": [ "luci-app-andeyproxy" ]
+		}
+	}
+}
