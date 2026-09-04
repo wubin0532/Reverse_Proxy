@@ -94,8 +94,8 @@ make_luci_ipk() {
   cp -r package/luci-app-andeyproxy/root/. "$root/data/"
   chmod 644 "$root/data/usr/share/luci/menu.d/luci-app-andeyproxy.json" \
             "$root/data/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" \
-            "$root/data/usr/share/luci/resources/view/andeyproxy/settings.js" \
-            "$root/data/usr/share/luci/resources/view/andeyproxy/panel.js"
+            "$root/data/www/luci-static/resources/view/andeyproxy/settings.js" \
+            "$root/data/www/luci-static/resources/view/andeyproxy/panel.js"
 
   local size
   size=$(du -sk "$root/data" | cut -f1)

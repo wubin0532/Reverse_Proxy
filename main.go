@@ -19,7 +19,10 @@ import (
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/ddns"
+	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
+	"andey-proxy/internal/notify"
+	"andey-proxy/internal/upgrade"
 	"andey-proxy/internal/webproxy"
 )
 
@@ -63,6 +66,16 @@ func main() {
 	fwdSvc := forward.NewService(cfg)
 	ddnsWorker := ddns.NewWorker(cfg)
 
+	// 防火墙自动放行（OpenWrt）
+	fwMgr := firewall.NewManager()
+	webSvc.FW = fwMgr
+	fwdSvc.FW = fwMgr
+
+	// Webhook 通知
+	notifier := notify.New(cfg)
+	ddnsWorker.Notify = notifier.Notify
+	acmeMgr.Notify = notifier.Notify
+
 	acmeMgr.Start()
 	webSvc.Start()
 	fwdSvc.Start()
@@ -73,6 +86,9 @@ func main() {
 	apiSrv.Mount(func(r chi.Router) { forward.RegisterRoutes(r, cfg, fwdSvc) })
 	apiSrv.Mount(func(r chi.Router) { webproxy.RegisterRoutes(r, cfg, webSvc) })
 	apiSrv.Mount(func(r chi.Router) { acme.RegisterRoutes(r, cfg, acmeMgr) })
+	apiSrv.Mount(func(r chi.Router) { firewall.RegisterRoutes(r, fwMgr) })
+	apiSrv.Mount(func(r chi.Router) { notify.RegisterRoutes(r, cfg, notifier) })
+	apiSrv.Mount(func(r chi.Router) { upgrade.RegisterRoutes(r, version) })
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiSrv.Router())
 	mux.Handle("/", adminweb.Handler())

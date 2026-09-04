@@ -44,6 +44,10 @@
           <el-tag v-if="auth.needChangePassword" type="warning" size="small">使用默认密码</el-tag>
           <el-tag v-else type="success" size="small">已修改</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="当前版本">{{ sysInfo.version || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="系统架构">
+          {{ sysInfo.goos ? `${sysInfo.goos} / ${sysInfo.goarch}` : '-' }}
+        </el-descriptions-item>
       </el-descriptions>
     </el-card>
   </div>
@@ -56,6 +60,8 @@ import { useAuthStore } from '../store/auth'
 
 const auth = useAuthStore()
 
+const sysInfo = reactive({ version: '', goos: '', goarch: '' })
+
 const stats = reactive({
   ddns: 0, ddnsEnabled: 0,
   certs: 0, certsOk: 0,
@@ -64,11 +70,12 @@ const stats = reactive({
 })
 
 async function load() {
-  const [ddnsRes, certsRes, sitesRes, forwardsRes] = await Promise.allSettled([
+  const [ddnsRes, certsRes, sitesRes, forwardsRes, sysInfoRes] = await Promise.allSettled([
     request.get('/api/ddns/tasks'),
     request.get('/api/certs'),
     request.get('/api/sites'),
-    request.get('/api/forwards')
+    request.get('/api/forwards'),
+    request.get('/api/system/info')
   ])
   if (ddnsRes.status === 'fulfilled') {
     const list = ddnsRes.value.data || []
@@ -89,6 +96,9 @@ async function load() {
     const list = forwardsRes.value.data || []
     stats.forwards = list.length
     stats.forwardsEnabled = list.filter((f) => f.enabled).length
+  }
+  if (sysInfoRes.status === 'fulfilled') {
+    Object.assign(sysInfo, sysInfoRes.value.data || {})
   }
 }
 

@@ -79,6 +79,7 @@ type Site struct {
 	Listen    string    `json:"listen"`   // 如 :8080
 	TLS       bool      `json:"tls"`      // 是否 HTTPS
 	CertID    string    `json:"certId"`   // 引用 CertConf.ID，空=自签
+	AutoFW    bool      `json:"autoFw"`   // OpenWrt 下自动放行 WAN 防火墙
 	Rules     []SubRule `json:"rules"`
 }
 
@@ -90,15 +91,27 @@ type ForwardRule struct {
 	Proto     string   `json:"proto"`     // tcp / udp / tcpudp
 	Listen    string   `json:"listen"`    // 监听地址 :13389
 	Targets   []string `json:"targets"`   // 目标地址 ip:port
+	AutoFW    bool     `json:"autoFw"`    // OpenWrt 下自动放行 WAN 防火墙
 	IPListMode string  `json:"ipListMode"`
 	IPList    []string `json:"ipList"`
 }
 
+// WebhookConf 通知配置，用于 DDNS 更新、证书申请/续签结果推送。
+type WebhookConf struct {
+	Enabled bool     `json:"enabled"`
+	Type    string   `json:"type"`   // serverchan / bark / telegram / custom
+	Key     string   `json:"key"`    // serverchan SendKey / bark key / telegram bot token
+	ChatID  string   `json:"chatId"` // telegram chat_id
+	URL     string   `json:"url"`    // custom 类型的完整地址（POST JSON {title,content}）
+	Events  []string `json:"events"` // ddns / cert
+}
+
 // Settings 全局设置。
 type Settings struct {
-	AdminUser     string `json:"adminUser"`
-	AdminPassHash string `json:"adminPassHash"` // bcrypt
-	AdminPort     int    `json:"adminPort"`
+	AdminUser     string      `json:"adminUser"`
+	AdminPassHash string      `json:"adminPassHash"` // bcrypt
+	AdminPort     int         `json:"adminPort"`
+	Webhook       WebhookConf `json:"webhook"`
 }
 
 // Config 根配置。

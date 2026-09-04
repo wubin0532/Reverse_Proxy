@@ -7,17 +7,24 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/guard"
 )
 
 // Service 端口转发服务，管理所有规则的监听器。
 type Service struct {
-	cfg     *config.Config
+	cfg *config.Config
+
+	// FW 可选的防火墙自动放行管理器（main 注入，nil 时跳过）。
+	// Start/Reload 后会按 Enabled && AutoFW 的规则上报期望放行集合。
+	FW *firewall.Manager
+
 	mu      sync.Mutex
 	lmu     sync.Mutex // 保护 logs，与 mu 分离避免 startRuleLocked 持锁时死锁
 	wg      sync.WaitGroup
@@ -38,6 +45,7 @@ func (s *Service) Start() {
 			s.startRuleLocked(rule)
 		}
 	}
+	s.syncFirewall()
 }
 
 // Stop 停止全部监听器并等待连接排空。
@@ -49,6 +57,10 @@ func (s *Service) Stop() {
 	}
 	s.mu.Unlock()
 	s.wg.Wait()
+	// 服务整体停止：清空 forward 来源的自动放行规则
+	if s.FW != nil {
+		s.FW.SetDesiredFrom(firewall.SourceForward, nil)
+	}
 }
 
 // Reload 按当前配置重算运行状态（配置变更后调用）。
@@ -72,6 +84,42 @@ func (s *Service) Reload() {
 			}
 		}
 	}
+	s.syncFirewall()
+}
+
+// syncFirewall 按当前配置向防火墙管理器上报 forward 来源的期望放行集合：
+// Enabled && AutoFW 的规则，从 Listen（如 ":13389"）解析端口，协议按规则取值。
+// 解析失败或非 OpenWrt 环境仅记日志，不影响主流程。调用方须持有 s.mu。
+func (s *Service) syncFirewall() {
+	if s.FW == nil {
+		return
+	}
+	var rules []firewall.Rule
+	for _, rule := range s.cfg.Forwards {
+		if !rule.Enabled || !rule.AutoFW {
+			continue
+		}
+		port, err := listenPort(rule.Listen)
+		if err != nil {
+			s.logf(rule.ID, "监听地址 %q 端口解析失败，跳过自动放行: %v", rule.Listen, err)
+			continue
+		}
+		proto := strings.ToLower(rule.Proto)
+		if proto == "" {
+			proto = "tcp"
+		}
+		rules = append(rules, firewall.Rule{Key: rule.ID, Port: port, Proto: proto})
+	}
+	s.FW.SetDesiredFrom(firewall.SourceForward, rules)
+}
+
+// listenPort 从监听地址（":13389"、"0.0.0.0:13389" 或裸 "13389"）解析端口号。
+func listenPort(listen string) (int, error) {
+	_, p, err := net.SplitHostPort(listen)
+	if err != nil {
+		p = strings.TrimPrefix(listen, ":")
+	}
+	return strconv.Atoi(p)
 }
 
 // Logs 返回规则最近日志。

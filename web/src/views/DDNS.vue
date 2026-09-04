@@ -49,8 +49,13 @@
         <el-table-column label="服务商" width="110">
           <template #default="{ row }">{{ providerNameOf(row.providerId) }}</template>
         </el-table-column>
-        <el-table-column label="当前 IP" min-width="130">
-          <template #default="{ row }">{{ row.status?.ip || '-' }}</template>
+        <el-table-column label="当前 IP" min-width="150">
+          <template #default="{ row }">
+            <template v-if="row.status?.ip">
+              {{ row.status.ip }}<template v-if="row.status.interface">（{{ row.status.interface }}）</template>
+            </template>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column label="状态" min-width="150">
           <template #default="{ row }">
@@ -157,10 +162,25 @@
           </el-select>
         </el-form-item>
         <el-form-item v-if="taskDialog.form.ipSource === 'interface'" label="网卡名" prop="interface">
-          <el-input v-model="taskDialog.form.interface" placeholder="如 pppoe-wan、eth0" />
+          <el-select
+            v-model="taskDialog.form.interface"
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+            placeholder="选择网卡，或使用 auto 自动识别"
+          >
+            <el-option label="auto（自动识别 WAN 口）" value="auto" />
+            <el-option v-for="n in interfaces" :key="n" :label="n" :value="n" />
+          </el-select>
+          <div v-if="wanInterface" class="form-tip-block">当前自动识别结果：{{ wanInterface }}</div>
         </el-form-item>
         <el-form-item v-if="taskDialog.form.ipSource === 'api'" label="IP 查询地址" prop="apiUrl">
           <el-input v-model="taskDialog.form.apiUrl" placeholder="返回纯文本 IP 的地址，如 https://4.ipw.cn" />
+        </el-form-item>
+        <el-form-item label=" " class="preview-item">
+          <el-button size="small" :loading="preview.loading" @click="previewIP">获取当前 IP</el-button>
+          <span v-if="preview.result" class="preview-result">{{ preview.result }}</span>
         </el-form-item>
         <el-form-item label="检测间隔(秒)" prop="interval">
           <el-input-number v-model="taskDialog.form.interval" :min="10" :max="86400" />
@@ -308,6 +328,42 @@ async function loadProviders() {
   }
 }
 
+// ---------- 网卡与 IP 预览 ----------
+const interfaces = ref([])
+const wanInterface = ref('')
+const preview = reactive({ loading: false, result: '' })
+
+async function loadInterfaces() {
+  try {
+    const res = await request.get('/api/ddns/interfaces')
+    interfaces.value = res.data?.interfaces || []
+    wanInterface.value = res.data?.wan || ''
+  } catch {
+    // 拦截器已提示
+  }
+}
+
+async function previewIP() {
+  preview.loading = true
+  preview.result = ''
+  try {
+    const f = taskDialog.form
+    const res = await request.post('/api/ddns/preview-ip', {
+      ipType: f.ipType,
+      ipSource: f.ipSource,
+      interface: f.ipSource === 'interface' ? f.interface : '',
+      apiUrl: f.ipSource === 'api' ? f.apiUrl : ''
+    })
+    const ip = res.data?.ip || ''
+    const iface = res.data?.interface || ''
+    preview.result = iface ? `${iface}: ${ip}` : ip
+  } catch {
+    // 拦截器已提示
+  } finally {
+    preview.loading = false
+  }
+}
+
 // ---------- 任务 ----------
 const taskFormRef = ref()
 const taskDialog = reactive({
@@ -329,6 +385,8 @@ const taskRules = {
 }
 
 function openTaskDialog(row) {
+  preview.result = ''
+  loadInterfaces()
   taskDialog.isEdit = !!row
   taskDialog.form = row
     ? {
@@ -346,7 +404,7 @@ function openTaskDialog(row) {
       }
     : {
         id: '', name: '', domainsText: '', ipType: 'ipv4', providerId: '',
-        ipSource: 'interface', interface: '', apiUrl: '', interval: 300, ttl: 0, enabled: true
+        ipSource: 'interface', interface: 'auto', apiUrl: '', interval: 300, ttl: 0, enabled: true
       }
   taskDialog.visible = true
 }
@@ -462,5 +520,17 @@ onMounted(() => {
   margin-left: 10px;
   color: #999;
   font-size: 12px;
+}
+.form-tip-block {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+.preview-result {
+  margin-left: 10px;
+  color: #67c23a;
+  font-size: 13px;
+  font-family: Menlo, Consolas, monospace;
 }
 </style>

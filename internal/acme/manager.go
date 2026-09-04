@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge"
+	"github.com/go-acme/lego/v4/challenge/dns01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
@@ -55,6 +57,9 @@ func (u *acmeUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
 // Manager 证书申请、续签调度与 SNI 供给。
 type Manager struct {
 	cfg *config.Config
+
+	// Notify 事件通知回调（可为 nil），申请/续签成功或失败时调用。
+	Notify func(event, title, content string)
 
 	mu       sync.RWMutex
 	cache    map[string]*cachedCert // key: CertConf.ID
@@ -136,6 +141,42 @@ func newDNSProvider(p config.DNSProviderConf) (challenge.Provider, error) {
 		return dnspod.NewDNSProviderConfig(c)
 	}
 	return nil, fmt.Errorf("不支持的服务商类型: %s", p.Type)
+}
+
+// txtPropagationCheck 生成 DNS-01 传播检查函数：绕过本地 DNS 与权威 NS 直连，
+// 只向指定公共递归服务器查询 TXT 值，任一服务器返回期望值即视为已生效。
+func txtPropagationCheck(servers []string) dns01.WrapPreCheckFunc {
+	return func(_, fqdn, value string, _ dns01.PreCheckFunc) (bool, error) {
+		name := strings.TrimSuffix(fqdn, ".")
+		deadline := time.Now().Add(2 * time.Minute)
+		for {
+			for _, srv := range servers {
+				resolver := &net.Resolver{
+					PreferGo: true,
+					Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+						d := net.Dialer{Timeout: 5 * time.Second}
+						return d.DialContext(ctx, "udp", srv+":53")
+					},
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+				txts, err := resolver.LookupTXT(ctx, name)
+				cancel()
+				if err != nil {
+					log.Printf("[acme] 传播检查查询 %s 经 %s 失败: %v", name, srv, err)
+					continue
+				}
+				for _, txt := range txts {
+					if txt == value {
+						return true, nil
+					}
+				}
+			}
+			if time.Now().After(deadline) {
+				return false, nil
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}
 }
 
 // accountKeyPath ACME 账户私钥落盘路径（全局共用一个账户密钥）。
@@ -268,11 +309,29 @@ func (m *Manager) Obtain(ctx context.Context, certID string) error {
 	notAfter, err := m.obtain(ctx, certID)
 	if err != nil {
 		m.setResult(certID, "", err.Error())
+		m.notifyResult(certID, false, "", err)
 		return err
 	}
 	m.setResult(certID, notAfter, "")
 	m.invalidate(certID)
+	m.notifyResult(certID, true, notAfter, nil)
 	return nil
+}
+
+// notifyResult 申请/续签结束后推送结果通知（未设置回调时跳过）。
+func (m *Manager) notifyResult(certID string, success bool, notAfter string, err error) {
+	if m.Notify == nil {
+		return
+	}
+	cert, _ := m.findCert(certID)
+	domains := strings.Join(cert.Domains, ", ")
+	if success {
+		m.Notify("cert", "andey-Proxy 证书申请成功",
+			fmt.Sprintf("证书: %s\n域名: %s\n到期时间: %s", cert.Name, domains, notAfter))
+		return
+	}
+	m.Notify("cert", "andey-Proxy 证书申请失败",
+		fmt.Sprintf("证书: %s\n域名: %s\n错误: %s", cert.Name, domains, err.Error()))
 }
 
 // obtain 执行一次完整的申请流程，成功返回新证书到期时间（RFC3339）。
@@ -309,7 +368,15 @@ func (m *Manager) obtain(ctx context.Context, certID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := client.Challenge.SetDNS01Provider(dnsProvider); err != nil {
+	// 路由本地 DNS 常被代理软件劫持（fake-ip/NXDOMAIN），且国内网络无法直连
+	// 境外权威 NS（UDP 53 超时），国内递归 DNS 又存在 TTL 缓存不刷新的问题。
+	// zone 探测走公共递归 DNS；传播检查改为自定义逻辑：仅向遵守 TTL 的公共
+	// 递归服务器校验 TXT 值，轮询直至出现或超时。
+	challengeOpts := []dns01.ChallengeOption{
+		dns01.AddRecursiveNameservers(dns01.ParseNameservers([]string{"223.5.5.5", "119.29.29.29", "1.1.1.1"})),
+		dns01.WrapPreCheck(txtPropagationCheck([]string{"1.1.1.1", "8.8.8.8"})),
+	}
+	if err := client.Challenge.SetDNS01Provider(dnsProvider, challengeOpts...); err != nil {
 		return "", err
 	}
 	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"time"
 
@@ -33,6 +34,9 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, w *Worker) {
 	r.Put("/api/providers/{id}", h.updateProvider)
 	r.Delete("/api/providers/{id}", h.deleteProvider)
 	r.Post("/api/providers/test", h.testProvider)
+
+	r.Get("/api/ddns/interfaces", h.listInterfaces)
+	r.Post("/api/ddns/preview-ip", h.previewIP)
 }
 
 func newID() string {
@@ -70,9 +74,7 @@ func (h *handler) validateTask(t *config.DDNSTask) (int, string) {
 	}
 	switch t.IPSource {
 	case "interface":
-		if t.Interface == "" {
-			return 400, "网卡名不能为空"
-		}
+		// 空或 auto 表示自动识别 WAN 口，均合法
 	case "api":
 		if t.APIURL == "" {
 			return 400, "IP 查询地址不能为空"
@@ -335,6 +337,55 @@ func (h *handler) deleteProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	api.OK(w, nil)
+}
+
+// listInterfaces 返回系统网卡列表（供前端下拉选择）。
+func (h *handler) listInterfaces(w http.ResponseWriter, r *http.Request) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		api.Fail(w, 500, err.Error())
+		return
+	}
+	names := make([]string, 0, len(ifaces))
+	for _, i := range ifaces {
+		if i.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		names = append(names, i.Name)
+	}
+	// 附带当前自动识别的 WAN 口结果
+	wan4, _ := resolveWANInterface(false)
+	api.OK(w, map[string]interface{}{"interfaces": names, "wan": wan4})
+}
+
+// previewIP 预览 IP 来源取到的地址，返回实际网卡名与 IP。
+func (h *handler) previewIP(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IPType    string `json:"ipType"`
+		IPSource  string `json:"ipSource"`
+		Interface string `json:"interface"`
+		APIURL    string `json:"apiUrl"`
+	}
+	if err := api.DecodeBody(r, &body); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	if body.IPType == "" {
+		body.IPType = "ipv4"
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	ip, iface, err := GetIPDetail(ctx, config.DDNSTask{
+		IPType:    body.IPType,
+		IPSource:  body.IPSource,
+		Interface: body.Interface,
+		APIURL:    body.APIURL,
+	})
+	if err != nil {
+		api.Fail(w, 500, err.Error())
+		return
+	}
+	api.OK(w, map[string]string{"ip": ip, "interface": iface})
 }
 
 // testProvider 只读查询一条记录，验证凭据可用，不做任何修改。

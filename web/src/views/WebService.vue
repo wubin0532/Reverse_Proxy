@@ -72,6 +72,10 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="防火墙">
+          <el-switch v-model="siteDialog.form.autoFw" />
+          <span class="form-tip">仅 OpenWrt 生效：自动在防火墙放行 WAN 侧该端口</span>
+        </el-form-item>
       </el-form>
 
       <div class="rules-header">
@@ -288,7 +292,7 @@ const siteDialog = reactive({
   visible: false,
   isEdit: false,
   saving: false,
-  form: { id: '', name: '', listen: '', tls: false, certId: '', enabled: true },
+  form: { id: '', name: '', listen: '', tls: false, certId: '', autoFw: false, enabled: true },
   rules: []
 })
 
@@ -300,8 +304,8 @@ const siteRules = {
 function openSiteDialog(row) {
   siteDialog.isEdit = !!row
   siteDialog.form = row
-    ? { id: row.id, name: row.name, listen: row.listen, tls: row.tls, certId: row.certId || '', enabled: row.enabled }
-    : { id: '', name: '', listen: '', tls: false, certId: '', enabled: true }
+    ? { id: row.id, name: row.name, listen: row.listen, tls: row.tls, certId: row.certId || '', autoFw: !!row.autoFw, enabled: row.enabled }
+    : { id: '', name: '', listen: '', tls: false, certId: '', autoFw: false, enabled: true }
   siteDialog.rules = row ? JSON.parse(JSON.stringify(row.rules || [])) : []
   siteDialog.visible = true
 }
@@ -322,6 +326,7 @@ async function saveSite() {
     listen: f.listen,
     tls: f.tls,
     certId: f.tls ? f.certId : '',
+    autoFw: f.autoFw,
     rules: siteDialog.rules
   }
   siteDialog.saving = true

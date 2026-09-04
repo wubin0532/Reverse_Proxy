@@ -2,8 +2,10 @@ package ddns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -14,29 +16,48 @@ import (
 
 // GetIP 按任务配置获取当前公网 IP。
 func GetIP(ctx context.Context, task config.DDNSTask) (string, error) {
+	ip, _, err := GetIPDetail(ctx, task)
+	return ip, err
+}
+
+// GetIPDetail 同 GetIP，额外返回实际使用的网卡名（自动识别时为识别结果）。
+func GetIPDetail(ctx context.Context, task config.DDNSTask) (ip, ifaceName string, err error) {
 	switch task.IPSource {
 	case "interface":
-		if task.Interface == "" {
-			return "", fmt.Errorf("任务 %s 未配置网卡名", task.Name)
+		ifaceName = task.Interface
+		if ifaceName == "" || ifaceName == "auto" {
+			resolved, rerr := resolveWANInterface(task.IPType == "ipv6")
+			if rerr != nil {
+				if task.Name != "" {
+					return "", "", fmt.Errorf("任务 %s: %w", task.Name, rerr)
+				}
+				return "", "", rerr
+			}
+			ifaceName = resolved
 		}
-		iface, err := net.InterfaceByName(task.Interface)
+		iface, err := net.InterfaceByName(ifaceName)
 		if err != nil {
-			return "", fmt.Errorf("网卡 %s 不存在: %w", task.Interface, err)
+			return "", "", fmt.Errorf("网卡 %s 不存在: %w", ifaceName, err)
 		}
 		addrs, err := iface.Addrs()
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		return pickFromAddrs(addrs, task.IPType == "ipv6")
+		ip, err = pickFromAddrs(addrs, task.IPType == "ipv6")
+		if err != nil {
+			return "", "", err
+		}
+		return ip, ifaceName, nil
 	case "api":
 		if task.APIURL == "" {
-			return "", fmt.Errorf("任务 %s 未配置 IP 查询地址", task.Name)
+			return "", "", fmt.Errorf("任务 %s 未配置 IP 查询地址", task.Name)
 		}
-		return fetchIPFromAPI(ctx, task.APIURL, task.IPType == "ipv6")
+		ip, err := fetchIPFromAPI(ctx, task.APIURL, task.IPType == "ipv6")
+		return ip, "", err
 	case "webhook":
-		return "", errNotImplemented
+		return "", "", errNotImplemented
 	default:
-		return "", fmt.Errorf("未知的 IP 来源: %s", task.IPSource)
+		return "", "", fmt.Errorf("未知的 IP 来源: %s", task.IPSource)
 	}
 }
 
@@ -79,15 +100,65 @@ func isULA(ip net.IP) bool {
 	return b != nil && ip.To4() == nil && b[0]&0xfe == 0xfc
 }
 
+// publicDNSServers 本地 DNS 被代理软件劫持（fake-ip/NXDOMAIN）时使用的公共递归 DNS。
+var publicDNSServers = []string{"223.5.5.5", "119.29.29.29", "1.1.1.1"}
+
+// publicDNSClient 绕过系统解析器的 HTTP 客户端，域名直接经公共递归 DNS 解析。
+var publicDNSClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			if net.ParseIP(host) != nil {
+				return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+			}
+			var lastErr error
+			for _, srv := range publicDNSServers {
+				resolver := &net.Resolver{
+					PreferGo: true,
+					Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+						return (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "udp", srv+":53")
+					},
+				}
+				ips, err := resolver.LookupIP(ctx, "ip", host)
+				if err != nil || len(ips) == 0 {
+					lastErr = err
+					continue
+				}
+				d := &net.Dialer{Timeout: 10 * time.Second}
+				return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
+			}
+			return nil, fmt.Errorf("公共 DNS 解析 %s 失败: %v", host, lastErr)
+		},
+	},
+}
+
 // fetchIPFromAPI 通过 HTTP 接口获取纯文本 IP。
+// 本地 DNS 解析失败（如被代理软件劫持为 fake-ip/NXDOMAIN）时，自动改用公共 DNS 重试。
 func fetchIPFromAPI(ctx context.Context, rawURL string, wantV6 bool) (string, error) {
+	body, err := httpGetText(ctx, http.DefaultClient, rawURL)
+	if err != nil && isDNSNotFound(err) {
+		log.Printf("[DDNS] 本地 DNS 解析失败，改用公共 DNS 重试 %s", rawURL)
+		body, err = httpGetText(ctx, publicDNSClient, rawURL)
+	}
+	if err != nil {
+		return "", err
+	}
+	return validateIP(strings.TrimSpace(string(body)), wantV6)
+}
+
+// httpGetText 发起 GET 请求并返回文本内容。
+func httpGetText(ctx context.Context, client *http.Client, rawURL string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return "", err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -95,11 +166,20 @@ func fetchIPFromAPI(ctx context.Context, rawURL string, wantV6 bool) (string, er
 	if resp.StatusCode/100 != 2 {
 		return "", fmt.Errorf("IP 查询接口返回 %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if err != nil {
 		return "", err
 	}
-	return validateIP(strings.TrimSpace(string(body)), wantV6)
+	return strings.TrimSpace(string(data)), nil
+}
+
+// isDNSNotFound 判断错误是否为 DNS 解析失败。
+func isDNSNotFound(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return dnsErr.IsNotFound || dnsErr.IsTimeout
+	}
+	return strings.Contains(err.Error(), "no such host")
 }
 
 // validateIP 校验字符串是合法 IP 且类型匹配。

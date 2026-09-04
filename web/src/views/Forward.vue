@@ -62,6 +62,10 @@
             placeholder="英文逗号分隔，如 192.168.1.10:3389, 192.168.1.11:3389"
           />
         </el-form-item>
+        <el-form-item label="防火墙">
+          <el-switch v-model="dialog.form.autoFw" />
+          <span class="form-tip">仅 OpenWrt 生效：自动在防火墙放行 WAN 侧该端口</span>
+        </el-form-item>
         <el-form-item label="IP 访问控制">
           <el-select v-model="dialog.form.ipListMode" style="width: 100%">
             <el-option value="" label="不限制" />
@@ -115,7 +119,7 @@ const dialog = reactive({
   isEdit: false,
   saving: false,
   ipListText: '',
-  form: { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', ipListMode: '', enabled: true }
+  form: { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', autoFw: false, ipListMode: '', enabled: true }
 })
 
 const formRules = {
@@ -133,10 +137,11 @@ function openDialog(row) {
         proto: row.proto || 'tcp',
         listen: row.listen,
         targetsText: (row.targets || []).join(', '),
+        autoFw: !!row.autoFw,
         ipListMode: row.ipListMode || '',
         enabled: row.enabled
       }
-    : { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', ipListMode: '', enabled: true }
+    : { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', autoFw: false, ipListMode: '', enabled: true }
   dialog.ipListText = row ? (row.ipList || []).join(', ') : ''
   dialog.visible = true
 }
@@ -154,6 +159,7 @@ async function save() {
     proto: f.proto,
     listen: f.listen,
     targets: splitList(f.targetsText),
+    autoFw: f.autoFw,
     ipListMode: f.ipListMode,
     ipList: f.ipListMode ? splitList(dialog.ipListText) : []
   }
@@ -231,6 +237,11 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.form-tip {
+  margin-left: 10px;
+  color: #999;
+  font-size: 12px;
 }
 .log-toolbar {
   margin-bottom: 10px;

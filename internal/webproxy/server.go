@@ -11,10 +11,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
 )
 
@@ -26,6 +29,10 @@ type CertGetter func(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
 type Service struct {
 	cfg        *config.Config
 	certGetter CertGetter
+
+	// FW 可选的防火墙自动放行管理器（main 注入，nil 时跳过）。
+	// Start/Reload 后会按 Enabled && AutoFW 的站点上报期望放行集合。
+	FW *firewall.Manager
 
 	mu    sync.Mutex
 	sites map[string]*siteServer
@@ -86,6 +93,7 @@ func (s *Service) Start() {
 		}
 		s.startLocked(site)
 	}
+	s.syncFirewall()
 }
 
 // Stop 优雅关闭所有站点（每个最多等 5 秒）。
@@ -99,6 +107,10 @@ func (s *Service) Stop() {
 	s.mu.Unlock()
 	for _, ss := range all {
 		stopSite(ss)
+	}
+	// 服务整体停止：清空 web 来源的自动放行规则
+	if s.FW != nil {
+		s.FW.SetDesiredFrom(firewall.SourceWeb, nil)
 	}
 }
 
@@ -155,6 +167,40 @@ func (s *Service) Reload() {
 	for _, ss := range toStop {
 		stopSite(ss)
 	}
+	s.syncFirewall()
+}
+
+// syncFirewall 按当前配置向防火墙管理器上报 web 来源的期望放行集合：
+// Enabled && AutoFW 的站点，从 Listen（如 ":8080"）解析端口，协议恒为 tcp。
+// 解析失败或非 OpenWrt 环境仅记日志，不影响主流程。
+func (s *Service) syncFirewall() {
+	if s.FW == nil {
+		return
+	}
+	s.cfg.RLock()
+	var rules []firewall.Rule
+	for _, site := range s.cfg.Sites {
+		if !site.Enabled || !site.AutoFW {
+			continue
+		}
+		port, err := listenPort(site.Listen)
+		if err != nil {
+			log.Printf("[webproxy] 站点 %s 监听地址 %q 端口解析失败，跳过自动放行: %v", site.Name, site.Listen, err)
+			continue
+		}
+		rules = append(rules, firewall.Rule{Key: site.ID, Port: port, Proto: "tcp"})
+	}
+	s.cfg.RUnlock()
+	s.FW.SetDesiredFrom(firewall.SourceWeb, rules)
+}
+
+// listenPort 从监听地址（":8080"、"127.0.0.1:8080" 或裸 "8080"）解析端口号。
+func listenPort(listen string) (int, error) {
+	_, p, err := net.SplitHostPort(listen)
+	if err != nil {
+		p = strings.TrimPrefix(listen, ":")
+	}
+	return strconv.Atoi(p)
 }
 
 // startLocked 启动单个站点监听器，失败时错误记录在 siteServer 上。
