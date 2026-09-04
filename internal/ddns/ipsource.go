@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // GetIP 按任务配置获取当前公网 IP。

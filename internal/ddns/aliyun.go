@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 const aliyunDefaultEndpoint = "https://alidns.aliyuncs.com"

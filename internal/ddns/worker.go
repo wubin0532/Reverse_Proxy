@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // TaskStatus 任务最近一次运行状态。

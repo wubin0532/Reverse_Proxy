@@ -14,19 +14,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"luckyx/internal/acme"
-	"luckyx/internal/adminweb"
-	"luckyx/internal/api"
-	"luckyx/internal/config"
-	"luckyx/internal/ddns"
-	"luckyx/internal/forward"
-	"luckyx/internal/webproxy"
+	"andey-proxy/internal/acme"
+	"andey-proxy/internal/adminweb"
+	"andey-proxy/internal/api"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/ddns"
+	"andey-proxy/internal/forward"
+	"andey-proxy/internal/webproxy"
 )
 
 var version = "dev"
 
 func main() {
-	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./luckyxconf）")
+	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
 	port := flag.Int("p", 16601, "后台管理端口")
 	showVersion := flag.Bool("v", false, "显示版本号")
 	flag.Parse()
@@ -42,7 +42,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("获取工作目录失败: %v", err)
 		}
-		dir = filepath.Join(wd, "luckyxconf")
+		dir = filepath.Join(wd, "andey-proxy-conf")
 	}
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -81,7 +81,7 @@ func main() {
 	httpSrv := &http.Server{Addr: addr, Handler: mux}
 
 	go func() {
-		log.Printf("luckyx %s 启动，配置目录: %s", version, abs)
+		log.Printf("andey-proxy %s 启动，配置目录: %s", version, abs)
 		log.Printf("后台管理地址: http://<设备IP>%s （默认账号 666 / 密码 666）", addr)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("后台服务启动失败: %v", err)

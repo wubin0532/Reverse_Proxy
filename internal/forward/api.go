@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"luckyx/internal/api"
-	"luckyx/internal/config"
+	"andey-proxy/internal/api"
+	"andey-proxy/internal/config"
 )
 
 // RegisterRoutes 在已认证的 chi 分组上注册端口转发 CRUD 路由。

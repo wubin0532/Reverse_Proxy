@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"luckyx/internal/config"
-	"luckyx/internal/forward"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/forward"
 )
 
 // CertGetter 由外部（ACME 模块）注入的 SNI 证书回调。

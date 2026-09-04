@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"luckyx/internal/config"
-	"luckyx/internal/guard"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/guard"
 )
 
 func TestAllowIP(t *testing.T) {

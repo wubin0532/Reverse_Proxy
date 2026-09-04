@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"luckyx/internal/config"
-	"luckyx/internal/forward"
-	"luckyx/internal/guard"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/forward"
+	"andey-proxy/internal/guard"
 )
 
 // checkRuleGuard 子规则安全组件，依次检查：IP 名单 → UA 名单 → BasicAuth。
@@ -30,7 +30,7 @@ func checkRuleGuard(w http.ResponseWriter, r *http.Request, rule *config.SubRule
 			subtle.ConstantTimeCompare([]byte(u), []byte(rule.AuthUser)) != 1 ||
 			subtle.ConstantTimeCompare([]byte(p), []byte(rule.AuthPass)) != 1 {
 			logs.Add(fmt.Sprintf("%s 规则[%s] BasicAuth 校验失败", ip, rule.Name))
-			w.Header().Set("WWW-Authenticate", `Basic realm="luckyx"`)
+			w.Header().Set("WWW-Authenticate", `Basic realm="andey-proxy"`)
 			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
 			return false
 		}

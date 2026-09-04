@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"luckyx/internal/config"
-	"luckyx/internal/forward"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/forward"
 )
 
 // --- 测试辅助 ---
@@ -266,7 +266,7 @@ func TestSiteDispatchAndNotFound(t *testing.T) {
 // TestFileServer 文件服务：正常读取 + 目录穿越被拒。
 func TestFileServer(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir+"/hello.txt", "hello-luckyx")
+	writeFile(t, dir+"/hello.txt", "hello-andey-proxy")
 
 	cfg, svc := newTestService(t)
 	addSite(cfg, config.Site{
@@ -279,7 +279,7 @@ func TestFileServer(t *testing.T) {
 	addr := svc.ListenAddr("s1")
 
 	code, _, body := mustGet(t, httpClient(), "http://"+addr+"/files/hello.txt", nil)
-	if code != http.StatusOK || body != "hello-luckyx" {
+	if code != http.StatusOK || body != "hello-andey-proxy" {
 		t.Fatalf("文件服务失败: code=%d body=%q", code, body)
 	}
 

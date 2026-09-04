@@ -10,7 +10,7 @@ mkdir -p $OUT
 
 build() {
   local goos=$1 goarch=$2 suffix=$3 gomips=$4
-  local name="luckyx_${VERSION}_${goos}_${suffix}"
+  local name="andey-proxy_${VERSION}_${goos}_${suffix}"
   echo "==> $name"
   env GOOS=$goos GOARCH=$goarch GOARM=${GOARM:-} GOMIPS=${gomips} CGO_ENABLED=0 \
     go build -tags "adminweb" -ldflags "$LDFLAGS" -o "$OUT/$name" .

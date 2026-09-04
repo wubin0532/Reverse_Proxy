@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // genSelfSigned 生成一张自签证书并写入指定路径，返回证书 PEM。

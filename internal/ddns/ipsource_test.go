@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 func TestSplitDomain(t *testing.T) {

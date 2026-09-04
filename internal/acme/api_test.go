@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"luckyx/internal/api"
-	"luckyx/internal/config"
+	"andey-proxy/internal/api"
+	"andey-proxy/internal/config"
 )
 
 // newTestRouter 构造带临时配置目录的测试路由。

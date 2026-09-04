@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"sync/atomic"
 
-	"luckyx/internal/config"
-	"luckyx/internal/forward"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/forward"
 )
 
 // reverseHandler 反向代理处理器：多后端简单轮询。

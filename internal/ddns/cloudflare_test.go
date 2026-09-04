@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 func TestCloudflareUpsert(t *testing.T) {

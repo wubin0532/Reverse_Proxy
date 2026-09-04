@@ -3,7 +3,7 @@ package webproxy
 import (
 	"net/http"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // fileServerHandler 静态文件服务：http.FileServer + http.Dir。

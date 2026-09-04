@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout">
     <el-aside width="220px" class="sidebar">
-      <div class="logo">luckyx</div>
+      <div class="logo">andey-proxy</div>
       <el-menu
         :default-active="activeMenu"
         background-color="#001529"

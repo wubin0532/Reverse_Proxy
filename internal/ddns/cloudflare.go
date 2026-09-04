@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 const cloudflareDefaultEndpoint = "https://api.cloudflare.com/client/v4"

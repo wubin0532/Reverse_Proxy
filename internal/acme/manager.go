@@ -26,7 +26,7 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns/dnspod"
 	"github.com/go-acme/lego/v4/registration"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // defaultRenewDays RenewDays 未配置时的默认续签提前天数。

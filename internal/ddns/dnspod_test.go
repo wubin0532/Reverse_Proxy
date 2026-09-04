@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 func TestDnspodUpsert(t *testing.T) {

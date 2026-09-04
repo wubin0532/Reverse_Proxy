@@ -32,19 +32,19 @@ make_ipk() {
   local suffix=$1 opkgarch=$2
   local root="$WORK/ipk_$suffix"
   mkdir -p "$root/data/usr/bin" "$root/data/etc/init.d" "$root/data/etc/config" \
-           "$root/data/etc/andeyproxy" "$root/control"
+           "$root/data/etc/andey-proxy" "$root/control"
 
-  cp "$WORK/bin_$suffix" "$root/data/usr/bin/andeyproxy"
-  chmod 755 "$root/data/usr/bin/andeyproxy"
-  cp package/openwrt/files/andeyproxy.init "$root/data/etc/init.d/andeyproxy"
-  chmod 755 "$root/data/etc/init.d/andeyproxy"
-  cp package/openwrt/files/andeyproxy.config "$root/data/etc/config/andeyproxy"
-  chmod 644 "$root/data/etc/config/andeyproxy"
+  cp "$WORK/bin_$suffix" "$root/data/usr/bin/andey-proxy"
+  chmod 755 "$root/data/usr/bin/andey-proxy"
+  cp package/openwrt/files/andey-proxy.init "$root/data/etc/init.d/andey-proxy"
+  chmod 755 "$root/data/etc/init.d/andey-proxy"
+  cp package/openwrt/files/andey-proxy.config "$root/data/etc/config/andey-proxy"
+  chmod 644 "$root/data/etc/config/andey-proxy"
 
   local size
   size=$(du -sk "$root/data" | cut -f1)
   cat > "$root/control/control" <<EOF
-Package: andeyproxy
+Package: andey-proxy
 Version: $VERSION-$PKG_RELEASE
 Depends: ca-bundle
 Section: net
@@ -58,24 +58,24 @@ EOF
   cat > "$root/control/postinst" <<'EOF'
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
-/etc/init.d/andeyproxy enable
+/etc/init.d/andey-proxy enable
 echo "andey-Proxy 已安装，后台: http://<路由IP>:16601  默认账号密码 666/666"
-echo "启动: /etc/init.d/andeyproxy start"
+echo "启动: /etc/init.d/andey-proxy start"
 exit 0
 EOF
   cat > "$root/control/prerm" <<'EOF'
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
-/etc/init.d/andeyproxy stop 2>/dev/null
-/etc/init.d/andeyproxy disable 2>/dev/null
+/etc/init.d/andey-proxy stop 2>/dev/null
+/etc/init.d/andey-proxy disable 2>/dev/null
 exit 0
 EOF
   cat > "$root/control/postrm" <<'EOF'
 #!/bin/sh
 # 卸载后清理：运行数据（config.json/证书/缓存）与 opkg 留下的 conffile 备份
 [ -n "${IPKG_INSTROOT}" ] && exit 0
-rm -rf /etc/andeyproxy
-rm -f /etc/config/andeyproxy-opkg
+rm -rf /etc/andey-proxy
+rm -f /etc/config/andey-proxy-opkg
 exit 0
 EOF
   chmod 755 "$root/control/postinst" "$root/control/prerm" "$root/control/postrm"
@@ -84,22 +84,22 @@ EOF
   (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
   (cd "$root/control" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/control.tar.gz" .)
   echo "2.0" > "$root/debian-binary"
-  (cd "$root" && COPYFILE_DISABLE=1 tar $taropt -czf "$OUT/andeyproxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz)
-  echo "==> IPK: andeyproxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
+  (cd "$root" && COPYFILE_DISABLE=1 tar $taropt -czf "$OUT/andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz)
+  echo "==> IPK: andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
 }
 
 make_run() {
   local suffix=$1
   local root="$WORK/run_$suffix"
   mkdir -p "$root/payload"
-  cp "$WORK/bin_$suffix" "$root/payload/andeyproxy"
-  cp package/openwrt/files/andeyproxy.init "$root/payload/andeyproxy.init"
+  cp "$WORK/bin_$suffix" "$root/payload/andey-proxy"
+  cp package/openwrt/files/andey-proxy.init "$root/payload/andey-proxy.init"
 
-  cat > "$root/payload/andeyproxy-uninstall" <<'UNEOF'
+  cat > "$root/payload/andey-proxy-uninstall" <<'UNEOF'
 #!/bin/sh
 # andey-Proxy 卸载程序：停止并删除服务、二进制、配置文件与全部运行数据（证书/缓存）
 set -e
-BIN_NAME=andeyproxy
+BIN_NAME=andey-proxy
 
 if [ "$(id -u)" != "0" ]; then
   echo "请使用 root 运行: sudo $0"; exit 1
@@ -122,16 +122,16 @@ fi
 
 # 删除二进制、配置文件、运行数据（config.json、ACME 证书、日志缓存）
 rm -f /usr/bin/$BIN_NAME
-rm -rf /etc/andeyproxy
-rm -f /etc/config/andeyproxy
+rm -rf /etc/andey-proxy
+rm -f /etc/config/andey-proxy
 
 echo "andey-Proxy 已完全卸载（配置与缓存已清空）"
 
 # 自删除（延迟执行，避免 shell 正在读取脚本）
-(sleep 1; rm -f /usr/bin/andeyproxy-uninstall) &
+(sleep 1; rm -f /usr/bin/andey-proxy-uninstall) &
 exit 0
 UNEOF
-  chmod 755 "$root/payload/andeyproxy-uninstall"
+  chmod 755 "$root/payload/andey-proxy-uninstall"
 
   cat > "$root/install.sh" <<'INSTEOF'
 #!/bin/sh
@@ -139,9 +139,9 @@ UNEOF
 set -e
 
 VERSION="__VERSION__"
-BIN_NAME=andeyproxy
+BIN_NAME=andey-proxy
 INSTALL_DIR=/usr/bin
-CONF_DIR=/etc/andeyproxy
+CONF_DIR=/etc/andey-proxy
 
 if [ "$(id -u)" != "0" ]; then
   echo "请使用 root 运行: sudo sh $0"; exit 1
@@ -154,12 +154,12 @@ LINE=$(awk '/^__PAYLOAD_BELOW__$/ {print NR + 1; exit 0}' "$0")
 tail -n +"$LINE" "$0" | tar xz -C "$TMP"
 
 echo "安装 andey-Proxy $VERSION ..."
-install -m 755 "$TMP/andeyproxy" "$INSTALL_DIR/$BIN_NAME"
-install -m 755 "$TMP/andeyproxy-uninstall" "$INSTALL_DIR/andeyproxy-uninstall"
+install -m 755 "$TMP/andey-proxy" "$INSTALL_DIR/$BIN_NAME"
+install -m 755 "$TMP/andey-proxy-uninstall" "$INSTALL_DIR/andey-proxy-uninstall"
 mkdir -p "$CONF_DIR"
 
 if [ -d /etc/init.d ]; then
-  install -m 755 "$TMP/andeyproxy.init" /etc/init.d/$BIN_NAME
+  install -m 755 "$TMP/andey-proxy.init" /etc/init.d/$BIN_NAME
   /etc/init.d/$BIN_NAME enable 2>/dev/null || true
   /etc/init.d/$BIN_NAME start 2>/dev/null || true
 elif command -v systemctl >/dev/null 2>&1; then
@@ -184,7 +184,7 @@ fi
 
 echo ""
 echo "安装完成！后台管理: http://<本机IP>:16601  默认账号密码 666/666（首次登录请修改）"
-echo "卸载: sudo andeyproxy-uninstall"
+echo "卸载: sudo andey-proxy-uninstall"
 exit 0
 __PAYLOAD_BELOW__
 INSTEOF

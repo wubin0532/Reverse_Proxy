@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <el-card class="login-card">
-      <div class="login-title">luckyx 管理后台</div>
+      <div class="login-title">andey-proxy 管理后台</div>
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="onSubmit">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="账号" :prefix-icon="User" />

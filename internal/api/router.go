@@ -5,11 +5,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"luckyx/internal/auth"
-	"luckyx/internal/config"
+	"andey-proxy/internal/auth"
+	"andey-proxy/internal/config"
 )
 
-const TokenCookie = "luckyx_token"
+const TokenCookie = "andey-proxy_token"
 
 // Server 管理后台 API 服务。
 type Server struct {

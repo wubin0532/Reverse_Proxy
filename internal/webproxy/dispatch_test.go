@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 func TestMatchRuleHostFilter(t *testing.T) {

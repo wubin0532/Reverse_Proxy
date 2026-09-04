@@ -25,12 +25,12 @@ func generateSelfSigned() (*tls.Certificate, error) {
 	}
 	tpl := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "luckyx", Organization: []string{"luckyx"}},
+		Subject:      pkix.Name{CommonName: "andey-proxy", Organization: []string{"andey-proxy"}},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{"localhost", "luckyx.local", "*.localhost"},
+		DNSNames:     []string{"localhost", "andey-proxy.local", "*.localhost"},
 		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)

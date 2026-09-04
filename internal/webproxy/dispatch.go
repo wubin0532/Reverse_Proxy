@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // siteHandler 站点入口：规则匹配 → 安全检查 → 按类型分发，并记录访问日志。
@@ -159,6 +159,6 @@ func writeNotFound(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>404</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:60px 20px">
-<h1>404</h1><p>没有匹配该请求的子规则</p><hr style="width:240px"><p>luckyx</p>
+<h1>404</h1><p>没有匹配该请求的子规则</p><hr style="width:240px"><p>andey-proxy</p>
 </body></html>`)
 }

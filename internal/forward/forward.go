@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"luckyx/internal/config"
-	"luckyx/internal/guard"
+	"andey-proxy/internal/config"
+	"andey-proxy/internal/guard"
 )
 
 // Service 端口转发服务，管理所有规则的监听器。

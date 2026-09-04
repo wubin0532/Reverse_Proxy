@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"luckyx/internal/api"
-	"luckyx/internal/config"
+	"andey-proxy/internal/api"
+	"andey-proxy/internal/config"
 )
 
 // apiHandler 站点管理 API。

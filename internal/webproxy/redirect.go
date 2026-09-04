@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // redirectHandler 按规则返回重定向。

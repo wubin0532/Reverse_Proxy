@@ -46,8 +46,8 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME:-dev}
           go build -tags adminweb -ldflags "-s -w -X main.version=$VERSION" \
-            -o luckyx_${VERSION}_linux_${{ matrix.suffix }} .
+            -o andey-proxy_${VERSION}_linux_${{ matrix.suffix }} .
       - uses: actions/upload-artifact@v4
         with:
-          name: luckyx_linux_${{ matrix.suffix }}
-          path: luckyx_*_linux_*
+          name: andey-proxy_linux_${{ matrix.suffix }}
+          path: andey-proxy_*_linux_*

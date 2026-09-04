@@ -3,7 +3,7 @@ package ddns
 import (
 	"fmt"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // NewProvider 按 Type 创建 DNS 服务商实例。

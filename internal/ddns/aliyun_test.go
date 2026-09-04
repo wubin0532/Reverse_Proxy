@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"luckyx/internal/config"
+	"andey-proxy/internal/config"
 )
 
 // verifyAliyunSignature 用同样的算法在服务端重算签名并比对。
