@@ -13,7 +13,7 @@ rm -rf "$OUT" && mkdir -p "$WORK"
 # goarch 后缀|GOARCH|opkg 架构|GOARM|GOMIPS
 TARGETS=(
   "x86_64|amd64|x86_64||"
-  "arm64|arm64|aarch64_generic||"
+  "arm64|arm64|aarch64_cortex-a53||"
   "armv7|arm|arm_cortex-a7_vfpv4|7|"
   "mips|mips|mips_24kc||softfloat"
   "mipsle|mipsle|mipsel_24kc||softfloat"
@@ -80,7 +80,7 @@ exit 0
 EOF
   chmod 755 "$root/control/postinst" "$root/control/prerm" "$root/control/postrm"
 
-  local taropt="--uid=0 --gid=0 --numeric-owner"
+  local taropt="--format=ustar --uid=0 --gid=0 --numeric-owner"
   (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
   (cd "$root/control" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/control.tar.gz" .)
   echo "2.0" > "$root/debian-binary"
@@ -126,7 +126,7 @@ exit 0
 EOF
   chmod 755 "$root/control/postinst" "$root/control/postrm"
 
-  local taropt="--uid=0 --gid=0 --numeric-owner"
+  local taropt="--format=ustar --uid=0 --gid=0 --numeric-owner"
   (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
   (cd "$root/control" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/control.tar.gz" .)
   echo "2.0" > "$root/debian-binary"
@@ -237,7 +237,7 @@ INSTEOF
   sed -i '' "s/__VERSION__/$VERSION/" "$root/install.sh"
 
   local out="$OUT/andey-proxy_${VERSION}_linux_${suffix}.run"
-  (cd "$root/payload" && COPYFILE_DISABLE=1 tar czf "$root/payload.tar.gz" .)
+  (cd "$root/payload" && COPYFILE_DISABLE=1 tar --format=ustar -czf "$root/payload.tar.gz" .)
   cat "$root/install.sh" "$root/payload.tar.gz" > "$out"
   chmod +x "$out"
   echo "==> RUN: $(basename "$out")"
