@@ -33,9 +33,9 @@
 ### 运行
 
 ```bash
-./luckyx              # 默认后台端口 16601,配置目录 ./luckyxconf
-./luckyx -p 8080      # 指定后台端口
-./luckyx -cd /etc/luckyx  # 指定配置目录
+./reverse-proxy              # 默认后台端口 16601,配置目录 ./reverse-proxy-conf
+./reverse-proxy -p 8080      # 指定后台端口
+./reverse-proxy -cd /etc/reverse-proxy  # 指定配置目录
 ```
 
 启动后访问 `http://<设备IP>:16601`,**默认账号 `666` / 密码 `666`**(请登录后立即修改)。
@@ -45,7 +45,7 @@
 需要 Go 1.22+ 和 Node.js:
 
 ```bash
-make build          # 构建前端 + 本机二进制(输出 luckyx)
+make build          # 构建前端 + 本机二进制(输出 reverse-proxy)
 ./scripts/build-all.sh  # 交叉编译全部架构(输出 dist/)
 ```
 
@@ -53,7 +53,7 @@ make build          # 构建前端 + 本机二进制(输出 luckyx)
 
 ### OpenWrt 安装
 
-`package/openwrt/` 提供了 OpenWrt 包定义,可用 OpenWrt SDK 编译为 ipk,详见该目录下 Makefile 头部注释。默认配置目录 `/etc/luckyx`。
+`package/openwrt/` 提供了 OpenWrt 包定义,可用 OpenWrt SDK 编译为 ipk,详见该目录下 Makefile 头部注释。默认配置目录 `/etc/reverse-proxy`。
 
 ## 目录结构
 
@@ -76,7 +76,7 @@ make build          # 构建前端 + 本机二进制(输出 luckyx)
 
 ## 配置
 
-所有配置保存在配置目录(默认 `./luckyxconf`)下的 JSON 文件中,通过 Web 后台管理,修改后即时生效,无需重启。DNS 服务商凭据在 DDNS 与 ACME 模块间共用。
+所有配置保存在配置目录(默认 `./reverse-proxy-conf`)下的 JSON 文件中,通过 Web 后台管理,修改后即时生效,无需重启。DNS 服务商凭据在 DDNS 与 ACME 模块间共用。
 
 ## CI
 
