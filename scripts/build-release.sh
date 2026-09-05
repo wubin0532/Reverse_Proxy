@@ -2,9 +2,19 @@
 # andey-Proxy 发布包构建：交叉编译 + 生成 .ipk 与 .run（免 OpenWrt SDK）
 set -e
 cd "$(dirname "$0")/.."
-export PATH="/opt/homebrew/bin:$PATH"
 
-VERSION=${VERSION:-0.2.0}
+# 版本默认取 git tag（与 build-all.sh 一致），发版前记得打 tag 或用 VERSION= 显式指定
+VERSION=${VERSION:-$(git describe --tags --always 2>/dev/null | sed 's/^v//' || true)}
+VERSION=${VERSION:-dev}
+
+# go:embed 依赖 internal/adminweb/dist；发版前确保前端已重建
+if [ ! -f internal/adminweb/dist/index.html ]; then
+  echo "错误：internal/adminweb/dist 缺失，请先执行 make web 构建前端" >&2
+  exit 1
+fi
+if [ -n "$(find web/src -type f -newer internal/adminweb/dist/index.html -print -quit 2>/dev/null)" ]; then
+  echo "警告：web/src 比 internal/adminweb/dist 新，建议先执行 make web 重建前端" >&2
+fi
 PKG_RELEASE=1
 SIGNING_KEY=${RELEASE_SIGNING_KEY:-}
 NODE_BIN=${NODE_BIN:-node}

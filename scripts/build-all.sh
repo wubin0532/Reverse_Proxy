@@ -3,6 +3,15 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# go:embed 依赖 internal/adminweb/dist；前端源码有更新但未重建时提示，避免打出旧界面
+if [ ! -f internal/adminweb/dist/index.html ]; then
+  echo "错误：internal/adminweb/dist 缺失，请先执行 make web 构建前端" >&2
+  exit 1
+fi
+if [ -n "$(find web/src -type f -newer internal/adminweb/dist/index.html -print -quit 2>/dev/null)" ]; then
+  echo "警告：web/src 比 internal/adminweb/dist 新，建议先执行 make web 重建前端" >&2
+fi
+
 VERSION=${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}
 OUT=dist
 LDFLAGS="-s -w -X main.version=$VERSION"

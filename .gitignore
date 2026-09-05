@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+* 2.*
 
 # Build outputs
 /dist/
