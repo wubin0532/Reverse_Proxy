@@ -12,9 +12,15 @@ import (
 
 // checkRuleGuard 子规则安全组件，依次检查：IP 名单 → UA 名单 → BasicAuth。
 // 任一不过即写入响应、记录日志并返回 false。
-func checkRuleGuard(w http.ResponseWriter, r *http.Request, rule *config.SubRule, logs *forward.RingLog) bool {
+func checkRuleGuard(w http.ResponseWriter, r *http.Request, rule *config.SubRule, logs *forward.RingLog, matchers ...*guard.IPMatcher) bool {
 	ip := clientIP(r)
-	if !guard.AllowIP(rule.IPListMode, rule.IPList, ip) {
+	var matcher *guard.IPMatcher
+	if len(matchers) > 0 {
+		matcher = matchers[0]
+	} else {
+		matcher = guard.CompileIP(rule.IPListMode, rule.IPList)
+	}
+	if !matcher.Allow(ip) {
 		logs.Add(fmt.Sprintf("%s 规则[%s] 被 IP 名单拦截", ip, rule.Name))
 		http.Error(w, "403 Forbidden", http.StatusForbidden)
 		return false
@@ -36,4 +42,21 @@ func checkRuleGuard(w http.ResponseWriter, r *http.Request, rule *config.SubRule
 		}
 	}
 	return true
+}
+
+func (ss *siteServer) ipGuardFor(rule *config.SubRule) *guard.IPMatcher {
+	ss.handlerMu.Lock()
+	defer ss.handlerMu.Unlock()
+	if !ss.currentRuleLocked(rule) {
+		return guard.CompileIP(rule.IPListMode, rule.IPList)
+	}
+	if ss.ipGuards == nil {
+		ss.ipGuards = make(map[string]*guard.IPMatcher)
+	}
+	if matcher := ss.ipGuards[rule.ID]; matcher != nil {
+		return matcher
+	}
+	matcher := guard.CompileIP(rule.IPListMode, rule.IPList)
+	ss.ipGuards[rule.ID] = matcher
+	return matcher
 }

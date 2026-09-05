@@ -33,15 +33,31 @@ func TestRecentRingBuffer(t *testing.T) {
 	}
 }
 
-// TestPublishDropWhenQueueFull 队列满时丢弃新事件并计数（先停止分发 goroutine 以填满队列）。
+// TestPublishDropWhenQueueFull blocks a subscriber before filling the queue,
+// so dispatch scheduling cannot change the expected drop count.
 func TestPublishDropWhenQueueFull(t *testing.T) {
 	b := NewBus()
-	b.Close() // 分发已停止，事件只会堆积在队列里（停止前最多已被取走 1 条）
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	defer func() { b.Close(); close(release) }()
+	b.Subscribe(func(Event) {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+	})
+	b.Publish(Event{Type: TypeTest})
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("subscriber did not start")
+	}
 	for i := 0; i < queueCapacity+10; i++ {
 		b.Publish(Event{Type: TypeSiteListenError, Level: LevelError, Message: "x"})
 	}
-	if d := b.Dropped(); d < 9 || d > 10 {
-		t.Fatalf("应丢弃约 10 条，实际 %d", d)
+	if d := b.Dropped(); d != 10 {
+		t.Fatalf("应丢弃 10 条，实际 %d", d)
 	}
 	// 环形缓冲不受分发队列影响，仍保留最近事件
 	if got := b.Recent(recentCapacity); len(got) != recentCapacity {

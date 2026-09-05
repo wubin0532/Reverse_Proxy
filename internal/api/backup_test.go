@@ -149,3 +149,21 @@ func mustJSON(t *testing.T, v interface{}) string {
 	}
 	return string(b)
 }
+
+func TestBackupRejectsConcurrentOperations(t *testing.T) {
+	s, handler := testServer(t)
+	remote := "192.0.2.12:1000"
+	cookie := loginCookie(t, handler, remote)
+	s.backupMu.Lock()
+	defer s.backupMu.Unlock()
+	for _, suffix := range []string{"export", "import"} {
+		body := `{"password":"current-password","backupPassword":"backup-pass-123"}`
+		if suffix == "import" {
+			body = `{"password":"current-password","backupPassword":"backup-pass-123","backup":"{}"}`
+		}
+		rec := apiRequest(handler, http.MethodPost, "/api/system/backup/"+suffix, body, "https://router.local", remote, cookie)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("%s: status %d body %s", suffix, rec.Code, rec.Body.String())
+		}
+	}
+}

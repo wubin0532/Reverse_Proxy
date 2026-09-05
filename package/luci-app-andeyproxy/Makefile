@@ -8,7 +8,7 @@ LUCI_DEPENDS:=+andey-proxy
 LUCI_PKGARCH:=all
 
 PKG_NAME:=luci-app-andeyproxy
-PKG_VERSION:=0.2.0
+PKG_VERSION:=0.2.2
 PKG_RELEASE:=1
 
 include $(TOPDIR)/feeds/luci/luci.mk

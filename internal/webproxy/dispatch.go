@@ -2,6 +2,7 @@ package webproxy
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -44,6 +45,10 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.ss.addStats(sw.status, bytesIn, sw.bytes)
 	}()
 
+	if ambiguousPath(r.URL.Path) {
+		http.Error(sw, "400 Bad Request", http.StatusBadRequest)
+		return
+	}
 	site := h.ss.siteSnapshot()
 	rule := matchRule(site.Rules, r.Host, r.URL.Path)
 	if rule == nil {
@@ -69,7 +74,7 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !checkRuleGuard(sw, r, rule, h.ss.logs) {
+	if !checkRuleGuard(sw, r, rule, h.ss.logs, h.ss.ipGuardFor(rule)) {
 		return
 	}
 
@@ -81,9 +86,15 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				http.Error(sw, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
 				return
 			}
-			r.Body = http.MaxBytesReader(sw, r.Body, limit)
+			if r.Body != nil && r.Body != http.NoBody {
+				r.Body = http.MaxBytesReader(sw, r.Body, limit)
+			}
 		}
 		rh, err := h.ss.reverseHandlerFor(rule)
+		if errors.Is(err, errRuleUpdated) {
+			http.Error(sw, "503 Service Unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		if err != nil {
 			h.ss.logs.Add(fmt.Sprintf("%s 规则[%s] 反代不可用: %v", clientIP(r), rule.Name, err))
 			http.Error(sw, "502 Bad Gateway", http.StatusBadGateway)
@@ -98,11 +109,16 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // staticHandlerFor 取（或惰性构建并缓存）redirect/fileserver 规则的处理器，
-// 避免每请求重建。缓存随站点重启与 updateSite 热更新一起失效；
+// 避免每请求重建。只有变更的规则在 updateSite 时失效；
 // 两类处理器均无内部状态，无需额外清理。
 func (ss *siteServer) staticHandlerFor(rule *config.SubRule) http.Handler {
 	ss.handlerMu.Lock()
 	defer ss.handlerMu.Unlock()
+	if !ss.currentRuleLocked(rule) {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
+		})
+	}
 	if ss.staticHandler == nil { // 兼容测试直接构造的 siteServer
 		ss.staticHandler = make(map[string]http.Handler)
 	}
@@ -117,6 +133,20 @@ func (ss *siteServer) staticHandlerFor(rule *config.SubRule) http.Handler {
 	}
 	ss.staticHandler[rule.ID] = handler
 	return handler
+}
+
+// Reject paths that backends commonly normalize into a different route. Check
+// decoded Path as well, so percent-encoded dot segments cannot bypass guards.
+func ambiguousPath(path string) bool {
+	if strings.Contains(path, "\\") || strings.Contains(path, "//") {
+		return true
+	}
+	for _, segment := range strings.Split(path, "/") {
+		if segment == "." || segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // matchRule 匹配子规则：仅 Enabled；先按 FrontendHost 过滤（空=任意，

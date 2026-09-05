@@ -5,6 +5,7 @@ package webproxy
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
+	"andey-proxy/internal/guard"
 	"andey-proxy/internal/netutil"
 	"andey-proxy/internal/notify"
 )
@@ -65,6 +67,8 @@ type siteServer struct {
 	err error // 最近一次的监听/运行错误
 
 	handlerMu     sync.Mutex
+	ruleIndex     map[string]*config.SubRule
+	ipGuards      map[string]*guard.IPMatcher
 	revHandler    map[string]http.Handler // reverse 规则处理器缓存（含轮询状态）
 	revErr        map[string]error
 	staticHandler map[string]http.Handler // redirect/fileserver 规则处理器缓存（无内部状态）
@@ -339,21 +343,57 @@ func (ss *siteServer) addStats(status int, bytesIn, bytesOut int64) {
 	}
 }
 
+var errRuleUpdated = errors.New("rule changed during request dispatch")
+
+// Caller holds handlerMu. Live requests normally use the exact current pointer;
+// old snapshots can reuse a handler only when the rule is unchanged.
+func (ss *siteServer) currentRuleLocked(rule *config.SubRule) bool {
+	if ss.ruleIndex == nil {
+		site := ss.siteSnapshot()
+		ss.ruleIndex = make(map[string]*config.SubRule, len(site.Rules))
+		for i := range site.Rules {
+			ss.ruleIndex[site.Rules[i].ID] = &site.Rules[i]
+		}
+	}
+	current := ss.ruleIndex[rule.ID]
+	return current != nil && (current == rule || reflect.DeepEqual(*current, *rule))
+}
+
 func (ss *siteServer) updateSite(site config.Site) {
 	site = cloneSite(site)
+	ss.handlerMu.Lock()
+	previous := ss.siteSnapshot()
+	oldRules := make(map[string]config.SubRule, len(previous.Rules))
+	for _, rule := range previous.Rules {
+		oldRules[rule.ID] = rule
+	}
+	nextRules := make(map[string]*config.SubRule, len(site.Rules))
+	for i := range site.Rules {
+		nextRules[site.Rules[i].ID] = &site.Rules[i]
+	}
+	var retired []*reverseHandler
+	for id, oldRule := range oldRules {
+		next := nextRules[id]
+		if next != nil && reflect.DeepEqual(oldRule, *next) {
+			continue
+		}
+		if h, ok := ss.revHandler[id].(*reverseHandler); ok {
+			retired = append(retired, h)
+		}
+		delete(ss.revHandler, id)
+		delete(ss.revErr, id)
+		delete(ss.staticHandler, id)
+		delete(ss.ipGuards, id)
+	}
+	// Publish the snapshot and its cache index together under handlerMu. A request
+	// holding an older, changed rule is rejected instead of repopulating the cache.
 	ss.siteMu.Lock()
 	ss.site = site
 	ss.siteMu.Unlock()
-	ss.handlerMu.Lock()
-	old := ss.revHandler
-	ss.revHandler = make(map[string]http.Handler)
-	ss.revErr = make(map[string]error)
-	ss.staticHandler = make(map[string]http.Handler)
+	ss.ruleIndex = nextRules
 	ss.handlerMu.Unlock()
-	for _, handler := range old {
-		if reverse, ok := handler.(*reverseHandler); ok {
-			reverse.closeIdleConnections()
-		}
+	for _, h := range retired {
+		h.closeIdleConnections()
 	}
 }
 

@@ -2,16 +2,24 @@ package webproxy
 
 import (
 	"net/http"
+	"os"
 
 	"andey-proxy/internal/config"
 )
 
-// fileServerHandler 静态文件服务：http.FileServer + http.Dir。
-// http.Dir 内部会做路径清理并拒绝越出根目录的请求（防目录穿越）；
-// 目录请求默认展示列表（Go 内置行为）。
-// FrontendPath 非 "/" 时先 strip 前缀再映射到根目录。
+// fileServerHandler confines all file opens, including symlinks, to RootDir.
+// A root handle lives for one request; replacements are resolved on the next
+// request and hot reload does not leave directory descriptors behind.
 func fileServerHandler(rule config.SubRule) http.Handler {
-	fs := http.FileServer(http.Dir(rule.RootDir))
+	fs := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		root, err := os.OpenRoot(rule.RootDir)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer root.Close()
+		http.FileServerFS(root.FS()).ServeHTTP(w, r)
+	})
 	prefix := rule.FrontendPath
 	if prefix == "" || prefix == "/" {
 		return fs

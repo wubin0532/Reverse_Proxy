@@ -27,12 +27,13 @@ type Server struct {
 	secure             bool
 	loginLimiter       *failureLimiter
 	twoFactorMu        sync.Mutex
+	backupMu           sync.Mutex // one backup import/export at a time (scrypt memory)
 	loginChallenges    map[string]*loginChallenge
 	totpSetups         map[string]*totpSetup
 	lastTOTPCounter    uint64
 	hasLastTOTPCounter bool
-	version            string   // 备份文件元信息里的应用版本
-	restoreHook        func()   // 配置导入后的热重载回调（main 装配各服务 Reload）
+	version            string // 备份文件元信息里的应用版本
+	restoreHook        func() // 配置导入后的热重载回调（main 装配各服务 Reload）
 }
 
 func NewServer(cfg *config.Config, secure ...bool) *Server {

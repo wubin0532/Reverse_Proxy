@@ -83,6 +83,9 @@ func (t *healthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // retriedKey 标记连接类错误已重试过一次，避免在多个后端间循环重试。
 type retriedKey struct{}
 
+// originalRequestKey retains the unmodified incoming request for failover.
+type originalRequestKey struct{}
+
 type publicRequestInfo struct {
 	scheme string
 	host   string
@@ -95,6 +98,9 @@ type publicRequestKey struct{}
 func (ss *siteServer) reverseHandlerFor(rule *config.SubRule) (http.Handler, error) {
 	ss.handlerMu.Lock()
 	defer ss.handlerMu.Unlock()
+	if !ss.currentRuleLocked(rule) {
+		return nil, errRuleUpdated
+	}
 	if h, ok := ss.revHandler[rule.ID]; ok {
 		return h, nil
 	}
@@ -133,8 +139,8 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 		proxy.Rewrite = func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			if rule.StripPrefix {
-				stripped := stripFrontendPrefix(pr.In.URL.Path, frontendPrefix)
-				pr.Out.URL.Path, pr.Out.URL.RawPath = joinProxyURLPath(target, &url.URL{Path: stripped})
+				stripped := stripFrontendURL(pr.In.URL, frontendPrefix)
+				pr.Out.URL.Path, pr.Out.URL.RawPath = joinProxyURLPath(target, stripped)
 			}
 			if preserveHost {
 				pr.Out.Host = pr.In.Host
@@ -226,13 +232,15 @@ func (h *reverseHandler) onProxyError(entry *proxyEntry, target *url.URL, ruleID
 		http.Error(w, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
 		return
 	}
-	// 仅无请求体的请求可安全重放（连接失败时请求未送达后端）。
-	replayable := r.ContentLength == 0 && (r.Body == nil || r.Body == http.NoBody)
-	if isBackendConnectError(err) && replayable && r.Context().Value(retriedKey{}) == nil && len(h.proxies) > 1 {
+	// Only safe methods without a body are automatically replayed. EOF can mean
+	// the backend already executed the request, not just a failed dial.
+	original, _ := r.Context().Value(originalRequestKey{}).(*http.Request)
+	replayable := original != nil && (original.Method == http.MethodGet || original.Method == http.MethodHead || original.Method == http.MethodOptions) && original.ContentLength == 0 && (original.Body == nil || original.Body == http.NoBody)
+	if isBackendConnectError(err) && replayable && r.Context().Err() == nil && r.Context().Value(retriedKey{}) == nil && len(h.proxies) > 1 {
 		if alt := h.pick(entry); alt != entry {
 			h.logs.Add(fmt.Sprintf("规则[%s] 后端连接失败，重试其他后端", ruleName))
 			ctx := context.WithValue(r.Context(), retriedKey{}, true)
-			alt.proxy.ServeHTTP(w, r.WithContext(ctx))
+			alt.proxy.ServeHTTP(w, original.Clone(ctx))
 			return
 		}
 	}
@@ -266,7 +274,8 @@ func (h *reverseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	ctx := context.WithValue(r.Context(), publicRequestKey{}, publicRequestInfo{scheme: scheme, host: r.Host})
+	ctx := context.WithValue(r.Context(), originalRequestKey{}, r.Clone(r.Context()))
+	ctx = context.WithValue(ctx, publicRequestKey{}, publicRequestInfo{scheme: scheme, host: r.Host})
 	entry.proxy.ServeHTTP(w, r.WithContext(ctx))
 }
 
@@ -303,19 +312,34 @@ func normalizedFrontendPrefix(prefix string) string {
 	return prefix
 }
 
-func stripFrontendPrefix(path, prefix string) string {
+// stripFrontendURL trims the same decoded prefix from Path and EscapedPath,
+// retaining encoded separators in the remainder (e.g. a%2Fb).
+func stripFrontendURL(u *url.URL, prefix string) *url.URL {
 	prefix = normalizedFrontendPrefix(prefix)
-	if prefix == "/" {
-		return path
+	out := *u
+	if prefix == "/" || !strings.HasPrefix(u.Path, prefix) {
+		return &out
 	}
-	stripped := strings.TrimPrefix(path, prefix)
-	if stripped == "" {
-		return "/"
+	raw := u.EscapedPath()
+	offset := 0
+	for n := 0; n < len(prefix); n++ {
+		if raw[offset] == '%' {
+			offset += 3
+		} else {
+			offset++
+		}
 	}
-	if !strings.HasPrefix(stripped, "/") {
-		return "/" + stripped
+	out.Path = strings.TrimPrefix(u.Path, prefix)
+	out.RawPath = raw[offset:]
+	if strings.HasPrefix(out.Path, "/") && !strings.HasPrefix(out.RawPath, "/") {
+		// The boundary slash is structural even when the client encoded it.
+		out.RawPath = "/" + out.RawPath[3:]
 	}
-	return stripped
+	if !strings.HasPrefix(out.Path, "/") {
+		out.Path = "/" + out.Path
+		out.RawPath = "/" + out.RawPath
+	}
+	return &out
 }
 
 func joinProxyURLPath(a, b *url.URL) (path, rawPath string) {

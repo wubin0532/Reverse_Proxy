@@ -101,20 +101,21 @@ func Decrypt(data []byte, password string) ([]byte, error) {
 	if f.Cipher != "AES-256-GCM" || f.KDF.Algo != "scrypt" {
 		return nil, errors.New("备份文件使用了不支持的加密算法")
 	}
-	// 防御畸形参数导致内存耗尽：N 必须是 2^10..2^20 的 2 的幂。
-	if f.KDF.N < 1<<10 || f.KDF.N > 1<<20 || f.KDF.N&(f.KDF.N-1) != 0 || f.KDF.R < 1 || f.KDF.R > 32 || f.KDF.P < 1 || f.KDF.P > 16 {
+	// Format v1 only emits this fixed KDF. Check before allocating memory or
+	// authenticating the ciphertext: these parameters are untrusted input.
+	if f.KDF.N != scryptN || f.KDF.R != scryptR || f.KDF.P != scryptP {
 		return nil, errors.New("备份文件的 KDF 参数无效")
 	}
 	salt, err := base64.StdEncoding.DecodeString(f.KDF.Salt)
-	if err != nil || len(salt) == 0 {
+	if err != nil || len(salt) != 16 {
 		return nil, errors.New("备份文件的盐值无效")
 	}
 	nonce, err := base64.StdEncoding.DecodeString(f.Nonce)
-	if err != nil {
+	if err != nil || len(nonce) != 12 {
 		return nil, errors.New("备份文件的 nonce 无效")
 	}
 	ciphertext, err := base64.StdEncoding.DecodeString(f.Data)
-	if err != nil {
+	if err != nil || len(ciphertext) < 16 {
 		return nil, errors.New("备份文件的密文无效")
 	}
 	key, err := scrypt.Key([]byte(password), salt, f.KDF.N, f.KDF.R, f.KDF.P, keyLen)

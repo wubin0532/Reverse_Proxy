@@ -26,6 +26,11 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 400, "备份口令至少 8 个字符")
 		return
 	}
+	if !s.backupMu.TryLock() {
+		Fail(w, http.StatusConflict, "已有备份导入或导出正在处理")
+		return
+	}
+	defer s.backupMu.Unlock()
 	if !s.confirmAdminPassword(w, r, body.Password) {
 		return
 	}
@@ -60,10 +65,19 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 400, "请求格式错误")
 		return
 	}
+	if len(body.BackupPassword) > 256 {
+		Fail(w, 400, "备份口令不能超过 256 字节")
+		return
+	}
 	if body.Backup == "" {
 		Fail(w, 400, "备份内容不能为空")
 		return
 	}
+	if !s.backupMu.TryLock() {
+		Fail(w, http.StatusConflict, "已有备份导入或导出正在处理")
+		return
+	}
+	defer s.backupMu.Unlock()
 	if !s.confirmAdminPassword(w, r, body.Password) {
 		return
 	}

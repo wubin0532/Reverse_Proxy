@@ -2,6 +2,7 @@ package backup
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -72,5 +73,39 @@ func TestDecryptRejectsCrazyKDF(t *testing.T) {
 	}
 	if _, err := Decrypt([]byte(crazy), "backup-pass-123"); err == nil {
 		t.Fatal("应拒绝超出上限的 scrypt N")
+	}
+}
+
+func TestDecryptRejectsMalformedEnvelopeBeforeKDF(t *testing.T) {
+	// A valid envelope's ciphertext need not be decrypted to reject these fields.
+	data, err := Encrypt([]byte(`{}`), "backup-pass-123", "", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*file)
+	}{
+		{"4GiB KDF", func(f *file) { f.KDF.N = 1 << 20; f.KDF.R = 32; f.KDF.P = 16 }},
+		{"weak KDF", func(f *file) { f.KDF.N = 1024 }},
+		{"empty nonce", func(f *file) { f.Nonce = "" }},
+		{"short nonce", func(f *file) { f.Nonce = "YQ==" }},
+		{"empty salt", func(f *file) { f.KDF.Salt = "" }},
+		{"missing tag", func(f *file) { f.Data = "YQ==" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var f file
+			if err := json.Unmarshal(data, &f); err != nil {
+				t.Fatal(err)
+			}
+			tc.mutate(&f)
+			blob, err := json.Marshal(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Decrypt(blob, "backup-pass-123"); err == nil {
+				t.Fatal("malformed envelope accepted")
+			}
+		})
 	}
 }
