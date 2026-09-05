@@ -29,7 +29,7 @@ import (
 const maxRunSize = 100 << 20
 const payloadMarker = "__PAYLOAD_BELOW__"
 const binaryName = "andey-proxy"
-const releasePublicKey = "ToHBQVbq44rZjR0Ya37kgLfjTaHrkDpyhjkiKQwAonU="
+const releasePublicKey = "umIQ8sxGGf3XRLWs24h36YB9XZ6pFtIcCvKuKLh91Pw="
 
 var versionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
 
