@@ -94,9 +94,9 @@ func TestLoginFailureBucketsAreBounded(t *testing.T) {
 	for i := 0; i < 5000; i++ {
 		s.recordLoginFailure(fmt.Sprintf("192.0.2.%d", i))
 	}
-	s.loginMu.Lock()
-	count := len(s.failures)
-	s.loginMu.Unlock()
+	s.loginLimiter.mu.Lock()
+	count := len(s.loginLimiter.failures)
+	s.loginLimiter.mu.Unlock()
 	if count > 4096 {
 		t.Fatalf("login failure map grew to %d", count)
 	}

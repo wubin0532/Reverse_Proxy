@@ -1,8 +1,6 @@
 package forward
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -15,6 +13,7 @@ import (
 
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/ids"
 )
 
 var errRuleNotFound = errors.New("规则不存在")
@@ -51,7 +50,7 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			api.Fail(w, 400, err.Error())
 			return
 		}
-		rule.ID = newID()
+		rule.ID = ids.New()
 		if err := cfg.Update(func(c *config.Config) error {
 			c.Forwards = append(c.Forwards, rule)
 			return nil
@@ -59,7 +58,21 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			api.Fail(w, 500, "保存配置失败")
 			return
 		}
-		svc.Reload()
+		if err := svc.Reload(); err != nil {
+			// 监听启动失败（如端口被占用）：回滚新增的规则
+			_ = cfg.Update(func(c *config.Config) error {
+				for i := range c.Forwards {
+					if c.Forwards[i].ID == rule.ID {
+						c.Forwards = append(c.Forwards[:i], c.Forwards[i+1:]...)
+						break
+					}
+				}
+				return nil
+			})
+			_ = svc.Reload()
+			api.Fail(w, 409, "规则启动失败，配置未保存: "+err.Error())
+			return
+		}
 		log.Printf("[security] 新增端口转发规则，ID: %s", rule.ID)
 		api.OK(w, nil)
 	})
@@ -75,6 +88,22 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			return
 		}
 		id := chi.URLParam(req, "id")
+		// 先快照旧规则，Reload 失败时用于回滚
+		cfg.RLock()
+		var previous config.ForwardRule
+		found := false
+		for i := range cfg.Forwards {
+			if cfg.Forwards[i].ID == id {
+				previous = cfg.Forwards[i]
+				found = true
+				break
+			}
+		}
+		cfg.RUnlock()
+		if !found {
+			api.Fail(w, 404, "规则不存在")
+			return
+		}
 		err := cfg.Update(func(c *config.Config) error {
 			for i := range c.Forwards {
 				if c.Forwards[i].ID == id {
@@ -93,7 +122,24 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			api.Fail(w, 500, "保存配置失败")
 			return
 		}
-		svc.Reload()
+		if reloadErr := svc.Reload(); reloadErr != nil {
+			rollbackErr := cfg.Update(func(c *config.Config) error {
+				for i := range c.Forwards {
+					if c.Forwards[i].ID == id {
+						c.Forwards[i] = previous
+						return nil
+					}
+				}
+				return errRuleNotFound
+			})
+			_ = svc.Reload()
+			if rollbackErr != nil {
+				api.Fail(w, 500, "规则启动失败且恢复旧配置失败")
+			} else {
+				api.Fail(w, 409, "规则启动失败，已恢复旧配置: "+reloadErr.Error())
+			}
+			return
+		}
 		log.Printf("[security] 修改端口转发规则，ID: %s", id)
 		api.OK(w, nil)
 	})
@@ -117,7 +163,8 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			api.Fail(w, 500, "保存配置失败")
 			return
 		}
-		svc.Reload()
+		// 删除只停监听、不新增监听，Reload 不会因本次删除失败，与 webproxy 一致忽略返回值
+		_ = svc.Reload()
 		log.Printf("[security] 删除端口转发规则，ID: %s", id)
 		api.OK(w, nil)
 	})
@@ -125,9 +172,11 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 	r.Post("/api/forwards/{id}/toggle", func(w http.ResponseWriter, req *http.Request) {
 		id := chi.URLParam(req, "id")
 		var enabled bool
+		var previousEnabled bool
 		err := cfg.Update(func(c *config.Config) error {
 			for i := range c.Forwards {
 				if c.Forwards[i].ID == id {
+					previousEnabled = c.Forwards[i].Enabled
 					c.Forwards[i].Enabled = !c.Forwards[i].Enabled
 					enabled = c.Forwards[i].Enabled
 					return nil
@@ -143,20 +192,31 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			api.Fail(w, 500, "保存配置失败")
 			return
 		}
-		svc.Reload()
+		if reloadErr := svc.Reload(); reloadErr != nil {
+			rollbackErr := cfg.Update(func(c *config.Config) error {
+				for i := range c.Forwards {
+					if c.Forwards[i].ID == id {
+						c.Forwards[i].Enabled = previousEnabled
+						return nil
+					}
+				}
+				return errRuleNotFound
+			})
+			_ = svc.Reload()
+			if rollbackErr != nil {
+				api.Fail(w, 500, "规则启动失败且恢复启用状态失败")
+			} else {
+				api.Fail(w, 409, "规则启动失败，已恢复启用状态: "+reloadErr.Error())
+			}
+			return
+		}
 		log.Printf("[security] 切换端口转发规则，ID: %s，启用: %t", id, enabled)
-		api.OK(w, nil)
+		api.OK(w, map[string]bool{"enabled": enabled})
 	})
 
 	r.Get("/api/forwards/{id}/logs", func(w http.ResponseWriter, req *http.Request) {
 		api.OK(w, svc.Logs(chi.URLParam(req, "id")))
 	})
-}
-
-func newID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 func validateRule(rule *config.ForwardRule) error {

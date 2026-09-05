@@ -538,6 +538,46 @@ func TestAccessLogContent(t *testing.T) {
 	}
 }
 
+// TestForceHTTPSSniffEndToEnd 强制 HTTPS 站点同端口嗅探：明文 301 跳转，TLS 请求正常分发。
+func TestForceHTTPSSniffEndToEnd(t *testing.T) {
+	cfg, svc := newTestService(t)
+	addSite(cfg, config.Site{
+		ID: "s1", Name: "强制HTTPS", Enabled: true, Listen: "127.0.0.1:0",
+		TLS: true, ForceHTTPS: true, CertID: "c1", // 无证书文件 → 自签回退
+		Rules: []config.SubRule{
+			{ID: "r1", Name: "跳转", Type: "redirect", Enabled: true, FrontendPath: "/", RedirectURL: "https://example.com/"},
+		},
+	})
+	svc.Start()
+	addr := svc.ListenAddr("s1")
+	if addr == "" {
+		t.Fatal("站点未在监听")
+	}
+	noFollow := func(c *http.Client) *http.Client {
+		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		return c
+	}
+
+	// 明文 HTTP → 301，Location 保留 host:port 与 path/query
+	code, header, _ := mustGet(t, noFollow(httpClient()), "http://"+addr+"/deep/page?a=1&b=2", nil)
+	if code != http.StatusMovedPermanently {
+		t.Fatalf("明文请求应为 301, got %d", code)
+	}
+	if wantLoc := "https://" + addr + "/deep/page?a=1&b=2"; header.Get("Location") != wantLoc {
+		t.Fatalf("Location want %q, got %q", wantLoc, header.Get("Location"))
+	}
+
+	// 同端口 TLS → 不被 301 短路，走规则分发（302）
+	tlsClient := noFollow(&http.Client{
+		Timeout:   5 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, // 自签证书
+	})
+	code, header, _ = mustGet(t, tlsClient, "https://"+addr+"/deep", nil)
+	if code != http.StatusFound || header.Get("Location") != "https://example.com/" {
+		t.Fatalf("TLS 请求应正常分发, code=%d loc=%q", code, header.Get("Location"))
+	}
+}
+
 func assertReachable(t *testing.T, addr string, want bool) {
 	t.Helper()
 	conn, err := (&net.Dialer{Timeout: time.Second}).Dial("tcp", addr)

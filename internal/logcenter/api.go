@@ -33,10 +33,16 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 		cfg.RLock()
 		hash := cfg.Settings.AdminPassHash
 		cfg.RUnlock()
+		if api.PasswordConfirmLimited("logs", req.RemoteAddr) {
+			api.Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
+			return
+		}
 		if !auth.CheckPassword(hash, body.Password) {
+			api.RecordPasswordConfirmFailure("logs", req.RemoteAddr)
 			api.Fail(w, 403, "管理密码错误")
 			return
 		}
+		api.ClearPasswordConfirmFailures("logs", req.RemoteAddr)
 		if err := c.Clear(); err != nil {
 			api.Fail(w, 500, "清空日志失败")
 			return

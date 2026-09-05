@@ -2,8 +2,6 @@ package ddns
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -18,6 +16,7 @@ import (
 
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/ids"
 )
 
 type handler struct {
@@ -49,12 +48,6 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, w *Worker) {
 
 	r.Get("/api/ddns/interfaces", h.listInterfaces)
 	r.Post("/api/ddns/preview-ip", h.previewIP)
-}
-
-func newID() string {
-	buf := make([]byte, 16)
-	rand.Read(buf)
-	return hex.EncodeToString(buf)
 }
 
 type taskView struct {
@@ -142,7 +135,7 @@ func (h *handler) createTask(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, code, msg)
 		return
 	}
-	t.ID = newID()
+	t.ID = ids.New()
 	if err := h.cfg.Update(func(c *config.Config) error {
 		c.DDNS = append(c.DDNS, t)
 		return nil
@@ -335,7 +328,7 @@ func (h *handler) createProvider(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, code, msg)
 		return
 	}
-	p.ID = p.Type + "-" + newID()
+	p.ID = p.Type + "-" + ids.New()
 	if err := h.cfg.Update(func(c *config.Config) error {
 		c.Providers = append(c.Providers, p)
 		return nil

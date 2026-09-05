@@ -104,27 +104,29 @@ type SubRule struct {
 
 // Site 一个 Web 服务站点（监听端口）。
 type Site struct {
-	ID      string    `json:"id"`
-	Name    string    `json:"name"`
-	Enabled bool      `json:"enabled"`
-	Listen  string    `json:"listen"` // 如 :8080
-	TLS     bool      `json:"tls"`    // 是否 HTTPS
-	CertID  string    `json:"certId"` // 引用 CertConf.ID，空=自签
-	AutoFW  bool      `json:"autoFw"` // OpenWrt 下自动放行 WAN 防火墙
-	Rules   []SubRule `json:"rules"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Enabled    bool      `json:"enabled"`
+	Listen     string    `json:"listen"`     // 如 :8080
+	TLS        bool      `json:"tls"`        // 是否 HTTPS
+	CertID     string    `json:"certId"`     // 引用 CertConf.ID，空=自签
+	ForceHTTPS bool      `json:"forceHttps"` // 强制 HTTPS：绑定证书后同端口明文请求 301 跳转到 HTTPS
+	AutoFW     bool      `json:"autoFw"`     // OpenWrt 下自动放行 WAN 防火墙
+	Rules      []SubRule `json:"rules"`
 }
 
 // ForwardRule TCP/UDP 端口转发规则。
 type ForwardRule struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Enabled    bool     `json:"enabled"`
-	Proto      string   `json:"proto"`   // tcp / udp / tcpudp
-	Listen     string   `json:"listen"`  // 监听地址 :13389
-	Targets    []string `json:"targets"` // 目标地址 ip:port
-	AutoFW     bool     `json:"autoFw"`  // OpenWrt 下自动放行 WAN 防火墙
-	IPListMode string   `json:"ipListMode"`
-	IPList     []string `json:"ipList"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Enabled     bool     `json:"enabled"`
+	Proto       string   `json:"proto"`       // tcp / udp / tcpudp
+	Listen      string   `json:"listen"`      // 监听地址 :13389
+	Targets     []string `json:"targets"`     // 目标地址 ip:port
+	AutoFW      bool     `json:"autoFw"`      // OpenWrt 下自动放行 WAN 防火墙
+	IdleTimeout int      `json:"idleTimeout"` // TCP 空闲超时秒数，0=默认 600
+	IPListMode  string   `json:"ipListMode"`
+	IPList      []string `json:"ipList"`
 }
 
 // Settings 全局设置。
@@ -136,6 +138,9 @@ type Settings struct {
 	TOTPEnabled        bool     `json:"totpEnabled,omitempty"`
 	TOTPSecret         string   `json:"totpSecret,omitempty"`
 	TOTPRecoveryHashes []string `json:"totpRecoveryHashes,omitempty"`
+	TOTPLastCounter    int64    `json:"totpLastCounter,omitempty"` // 最近一次验证成功的 TOTP 计数器，防重放
+	NotifyWebhookURL   string   `json:"notifyWebhookURL,omitempty"` // 通用 Webhook 推送地址，空=禁用
+	NotifyTypes        []string `json:"notifyTypes,omitempty"`      // 订阅的事件类型（前缀匹配），空=全部 warn/error 级别
 }
 
 // Config 根配置。
@@ -321,6 +326,39 @@ func (c *Config) rollbackLocked(snapshot []byte) {
 
 // Dir 返回配置目录。
 func (c *Config) Dir() string { return filepath.Dir(c.filePath) }
+
+// PlainJSON 返回配置的明文 JSON（导出备份用）。明文绝不写日志。
+func (c *Config) PlainJSON() ([]byte, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return json.Marshal(c)
+}
+
+// Restore 用备份的明文 JSON 整体替换当前配置并原子加密落盘。
+// 替换前把现有加密文件备份为 config.json.bak，便于导入失误后人工回滚。
+func (c *Config) Restore(plain []byte) error {
+	var incoming Config
+	if err := json.Unmarshal(plain, &incoming); err != nil {
+		return fmt.Errorf("备份配置格式无效: %w", err)
+	}
+	if incoming.Settings.AdminUser == "" || incoming.Settings.AdminPassHash == "" {
+		return errors.New("备份配置缺少管理账号信息")
+	}
+	if current, err := os.ReadFile(c.filePath); err == nil {
+		if err := os.WriteFile(c.filePath+".bak", current, 0o600); err != nil {
+			return fmt.Errorf("备份当前配置失败: %w", err)
+		}
+	}
+	return c.Update(func(cur *Config) error {
+		cur.Settings = incoming.Settings
+		cur.Providers = incoming.Providers
+		cur.DDNS = incoming.DDNS
+		cur.Certs = incoming.Certs
+		cur.Sites = incoming.Sites
+		cur.Forwards = incoming.Forwards
+		return nil
+	})
+}
 
 // RLock / RUnlock / Lock / Unlock 供各模块在读写配置字段时加锁。
 func (c *Config) RLock()   { c.mu.RLock() }

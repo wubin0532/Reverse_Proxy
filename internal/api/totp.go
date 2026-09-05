@@ -135,6 +135,14 @@ func (s *Server) verifyFactorLocked(code string, consumeRecovery bool) bool {
 		}
 		s.lastTOTPCounter = counter
 		s.hasLastTOTPCounter = true
+		// 计数器随配置落盘，防止进程重启后同一动态码在 30~90 秒窗口内被重用。
+		// 登录成功是低频事件，每次验证成功写一次可接受。
+		if err := s.cfg.Update(func(c *config.Config) error {
+			c.Settings.TOTPLastCounter = int64(counter)
+			return nil
+		}); err != nil {
+			log.Printf("[security] 保存 TOTP 计数器失败: %v", err)
+		}
 		return true
 	}
 	index := auth.FindRecoveryCode(hashes, code)
@@ -184,10 +192,20 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	if DecodeBody(r, &body) != nil || !s.checkCurrentPassword(body.Password) {
+	if DecodeBody(r, &body) != nil {
 		Fail(w, 403, "当前密码错误")
 		return
 	}
+	if PasswordConfirmLimited("totp", r.RemoteAddr) {
+		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
+		return
+	}
+	if !s.checkCurrentPassword(body.Password) {
+		RecordPasswordConfirmFailure("totp", r.RemoteAddr)
+		Fail(w, 403, "当前密码错误")
+		return
+	}
+	ClearPasswordConfirmFailures("totp", r.RemoteAddr)
 	s.cfg.RLock()
 	enabled, account := s.cfg.Settings.TOTPEnabled, s.cfg.Settings.AdminUser
 	s.cfg.RUnlock()
@@ -349,10 +367,20 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 		Password string `json:"password"`
 		Code     string `json:"code"`
 	}
-	if DecodeBody(r, &body) != nil || !s.checkCurrentPassword(body.Password) {
+	if DecodeBody(r, &body) != nil {
 		Fail(w, 403, "当前密码或双重验证码错误")
 		return
 	}
+	if PasswordConfirmLimited("totp", r.RemoteAddr) {
+		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
+		return
+	}
+	if !s.checkCurrentPassword(body.Password) {
+		RecordPasswordConfirmFailure("totp", r.RemoteAddr)
+		Fail(w, 403, "当前密码或双重验证码错误")
+		return
+	}
+	ClearPasswordConfirmFailures("totp", r.RemoteAddr)
 	s.twoFactorMu.Lock()
 	if !s.verifyFactorLocked(strings.TrimSpace(body.Code), false) {
 		s.twoFactorMu.Unlock()

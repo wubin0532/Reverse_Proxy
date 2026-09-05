@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/notify"
 )
 
 // TaskStatus 任务最近一次运行状态。
@@ -186,9 +187,10 @@ func (w *Worker) setStatus(taskID, ip, iface string, success bool, msg string) *
 	return prev
 }
 
-// failTask 记录任务失败状态。
+// failTask 记录任务失败状态并上报事件总线。
 func (w *Worker) failTask(task config.DDNSTask, ip, iface, errMsg string) {
 	w.setStatus(task.ID, ip, iface, false, errMsg)
+	notify.Publish(notify.Event{Type: notify.TypeDDNSUpdateFailed, Entity: task.Name, Level: notify.LevelError, Message: fmt.Sprintf("DDNS 任务 %s 更新失败: %s", task.Name, errMsg)})
 }
 
 func (w *Worker) providerFor(providerID string) (Provider, error) {

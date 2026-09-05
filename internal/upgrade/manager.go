@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -146,16 +147,29 @@ func (m *Manager) InspectUpload(w http.ResponseWriter, r *http.Request) (*Inspec
 		m.mu.Unlock()
 	}()
 	r.Body = http.MaxBytesReader(w, r.Body, maxRunSize+(1<<20))
-	if err := r.ParseMultipartForm(1 << 20); err != nil {
+	// 用 MultipartReader 流式读取，直接落到配置目录；ParseMultipartForm 会把
+	// 大文件暂存到 os.TempDir()，OpenWrt 上 /tmp 是 tmpfs（占内存），有 OOM 风险。
+	mr, err := r.MultipartReader()
+	if err != nil {
 		return nil, fmt.Errorf("更新包超过 100 MiB 或格式错误")
 	}
-	defer r.MultipartForm.RemoveAll()
-	file, hdr, err := r.FormFile("package")
-	if err != nil {
-		return nil, errors.New("请选择 .run 更新包")
+	var part *multipart.Part
+	for {
+		p, e := mr.NextPart()
+		if e == io.EOF {
+			return nil, errors.New("请选择 .run 更新包")
+		}
+		if e != nil {
+			return nil, fmt.Errorf("更新包超过 100 MiB 或格式错误")
+		}
+		if p.FormName() == "package" {
+			part = p
+			break
+		}
+		p.Close()
 	}
-	defer file.Close()
-	if !strings.HasSuffix(strings.ToLower(hdr.Filename), ".run") {
+	defer part.Close()
+	if !strings.HasSuffix(strings.ToLower(part.FileName()), ".run") {
 		return nil, errors.New("只支持 .run 更新包")
 	}
 	tmp, err := os.CreateTemp(m.dir, "update-*.run")
@@ -163,7 +177,7 @@ func (m *Manager) InspectUpload(w http.ResponseWriter, r *http.Request) (*Inspec
 		return nil, err
 	}
 	_ = tmp.Chmod(0o600)
-	n, copyErr := io.Copy(tmp, io.LimitReader(file, maxRunSize+1))
+	n, copyErr := io.Copy(tmp, io.LimitReader(part, maxRunSize+1))
 	closeErr := tmp.Close()
 	if copyErr != nil || closeErr != nil || n > maxRunSize {
 		_ = os.Remove(tmp.Name())
@@ -224,22 +238,23 @@ func (m *Manager) Install(id string, allowDowngrade bool) error {
 		m.mu.Unlock()
 		return errors.New("默认禁止降级，请明确允许降级")
 	}
-	bin := m.staged.binaryPath
-	ver := m.staged.inspection.Version
+	// 锁内取出 staged 并置 nil 转移所有权，过期定时器此后不会再误删安装中的文件。
+	staged := m.staged
+	m.staged = nil
+	ver := staged.inspection.Version
 	m.state = StateInstalling
 	m.mu.Unlock()
-	if err := installAtomic(bin); err != nil {
+	if err := installAtomic(staged.binaryPath); err != nil {
+		_ = os.Remove(staged.path)
+		_ = os.Remove(staged.binaryPath)
 		m.fail(err)
 		return err
 	}
 	m.mu.Lock()
 	m.state = StateRestarting
 	m.note = "新版本已安装，服务即将重启"
-	if m.staged != nil {
-		_ = os.Remove(m.staged.path)
-		_ = os.Remove(m.staged.binaryPath)
-		m.staged = nil
-	}
+	_ = os.Remove(staged.path)
+	_ = os.Remove(staged.binaryPath)
 	if err := m.persistStatusLocked(ver); err != nil {
 		m.mu.Unlock()
 		_ = restoreBackup()

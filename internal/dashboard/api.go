@@ -56,6 +56,24 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, w
 				issues = append(issues, map[string]string{"module": "Web", "id": site.ID, "message": errMsg, "path": "/web-service"})
 			}
 		}
+		// 站点流量统计：按站点 ID 关联配置中的名称；统计存于内存，进程重启清零。
+		siteStats := web.AllSiteStats()
+		sitesStats := make([]map[string]interface{}, 0, len(sites))
+		for _, site := range sites {
+			st := siteStats[site.ID]
+			sitesStats = append(sitesStats, map[string]interface{}{
+				"id":        site.ID,
+				"name":      site.Name,
+				"requests":  st.Requests,
+				"bytesIn":   st.BytesIn,
+				"bytesOut":  st.BytesOut,
+				"status1xx": st.Status1xx,
+				"status2xx": st.Status2xx,
+				"status3xx": st.Status3xx,
+				"status4xx": st.Status4xx,
+				"status5xx": st.Status5xx,
+			})
+		}
 		for _, rule := range forwards {
 			if rule.Enabled {
 				stats["forwardsEnabled"]++
@@ -79,6 +97,7 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, w
 			"mustChangePassword": mustChange,
 			"totpEnabled":        totpEnabled,
 			"stats":              stats,
+			"sites":              sitesStats,
 			"issues":             issues,
 			"firewall":           map[string]interface{}{"openwrt": fw.IsOpenWrt(), "rules": fw.Rules()},
 			"lastUpdate":         update.Status(),

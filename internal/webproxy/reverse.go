@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -18,10 +19,10 @@ import (
 	"andey-proxy/internal/logcenter"
 )
 
-// reverseHandler 反向代理处理器：多后端简单轮询。
+// reverseHandler 反向代理处理器：多后端轮询，连接类失败达阈值的后端进入冷却期被跳过。
 type reverseHandler struct {
 	ruleName string
-	proxies  []proxyEntry
+	proxies  []*proxyEntry
 	counter  atomic.Uint64
 	logs     *forward.RingLog
 }
@@ -29,7 +30,58 @@ type reverseHandler struct {
 type proxyEntry struct {
 	proxy     *httputil.ReverseProxy
 	transport *http.Transport
+	failures  atomic.Int32 // 连续连接类失败计数
+	coolUntil atomic.Int64 // 冷却截止时间（UnixNano），0 = 未冷却
 }
+
+// 后端故障摘除：连续 2 次连接类失败后冷却 30 秒。
+const (
+	backendFailThreshold = 2
+	backendCooldown      = 30 * time.Second
+)
+
+// noteFailure 记录一次连接类失败，达到阈值后进入冷却期。
+func (e *proxyEntry) noteFailure() {
+	if e.failures.Add(1) >= backendFailThreshold {
+		e.coolUntil.Store(time.Now().Add(backendCooldown).UnixNano())
+	}
+}
+
+// noteSuccess 成功请求清零失败计数。
+func (e *proxyEntry) noteSuccess() {
+	e.failures.Store(0)
+}
+
+// isBackendConnectError 判断是否为连接类错误（dial 失败、连接被拒绝、EOF 等
+// 未拿到后端响应的错误）；后端返回的错误不计入失败计数。
+func isBackendConnectError(err error) bool {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var opErr *net.OpError
+	return errors.As(err, &opErr)
+}
+
+// healthTransport 包装后端 Transport：连接类错误计入节点失败计数，成功清零。
+type healthTransport struct {
+	base  *http.Transport
+	entry *proxyEntry
+}
+
+func (t *healthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	res, err := t.base.RoundTrip(req)
+	if err != nil {
+		if isBackendConnectError(err) {
+			t.entry.noteFailure()
+		}
+		return nil, err
+	}
+	t.entry.noteSuccess()
+	return res, nil
+}
+
+// retriedKey 标记连接类错误已重试过一次，避免在多个后端间循环重试。
+type retriedKey struct{}
 
 type publicRequestInfo struct {
 	scheme string
@@ -72,6 +124,7 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 			logs.Add(fmt.Sprintf("规则[%s] 后端地址无效", rule.Name))
 			continue
 		}
+		entry := &proxyEntry{}
 		proxy := &httputil.ReverseProxy{}
 		preserveHost := rule.PreserveHost
 		autoHeaders := rule.ProxyHeadersEnabled()
@@ -123,7 +176,8 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 			}
 		}
 		transport := proxyTransport(rule)
-		proxy.Transport = transport
+		entry.transport = transport
+		proxy.Transport = &healthTransport{base: transport, entry: entry}
 		// 普通响应批量刷新；ReverseProxy 会对 SSE 和未知长度流自动立即刷新。
 		proxy.FlushInterval = 100 * time.Millisecond
 		if rule.RewriteLocation || rule.CookieDomainFrom != "" || rule.CookiePathFrom != "" {
@@ -134,17 +188,10 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 		}
 		ruleName := rule.Name
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-			message := fmt.Sprintf("%s 规则[%s] 后端 %s 错误: %s", clientIP(r), ruleName, backendURLForLog(target), proxyErrorForLog(err))
-			logs.Add(message)
-			logcenter.Add("webproxy", rule.ID, clientIP(r), "error", message)
-			var maxErr *http.MaxBytesError
-			if errors.As(err, &maxErr) {
-				http.Error(w, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
-				return
-			}
-			http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
+			h.onProxyError(entry, target, rule.ID, ruleName, w, r, err)
 		}
-		h.proxies = append(h.proxies, proxyEntry{proxy: proxy, transport: transport})
+		entry.proxy = proxy
+		h.proxies = append(h.proxies, entry)
 	}
 	if len(h.proxies) == 0 {
 		return nil, fmt.Errorf("reverse 规则无可用后端")
@@ -168,14 +215,59 @@ func proxyErrorForLog(err error) string {
 	return err.Error()
 }
 
+// onProxyError 后端错误处理：连接类错误（未写出响应）时换一个可用后端重试一次，
+// 其余情况维持 413/502 响应。失败计数由 healthTransport 在 RoundTrip 时记录。
+func (h *reverseHandler) onProxyError(entry *proxyEntry, target *url.URL, ruleID, ruleName string, w http.ResponseWriter, r *http.Request, err error) {
+	message := fmt.Sprintf("%s 规则[%s] 后端 %s 错误: %s", clientIP(r), ruleName, backendURLForLog(target), proxyErrorForLog(err))
+	h.logs.Add(message)
+	logcenter.Add("webproxy", ruleID, clientIP(r), "error", message)
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		http.Error(w, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	// 仅无请求体的请求可安全重放（连接失败时请求未送达后端）。
+	replayable := r.ContentLength == 0 && (r.Body == nil || r.Body == http.NoBody)
+	if isBackendConnectError(err) && replayable && r.Context().Value(retriedKey{}) == nil && len(h.proxies) > 1 {
+		if alt := h.pick(entry); alt != entry {
+			h.logs.Add(fmt.Sprintf("规则[%s] 后端连接失败，重试其他后端", ruleName))
+			ctx := context.WithValue(r.Context(), retriedKey{}, true)
+			alt.proxy.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+	}
+	http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
+}
+
+// pick 选一个未进入冷却期的后端（从轮询位置起向后找）；exclude 为重试时
+// 排除刚失败的节点。全部在冷却期时回退为轮询全部节点。
+func (h *reverseHandler) pick(exclude *proxyEntry) *proxyEntry {
+	n := len(h.proxies)
+	start := int((h.counter.Add(1) - 1) % uint64(n))
+	now := time.Now().UnixNano()
+	for k := 0; k < n; k++ {
+		e := h.proxies[(start+k)%n]
+		if e != exclude && e.coolUntil.Load() <= now {
+			return e
+		}
+	}
+	for k := 0; k < n; k++ {
+		e := h.proxies[(start+k)%n]
+		if e != exclude {
+			return e
+		}
+	}
+	return exclude
+}
+
 func (h *reverseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	i := (h.counter.Add(1) - 1) % uint64(len(h.proxies))
+	entry := h.pick(nil)
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
 	}
 	ctx := context.WithValue(r.Context(), publicRequestKey{}, publicRequestInfo{scheme: scheme, host: r.Host})
-	h.proxies[i].proxy.ServeHTTP(w, r.WithContext(ctx))
+	entry.proxy.ServeHTTP(w, r.WithContext(ctx))
 }
 
 func (h *reverseHandler) closeIdleConnections() {

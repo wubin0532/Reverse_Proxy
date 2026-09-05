@@ -2,8 +2,6 @@ package acme
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"log"
 	"mime"
@@ -20,6 +18,7 @@ import (
 
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/ids"
 	"golang.org/x/net/idna"
 )
 
@@ -43,12 +42,6 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, m *Manager) {
 	r.Post("/api/certs/{id}/toggle", h.toggleCert)
 	r.Post("/api/certs/{id}/obtain", h.obtainCert)
 	r.Get("/api/certs/{id}/download", h.downloadCert)
-}
-
-func newID() string {
-	buf := make([]byte, 16)
-	rand.Read(buf)
-	return hex.EncodeToString(buf)
 }
 
 // certView 列表视图：附带运行状态。
@@ -172,7 +165,7 @@ func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, code, msg)
 		return
 	}
-	c.ID = newID()
+	c.ID = ids.New()
 	if err := h.cfg.Update(func(cfg *config.Config) error {
 		cfg.Certs = append(cfg.Certs, c)
 		return nil
@@ -315,7 +308,7 @@ func (h *handler) obtainCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(h.m.ctx, 10*time.Minute) // 派生自 Manager 生命周期，Stop 时取消
 		defer cancel()
 		h.m.Obtain(ctx, id) // 结果回写到 LastError / NotAfter，前端轮询即可
 	}()

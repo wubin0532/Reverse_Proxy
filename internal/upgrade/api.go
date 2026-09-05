@@ -36,10 +36,16 @@ func RegisterRoutes(r chi.Router, m *Manager, cfg *config.Config) {
 		cfg.RLock()
 		hash := cfg.Settings.AdminPassHash
 		cfg.RUnlock()
+		if api.PasswordConfirmLimited("upgrade", req.RemoteAddr) {
+			api.Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
+			return
+		}
 		if !auth.CheckPassword(hash, body.Password) {
+			api.RecordPasswordConfirmFailure("upgrade", req.RemoteAddr)
 			api.Fail(w, 403, "管理密码错误")
 			return
 		}
+		api.ClearPasswordConfirmFailures("upgrade", req.RemoteAddr)
 		if err := m.Install(chi.URLParam(req, "id"), body.AllowDowngrade); err != nil {
 			api.Fail(w, 400, err.Error())
 			return

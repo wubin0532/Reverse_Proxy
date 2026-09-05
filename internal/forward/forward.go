@@ -3,21 +3,27 @@ package forward
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"reflect"
-	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/guard"
 	"andey-proxy/internal/logcenter"
+	"andey-proxy/internal/netutil"
+	"andey-proxy/internal/notify"
 )
+
+// udpSessionTimeout UDP 会话空闲超时：回包 goroutine 读超时与过期清理共用。
+// 定义为包级变量便于测试注入较短值。
+var udpSessionTimeout = 90 * time.Second
 
 // Service 端口转发服务，管理所有规则的监听器。
 type Service struct {
@@ -44,18 +50,19 @@ func NewService(cfg *config.Config) *Service {
 	return &Service{cfg: cfg, running: make(map[string]*ruleRunner), logs: make(map[string]*RingLog)}
 }
 
-// Start 启动所有已启用规则。
+// Start 启动所有已启用规则（监听失败仅记日志，状态由 RuleStatus 反映）。
 func (s *Service) Start() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.cfg.RLock()
 	rules := append([]config.ForwardRule(nil), s.cfg.Forwards...)
 	s.cfg.RUnlock()
+	s.mu.Lock()
 	for _, rule := range rules {
 		if rule.Enabled {
-			s.startRuleLocked(rule)
+			_ = s.startRuleLocked(rule)
 		}
 	}
+	s.mu.Unlock()
+	// firewall 会执行 uci 外部命令，须在 s.mu 锁外调用，避免阻塞整个 Service 锁
 	s.syncFirewall()
 }
 
@@ -80,7 +87,8 @@ func (s *Service) Stop() {
 }
 
 // Reload 按当前配置重算运行状态（配置变更后调用）。
-func (s *Service) Reload() {
+// 有规则监听启动失败时返回聚合错误（如端口被占用），调用方可据此回滚配置。
+func (s *Service) Reload() error {
 	s.cfg.RLock()
 	rules := append([]config.ForwardRule(nil), s.cfg.Forwards...)
 	s.cfg.RUnlock()
@@ -104,21 +112,29 @@ func (s *Service) Reload() {
 	for _, runner := range stopped {
 		<-runner.done
 	}
+	var errs []string
 	s.mu.Lock()
 	for _, rule := range rules {
 		if rule.Enabled {
 			if _, ok := s.running[rule.ID]; !ok {
-				s.startRuleLocked(rule)
+				if err := s.startRuleLocked(rule); err != nil {
+					errs = append(errs, fmt.Sprintf("规则 %q: %v", rule.Name, err))
+				}
 			}
 		}
 	}
 	s.mu.Unlock()
 	s.syncFirewall()
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // syncFirewall 按当前配置向防火墙管理器上报 forward 来源的期望放行集合：
 // Enabled && AutoFW 的规则，从 Listen（如 ":13389"）解析端口，协议按规则取值。
-// 解析失败或非 OpenWrt 环境仅记日志，不影响主流程。调用方须持有 s.mu。
+// 解析失败或非 OpenWrt 环境仅记日志，不影响主流程。
+// 调用方须在不持有 s.mu 的状态下调用（firewall 会执行 uci 外部命令）。
 func (s *Service) syncFirewall() {
 	if s.FW == nil {
 		return
@@ -131,7 +147,7 @@ func (s *Service) syncFirewall() {
 		if !rule.Enabled || !rule.AutoFW {
 			continue
 		}
-		port, err := listenPort(rule.Listen)
+		port, err := netutil.ListenPort(rule.Listen)
 		if err != nil {
 			s.logf(rule.ID, "监听地址 %q 端口解析失败，跳过自动放行: %v", rule.Listen, err)
 			continue
@@ -143,15 +159,6 @@ func (s *Service) syncFirewall() {
 		rules = append(rules, firewall.Rule{Key: rule.ID, Port: port, Proto: proto})
 	}
 	s.FW.SetDesiredFrom(firewall.SourceForward, rules)
-}
-
-// listenPort 从监听地址（":13389"、"0.0.0.0:13389" 或裸 "13389"）解析端口号。
-func listenPort(listen string) (int, error) {
-	_, p, err := net.SplitHostPort(listen)
-	if err != nil {
-		p = strings.TrimPrefix(listen, ":")
-	}
-	return strconv.Atoi(p)
 }
 
 // Logs 返回规则最近日志。
@@ -182,7 +189,6 @@ func (s *Service) RuleStatus(ruleID string) (string, string) {
 
 func (s *Service) logf(ruleID, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	log.Printf("[转发] %s", msg)
 	level := "info"
 	if strings.Contains(msg, "失败") || strings.Contains(msg, "错误") {
 		level = "error"
@@ -198,35 +204,82 @@ func (s *Service) logf(ruleID, format string, args ...interface{}) {
 	rl.Add(msg)
 }
 
-func (s *Service) startRuleLocked(rule config.ForwardRule) {
+// startRuleLocked 启动单条规则：同步建立监听器，失败时返回错误。
+// 调用方须持有 s.mu。
+func (s *Service) startRuleLocked(rule config.ForwardRule) error {
 	ctx, cancel := context.WithCancel(context.Background())
+	proto := strings.ToLower(rule.Proto)
+
+	var tcpLn net.Listener
+	var udpLn *net.UDPConn
+	if proto == "tcp" || proto == "tcpudp" || proto == "" {
+		ln, err := net.Listen("tcp", rule.Listen)
+		if err != nil {
+			cancel()
+			s.logf(rule.ID, "TCP 监听 %s 失败: %v", rule.Listen, err)
+			notify.Publish(notify.Event{Type: notify.TypeFwdListenError, Entity: rule.Name, Level: notify.LevelError, Message: fmt.Sprintf("转发规则 %s TCP 监听 %s 失败: %v", rule.Name, rule.Listen, err)})
+			return fmt.Errorf("TCP 监听 %s 失败: %w", rule.Listen, err)
+		}
+		tcpLn = ln
+	}
+	if proto == "udp" || proto == "tcpudp" {
+		laddr, err := net.ResolveUDPAddr("udp", rule.Listen)
+		if err == nil {
+			udpLn, err = net.ListenUDP("udp", laddr)
+		}
+		if err != nil {
+			if tcpLn != nil {
+				tcpLn.Close()
+			}
+			cancel()
+			s.logf(rule.ID, "UDP 监听 %s 失败: %v", rule.Listen, err)
+			notify.Publish(notify.Event{Type: notify.TypeFwdListenError, Entity: rule.Name, Level: notify.LevelError, Message: fmt.Sprintf("转发规则 %s UDP 监听 %s 失败: %v", rule.Name, rule.Listen, err)})
+			return fmt.Errorf("UDP 监听 %s 失败: %w", rule.Listen, err)
+		}
+	}
+
 	runner := &ruleRunner{rule: rule, cancel: cancel, done: make(chan struct{})}
 	s.running[rule.ID] = runner
-	proto := strings.ToLower(rule.Proto)
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		defer close(runner.done)
 		var wg sync.WaitGroup
-		if proto == "tcp" || proto == "tcpudp" || proto == "" {
+		if tcpLn != nil {
 			wg.Add(1)
-			go func() { defer wg.Done(); s.serveTCP(ctx, rule) }()
+			go func() { defer wg.Done(); s.serveTCP(ctx, rule, tcpLn) }()
 		}
-		if proto == "udp" || proto == "tcpudp" {
+		if udpLn != nil {
 			wg.Add(1)
-			go func() { defer wg.Done(); s.serveUDP(ctx, rule) }()
+			go func() { defer wg.Done(); s.serveUDP(ctx, rule, udpLn) }()
 		}
 		wg.Wait()
 	}()
 	s.logf(rule.ID, "规则 %q 已启动，监听 %s", rule.Name, rule.Listen)
+	return nil
 }
 
-func (s *Service) serveTCP(ctx context.Context, rule config.ForwardRule) {
-	ln, err := net.Listen("tcp", rule.Listen)
-	if err != nil {
-		s.logf(rule.ID, "TCP 监听 %s 失败: %v", rule.Listen, err)
-		return
+// idleTimeout 返回规则的 TCP 空闲超时，0 或负值取默认 600 秒。
+func idleTimeout(rule config.ForwardRule) time.Duration {
+	if rule.IdleTimeout > 0 {
+		return time.Duration(rule.IdleTimeout) * time.Second
 	}
+	return 600 * time.Second
+}
+
+// idleConn 包装连接读侧：每次 Read 前刷新读 deadline，实现空闲超时。
+// 两个方向各自包装，并发 SetReadDeadline 是安全的。
+type idleConn struct {
+	net.Conn
+	timeout time.Duration
+}
+
+func (c *idleConn) Read(p []byte) (int, error) {
+	c.Conn.SetReadDeadline(time.Now().Add(c.timeout))
+	return c.Conn.Read(p)
+}
+
+func (s *Service) serveTCP(ctx context.Context, rule config.ForwardRule, ln net.Listener) {
 	go func() { <-ctx.Done(); ln.Close() }()
 	for {
 		conn, err := ln.Accept()
@@ -258,34 +311,48 @@ func (s *Service) handleTCPConn(ctx context.Context, rule config.ForwardRule, sr
 	defer dst.Close()
 	s.logf(rule.ID, "%s -> %s 已建立", src.RemoteAddr(), target)
 
+	timeout := idleTimeout(rule)
 	done := make(chan struct{}, 2)
-	go func() { io.Copy(dst, src); done <- struct{}{} }()
-	go func() { io.Copy(src, dst); done <- struct{}{} }()
+	go func() {
+		io.Copy(dst, &idleConn{Conn: src, timeout: timeout})
+		// 客户端半关闭（shutdown WR）时向目标传递 EOF，让对端读完请求后完整回写
+		if tc, ok := dst.(*net.TCPConn); ok {
+			tc.CloseWrite()
+		}
+		done <- struct{}{}
+	}()
+	go func() {
+		io.Copy(src, &idleConn{Conn: dst, timeout: timeout})
+		if tc, ok := src.(*net.TCPConn); ok {
+			tc.CloseWrite()
+		}
+		done <- struct{}{}
+	}()
 	select {
 	case <-done:
+		// 一侧 copy 结束：等待另一方向完成（半关闭场景），对端不按预期关闭时兜底退出
+		select {
+		case <-done:
+		case <-ctx.Done():
+		case <-time.After(30 * time.Second):
+		}
 	case <-ctx.Done():
 	}
 }
 
-func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule) {
-	laddr, err := net.ResolveUDPAddr("udp", rule.Listen)
-	if err != nil {
-		s.logf(rule.ID, "UDP 地址解析失败: %v", err)
-		return
-	}
-	ln, err := net.ListenUDP("udp", laddr)
-	if err != nil {
-		s.logf(rule.ID, "UDP 监听 %s 失败: %v", rule.Listen, err)
-		return
-	}
+// udpSession UDP 会话：客户端地址到目标连接的映射。
+// lastSeen 用 atomic 读写：主循环在 mu 内写，回包 goroutine 在 mu 外读。
+type udpSession struct {
+	dst      *net.UDPConn
+	lastSeen atomic.Int64  // UnixNano
+	done     chan struct{} // 回包 goroutine 退出时关闭
+}
+
+func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule, ln *net.UDPConn) {
 	go func() { <-ctx.Done(); ln.Close() }()
 
 	// 会话表：客户端地址 -> 目标连接
-	type session struct {
-		dst      *net.UDPConn
-		lastSeen time.Time
-	}
-	sessions := make(map[string]*session)
+	sessions := make(map[string]*udpSession)
 	var mu sync.Mutex
 
 	// 过期清理
@@ -301,7 +368,8 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule) {
 			case <-t.C:
 				mu.Lock()
 				for k, sess := range sessions {
-					if time.Since(sess.lastSeen) > 90*time.Second {
+					if time.Since(time.Unix(0, sess.lastSeen.Load())) > udpSessionTimeout {
+						// dst 关闭后回包 goroutine 读出错退出并自行 close(done)
 						sess.dst.Close()
 						delete(sessions, k)
 					}
@@ -332,6 +400,16 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule) {
 		key := srcAddr.String()
 		mu.Lock()
 		sess, ok := sessions[key]
+		if ok {
+			select {
+			case <-sess.done:
+				// 回包 goroutine 已退出（目标端长期静默等），重建目标连接
+				sess.dst.Close()
+				delete(sessions, key)
+				ok = false
+			default:
+			}
+		}
 		if !ok {
 			target := pickTarget(rule.Targets)
 			taddr, err := net.ResolveUDPAddr("udp", target)
@@ -345,24 +423,36 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule) {
 				s.logf(rule.ID, "UDP 连接目标 %s 失败: %v", target, err)
 				continue
 			}
-			sess = &session{dst: dst, lastSeen: time.Now()}
+			sess = &udpSession{dst: dst, done: make(chan struct{})}
+			sess.lastSeen.Store(time.Now().UnixNano())
 			sessions[key] = sess
 			s.logf(rule.ID, "UDP 会话 %s -> %s 已建立", key, target)
-			go func(srcAddr *net.UDPAddr, sess *session) {
-				rbuf := make([]byte, 64*1024)
-				for {
-					sess.dst.SetReadDeadline(time.Now().Add(90 * time.Second))
-					n, err := sess.dst.Read(rbuf)
-					if err != nil {
-						return
-					}
-					ln.WriteToUDP(rbuf[:n], srcAddr)
-				}
-			}(srcAddr, sess)
+			go s.udpReplyLoop(ctx, ln, srcAddr, sess)
 		}
-		sess.lastSeen = time.Now()
+		sess.lastSeen.Store(time.Now().UnixNano())
 		mu.Unlock()
 		sess.dst.Write(buf[:n])
+	}
+}
+
+// udpReplyLoop 从目标端读回包并回写客户端。
+// 读超时不直接退出：客户端仍活跃则续期继续等回包，否则退出并 close(done)，
+// 主循环下次命中该会话时会检测 done 并重建。done 仅由此 goroutine 关闭，不会重复 close。
+func (s *Service) udpReplyLoop(ctx context.Context, ln *net.UDPConn, srcAddr *net.UDPAddr, sess *udpSession) {
+	defer close(sess.done)
+	rbuf := make([]byte, 64*1024)
+	for {
+		sess.dst.SetReadDeadline(time.Now().Add(udpSessionTimeout))
+		n, err := sess.dst.Read(rbuf)
+		if err != nil {
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() && ctx.Err() == nil {
+				if time.Since(time.Unix(0, sess.lastSeen.Load())) < udpSessionTimeout {
+					continue
+				}
+			}
+			return
+		}
+		ln.WriteToUDP(rbuf[:n], srcAddr)
 	}
 }
 

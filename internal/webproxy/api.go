@@ -2,9 +2,7 @@ package webproxy
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -20,6 +18,7 @@ import (
 
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/ids"
 )
 
 // apiHandler 站点管理 API。
@@ -143,7 +142,7 @@ func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, 400, err.Error())
 		return
 	}
-	site.ID = genID()
+	site.ID = ids.New()
 
 	if err := h.cfg.Update(func(c *config.Config) error {
 		c.Sites = append(c.Sites, site)
@@ -380,7 +379,7 @@ func ensureRuleIDs(site *config.Site) {
 	seen := make(map[string]bool, len(site.Rules))
 	for i := range site.Rules {
 		if site.Rules[i].ID == "" || seen[site.Rules[i].ID] {
-			site.Rules[i].ID = genID()
+			site.Rules[i].ID = ids.New()
 		}
 		seen[site.Rules[i].ID] = true
 	}
@@ -557,13 +556,4 @@ func validateRuleLists(rule *config.SubRule) error {
 		}
 	}
 	return nil
-}
-
-// genID 生成 128 位 crypto/rand hex ID。
-func genID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(b)
 }

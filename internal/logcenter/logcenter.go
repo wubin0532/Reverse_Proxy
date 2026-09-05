@@ -3,6 +3,7 @@ package logcenter
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -275,8 +276,14 @@ func (c *Center) Clear() error {
 	}
 drained:
 	ack := make(chan struct{})
-	c.barrier <- ack
-	<-ack
+	select {
+	case c.barrier <- ack:
+		<-ack
+	case <-c.done:
+		// writer 已退出（Close 之后）：无人接收 barrier，直接返回错误避免永久阻塞
+		c.queueMu.Unlock()
+		return errors.New("日志中心已关闭")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	defer c.queueMu.Unlock()

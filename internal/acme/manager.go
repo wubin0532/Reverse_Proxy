@@ -30,6 +30,7 @@ import (
 
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/logcenter"
+	"andey-proxy/internal/notify"
 )
 
 // defaultRenewDays RenewDays 未配置时的默认续签提前天数。
@@ -63,16 +64,26 @@ type Manager struct {
 	cache    map[string]*cachedCert // key: CertConf.ID
 	inflight map[string]bool        // 正在申请中的证书 ID
 
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	// accountMu 串行化账户私钥首建（loadAccountKey），独立于 m.mu，
+	// 避免 RSA 密钥生成耗时阻塞证书缓存读写。
+	accountMu sync.Mutex
+
+	ctx      context.Context // Stop 时取消，中断正在进行的申请
+	cancel   context.CancelFunc
+	stopCh   chan struct{}
+	stopOnce sync.Once
+	wg       sync.WaitGroup
 }
 
 // NewManager 创建证书管理器。
 func NewManager(cfg *config.Config) *Manager {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		cfg:      cfg,
 		cache:    make(map[string]*cachedCert),
 		inflight: make(map[string]bool),
+		ctx:      ctx,
+		cancel:   cancel,
 		stopCh:   make(chan struct{}),
 	}
 }
@@ -177,20 +188,37 @@ func (m *Manager) accountKeyPath() string {
 	return filepath.Join(m.certsDir(), "account.key")
 }
 
+// parseAccountKey 解析 PEM 编码的 ACME 账户私钥。
+func parseAccountKey(data []byte) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode(data)
+	if block != nil {
+		if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+			return key, nil
+		}
+	}
+	return nil, errors.New("ACME 账户私钥损坏，拒绝自动覆盖")
+}
+
 // loadAccountKey 读取或生成 ACME 账户私钥。
 func (m *Manager) loadAccountKey() (*rsa.PrivateKey, error) {
 	fp := m.accountKeyPath()
 	data, err := os.ReadFile(fp)
 	if err == nil {
-		block, _ := pem.Decode(data)
-		if block != nil {
-			if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-				return key, nil
-			}
-		}
-		return nil, errors.New("ACME 账户私钥损坏，拒绝自动覆盖")
+		return parseAccountKey(data)
 	}
-	if err != nil && !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
+		return nil, err
+	}
+	// 首次创建须串行化：并发首申时若各自生成密钥并 rename，
+	// 后写覆盖先写，两个 goroutine 会注册出不同的 ACME 账户。
+	m.accountMu.Lock()
+	defer m.accountMu.Unlock()
+	// 双检：拿锁后文件可能已被并发调用方创建
+	data, err = os.ReadFile(fp)
+	if err == nil {
+		return parseAccountKey(data)
+	}
+	if !os.IsNotExist(err) {
 		return nil, err
 	}
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -315,13 +343,19 @@ func (m *Manager) Obtain(ctx context.Context, certID string) error {
 	defer m.endObtain(certID)
 
 	notAfter, err := m.obtain(ctx, certID)
+	name := certID
+	if c, ok := m.findCert(certID); ok && c.Name != "" {
+		name = c.Name
+	}
 	if err != nil {
 		safeErr := m.sanitizeError(certID, err)
 		m.setResult(certID, "", safeErr.Error())
+		notify.Publish(notify.Event{Type: notify.TypeCertObtainFailed, Entity: name, Level: notify.LevelError, Message: fmt.Sprintf("证书 %s 申请/续签失败: %v", name, safeErr)})
 		return safeErr
 	}
 	m.setResult(certID, notAfter, "")
 	m.invalidate(certID)
+	notify.Publish(notify.Event{Type: notify.TypeCertObtainSuccess, Entity: name, Level: notify.LevelInfo, Message: fmt.Sprintf("证书 %s 申请/续签成功，到期时间 %s", name, notAfter)})
 	return nil
 }
 
@@ -526,10 +560,13 @@ func (m *Manager) Start() {
 	}()
 }
 
-// Stop 停止后台续签循环并等待退出。
+// Stop 停止后台续签循环并等待退出；先取消进行中的申请，可重复调用。
 func (m *Manager) Stop() {
-	close(m.stopCh)
-	m.wg.Wait()
+	m.stopOnce.Do(func() {
+		m.cancel()
+		close(m.stopCh)
+		m.wg.Wait()
+	})
 }
 
 // scan 扫描所有启用的证书，缺失或临近到期的自动申请/续签。
@@ -541,6 +578,9 @@ func (m *Manager) scan() {
 
 	now := time.Now()
 	for i := range certs {
+		if m.ctx.Err() != nil { // Stop 后不再申请后续证书
+			return
+		}
 		c := &certs[i]
 		if !c.Enabled {
 			continue
@@ -552,7 +592,7 @@ func (m *Manager) scan() {
 		if !missing && !needRenew(c, now) {
 			continue
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Minute)
 		if err := m.Obtain(ctx, c.ID); err != nil {
 			log.Printf("[acme] 证书 %s 申请/续签失败: %v", c.Name, err)
 		}

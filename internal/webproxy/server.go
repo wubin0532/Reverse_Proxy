@@ -11,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +19,8 @@ import (
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
+	"andey-proxy/internal/netutil"
+	"andey-proxy/internal/notify"
 )
 
 // CertGetter 由外部（ACME 模块）注入的 SNI 证书回调。
@@ -39,6 +39,10 @@ type Service struct {
 	mu       sync.Mutex
 	reloadMu sync.Mutex
 	sites    map[string]*siteServer
+
+	// stats 站点级流量统计（siteID → 桶），独立于站点监听器生命周期：
+	// 热重载重建 handler 缓存不丢失，站点删除/禁用时清理，进程重启清零。
+	stats sync.Map
 
 	certMu    sync.Mutex
 	certFiles map[string]*certFileCache
@@ -60,9 +64,16 @@ type siteServer struct {
 	mu  sync.Mutex
 	err error // 最近一次的监听/运行错误
 
-	handlerMu  sync.Mutex
-	revHandler map[string]http.Handler // reverse 规则处理器缓存（含轮询状态）
-	revErr     map[string]error
+	handlerMu     sync.Mutex
+	revHandler    map[string]http.Handler // reverse 规则处理器缓存（含轮询状态）
+	revErr        map[string]error
+	staticHandler map[string]http.Handler // redirect/fileserver 规则处理器缓存（无内部状态）
+
+	// hijacked 登记被 Hijack 的连接（WebSocket 反代升级等）：
+	// http.Server.Shutdown 不跟踪此类连接，站点停止时需统一关闭。
+	hijacked sync.Map
+
+	stats *siteStats // Service 级统计桶，监听器重建后仍保留（直接构造的测试实例可为 nil）
 }
 
 // certFileCache 证书文件缓存，按修改时间失效。
@@ -115,6 +126,11 @@ func (s *Service) Stop() {
 	for _, ss := range all {
 		stopSite(ss)
 	}
+	// 服务整体停止：清空全部站点统计
+	s.stats.Range(func(key, _ any) bool {
+		s.deleteStats(key.(string))
+		return true
+	})
 	// 服务整体停止：清空 web 来源的自动放行规则
 	if s.FW != nil {
 		s.FW.SetDesiredFrom(firewall.SourceWeb, nil)
@@ -148,8 +164,10 @@ func (s *Service) Reload() error {
 			// 已删除或禁用
 			toStop = append(toStop, ss)
 			delete(s.sites, id)
-		case current.Listen != ns.Listen || current.TLS != ns.TLS || ss.getErr() != nil:
-			// 只有监听地址、明文/TLS 模式变化或运行错误才重建监听器。
+			s.deleteStats(id)
+		case current.Listen != ns.Listen || current.TLS != ns.TLS ||
+			forceHTTPSActive(current) != forceHTTPSActive(ns) || ss.getErr() != nil:
+			// 只有监听地址、明文/TLS 模式（含强制 HTTPS 的嗅探分流）变化或运行错误才重建监听器。
 			toStop = append(toStop, ss)
 			delete(s.sites, id)
 			toStart = append(toStart, ns)
@@ -202,7 +220,7 @@ func (s *Service) syncFirewall() {
 		if !site.Enabled || !site.AutoFW {
 			continue
 		}
-		port, err := listenPort(site.Listen)
+		port, err := netutil.ListenPort(site.Listen)
 		if err != nil {
 			log.Printf("[webproxy] 站点 %s 监听地址 %q 端口解析失败，跳过自动放行: %v", site.Name, site.Listen, err)
 			continue
@@ -213,25 +231,18 @@ func (s *Service) syncFirewall() {
 	s.FW.SetDesiredFrom(firewall.SourceWeb, rules)
 }
 
-// listenPort 从监听地址（":8080"、"127.0.0.1:8080" 或裸 "8080"）解析端口号。
-func listenPort(listen string) (int, error) {
-	_, p, err := net.SplitHostPort(listen)
-	if err != nil {
-		p = strings.TrimPrefix(listen, ":")
-	}
-	return strconv.Atoi(p)
-}
-
 // startLocked 启动单个站点监听器，失败时错误记录在 siteServer 上。
 // 调用方须持有 s.mu。
 func (s *Service) startLocked(site config.Site) error {
 	site = cloneSite(site)
 	ss := &siteServer{
-		site:       site,
-		logs:       forward.NewRingLog(300),
-		limiter:    newRuleLimiter(),
-		revHandler: make(map[string]http.Handler),
-		revErr:     make(map[string]error),
+		site:          site,
+		logs:          forward.NewRingLog(300),
+		limiter:       newRuleLimiter(),
+		revHandler:    make(map[string]http.Handler),
+		revErr:        make(map[string]error),
+		staticHandler: make(map[string]http.Handler),
+		stats:         s.statsFor(site.ID),
 	}
 	s.sites[site.ID] = ss
 
@@ -239,6 +250,7 @@ func (s *Service) startLocked(site config.Site) error {
 	if err != nil {
 		ss.setErr(err)
 		log.Printf("[webproxy] 站点 %s 监听 %s 失败: %v", site.Name, site.Listen, err)
+		notify.Publish(notify.Event{Type: notify.TypeSiteListenError, Entity: site.Name, Level: notify.LevelError, Message: "站点 " + site.Name + " 监听 " + site.Listen + " 失败: " + err.Error()})
 		return err
 	}
 	ss.ln = ln
@@ -256,12 +268,16 @@ func (s *Service) startLocked(site config.Site) error {
 			return err
 		}
 	}
-	log.Printf("[webproxy] 站点 %s 开始监听 %s (TLS=%v)", site.Name, site.Listen, site.TLS)
+	log.Printf("[webproxy] 站点 %s 开始监听 %s (TLS=%v, forceHTTPS=%v)", site.Name, site.Listen, site.TLS, forceHTTPSActive(site))
 	go func() {
 		var err error
-		if site.TLS {
+		switch {
+		case site.TLS && forceHTTPSActive(site):
+			// 强制 HTTPS：同端口按首字节嗅探分流 TLS 与明文
+			err = ss.srv.Serve(&tlsSniffListener{Listener: ln, tlsConfig: ss.srv.TLSConfig})
+		case site.TLS:
 			err = ss.srv.Serve(tls.NewListener(ln, ss.srv.TLSConfig))
-		} else {
+		default:
 			err = ss.srv.Serve(ln)
 		}
 		if err != nil && err != http.ErrServerClosed {
@@ -275,6 +291,7 @@ func (s *Service) startLocked(site config.Site) error {
 func stopSite(ss *siteServer) {
 	ss.closeIdleConnections()
 	if ss.srv == nil {
+		ss.closeHijackedConnections()
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -282,12 +299,44 @@ func stopSite(ss *siteServer) {
 	if err := ss.srv.Shutdown(ctx); err != nil {
 		log.Printf("[webproxy] 站点 %s 关闭异常: %v", ss.siteSnapshot().Name, err)
 	}
+	// Shutdown 不跟踪被 Hijack 的连接（WebSocket 反代等），统一关闭登记在册的连接。
+	// 仅覆盖经由 statusWriter.Hijack 升级的连接；连接关闭后反代侧 copy goroutine 随之退出。
+	ss.closeHijackedConnections()
+}
+
+// closeHijackedConnections 关闭所有登记的 hijacked 连接（Close 会顺带从登记表移除）。
+func (ss *siteServer) closeHijackedConnections() {
+	ss.hijacked.Range(func(key, _ any) bool {
+		if conn, ok := key.(*trackedConn); ok {
+			_ = conn.Close()
+		}
+		return true
+	})
+}
+
+// trackedConn 包装被 Hijack 的连接：登记到站点表，关闭时自动移除。
+type trackedConn struct {
+	net.Conn
+	ss *siteServer
+}
+
+func (c *trackedConn) Close() error {
+	err := c.Conn.Close()
+	c.ss.hijacked.Delete(c)
+	return err
 }
 
 func (ss *siteServer) siteSnapshot() config.Site {
 	ss.siteMu.RLock()
 	defer ss.siteMu.RUnlock()
 	return ss.site
+}
+
+// addStats 记录一次请求的站点统计；测试直接构造的 siteServer 无统计桶时跳过。
+func (ss *siteServer) addStats(status int, bytesIn, bytesOut int64) {
+	if ss.stats != nil {
+		ss.stats.add(status, bytesIn, bytesOut)
+	}
 }
 
 func (ss *siteServer) updateSite(site config.Site) {
@@ -299,6 +348,7 @@ func (ss *siteServer) updateSite(site config.Site) {
 	old := ss.revHandler
 	ss.revHandler = make(map[string]http.Handler)
 	ss.revErr = make(map[string]error)
+	ss.staticHandler = make(map[string]http.Handler)
 	ss.handlerMu.Unlock()
 	for _, handler := range old {
 		if reverse, ok := handler.(*reverseHandler); ok {
@@ -454,6 +504,9 @@ func (s *Service) loadCertFile(certID string) (*tls.Certificate, error) {
 func (s *Service) selfSigned() (*tls.Certificate, error) {
 	s.selfSignOnce.Do(func() {
 		s.selfSignCert, s.selfSignErr = generateSelfSigned()
+		if s.selfSignErr == nil {
+			log.Printf("管理后台正在使用自签 TLS 证书，SHA-256 指纹: %s，请核对后信任", certFingerprint(s.selfSignCert))
+		}
 	})
 	return s.selfSignCert, s.selfSignErr
 }

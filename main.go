@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
 	"andey-proxy/internal/logcenter"
+	"andey-proxy/internal/notify"
 	"andey-proxy/internal/upgrade"
 	"andey-proxy/internal/webproxy"
 )
@@ -34,6 +37,7 @@ var version = "dev"
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
 	port := flag.Int("p", 16601, "后台管理端口")
+	listen := flag.String("listen", "", "后台管理绑定地址（默认全部网卡）")
 	showVersion := flag.Bool("v", false, "显示版本号")
 	allowHTTP := flag.Bool("admin-http", false, "允许管理后台使用明文 HTTP（不推荐）")
 	resetTOTP := flag.Bool("reset-totp", false, "从设备本机关闭 Google Authenticator 后退出（须先停止服务）")
@@ -128,6 +132,12 @@ func main() {
 	ddnsWorker := ddns.NewWorker(cfg)
 	updateMgr := upgrade.NewManager(version, cfg.Dir())
 
+	// 事件总线 + Webhook 推送：各模块通过 notify.Publish 上报事件
+	notifyBus := notify.NewBus()
+	notify.SetDefault(notifyBus)
+	notifyWebhook := notify.NewWebhook(cfg)
+	notifyBus.Subscribe(notifyWebhook.Handle)
+
 	// 防火墙自动放行（OpenWrt）
 	fwMgr := firewall.NewManager()
 	webSvc.FW = fwMgr
@@ -140,6 +150,17 @@ func main() {
 	updateMgr.MarkStarted()
 
 	apiSrv := api.NewServer(cfg, !*allowHTTP)
+	// 备份导入后的热重载：webproxy/forward 显式 Reload，DDNS worker 重排任务。
+	// acme 没有 Reload，由周期扫描与证书 mtime 缓存自动感知。
+	apiSrv.SetConfigRestore(version, func() {
+		if err := webSvc.Reload(); err != nil {
+			log.Printf("导入配置后重载 Web 服务失败: %v", err)
+		}
+		if err := fwdSvc.Reload(); err != nil {
+			log.Printf("导入配置后重载端口转发失败: %v", err)
+		}
+		ddnsWorker.Reload()
+	})
 	apiSrv.Mount(func(r chi.Router) { ddns.RegisterRoutes(r, cfg, ddnsWorker) })
 	apiSrv.Mount(func(r chi.Router) { forward.RegisterRoutes(r, cfg, fwdSvc) })
 	apiSrv.Mount(func(r chi.Router) { webproxy.RegisterRoutes(r, cfg, webSvc) })
@@ -147,6 +168,7 @@ func main() {
 	apiSrv.Mount(func(r chi.Router) { firewall.RegisterRoutes(r, fwMgr) })
 	apiSrv.Mount(func(r chi.Router) { upgrade.RegisterRoutes(r, updateMgr, cfg) })
 	apiSrv.Mount(func(r chi.Router) { logcenter.RegisterRoutes(r, logs, cfg) })
+	apiSrv.Mount(func(r chi.Router) { notify.RegisterRoutes(r, cfg, notifyBus, notifyWebhook) })
 	apiSrv.Mount(func(r chi.Router) {
 		dashboard.RegisterRoutes(r, cfg, ddnsWorker, webSvc, fwdSvc, fwMgr, logs, updateMgr, version, !*allowHTTP)
 	})
@@ -155,7 +177,13 @@ func main() {
 	mux.Handle("/", adminweb.Handler())
 
 	addr := fmt.Sprintf(":%d", *port)
-	httpSrv := &http.Server{Addr: addr, Handler: managementHeaders(mux, !*allowHTTP), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20}
+	if *listen != "" {
+		addr = net.JoinHostPort(*listen, strconv.Itoa(*port))
+	}
+	// 不设 ReadTimeout：它会覆盖整个请求体读取，慢链路上传 100MiB 更新包必然超时；
+	// 请求体大小由路由级 MaxBytesReader 控制（普通 API 1MiB，更新包上传 100MiB），
+	// ReadHeaderTimeout 保留以防慢速 header 攻击。
+	httpSrv := &http.Server{Addr: addr, Handler: managementHeaders(mux, !*allowHTTP), ReadHeaderTimeout: 10 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20}
 	if !*allowHTTP {
 		httpSrv.TLSConfig = webSvc.AdminTLSConfig()
 	}
@@ -167,7 +195,14 @@ func main() {
 			scheme = "http"
 			log.Printf("警告：管理后台正在使用不安全的 HTTP")
 		}
-		log.Printf("后台管理地址: %s://<设备IP>%s", scheme, addr)
+		if *listen == "" || *listen == "0.0.0.0" || *listen == "::" {
+			log.Printf("后台管理地址: %s://<设备IP>%s", scheme, addr)
+			if !fwMgr.IsOpenWrt() {
+				log.Printf("警告：管理后台监听全部网卡，请确认防火墙规则或考虑使用 -listen 绑定内网地址")
+			}
+		} else {
+			log.Printf("后台管理地址: %s://%s", scheme, addr)
+		}
 		var serveErr error
 		if *allowHTTP {
 			serveErr = httpSrv.ListenAndServe()

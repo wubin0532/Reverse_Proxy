@@ -25,13 +25,14 @@ type Server struct {
 	tokens             *auth.TokenStore
 	mounters           []func(chi.Router)
 	secure             bool
-	loginMu            sync.Mutex
-	failures           map[string][]time.Time
+	loginLimiter       *failureLimiter
 	twoFactorMu        sync.Mutex
 	loginChallenges    map[string]*loginChallenge
 	totpSetups         map[string]*totpSetup
 	lastTOTPCounter    uint64
 	hasLastTOTPCounter bool
+	version            string   // 备份文件元信息里的应用版本
+	restoreHook        func()   // 配置导入后的热重载回调（main 装配各服务 Reload）
 }
 
 func NewServer(cfg *config.Config, secure ...bool) *Server {
@@ -39,17 +40,32 @@ func NewServer(cfg *config.Config, secure ...bool) *Server {
 	if len(secure) > 0 {
 		isSecure = secure[0]
 	}
-	return &Server{
+	s := &Server{
 		cfg: cfg, tokens: auth.NewTokenStore(), secure: isSecure,
-		failures: make(map[string][]time.Time), loginChallenges: make(map[string]*loginChallenge),
+		loginLimiter: newFailureLimiter(), loginChallenges: make(map[string]*loginChallenge),
 		totpSetups: make(map[string]*totpSetup),
 	}
+	// 恢复上次验证成功的 TOTP 计数器，防止进程重启后同一动态码在窗口内被重用。
+	cfg.RLock()
+	if cfg.Settings.TOTPLastCounter > 0 {
+		s.lastTOTPCounter = uint64(cfg.Settings.TOTPLastCounter)
+		s.hasLastTOTPCounter = true
+	}
+	cfg.RUnlock()
+	return s
 }
 
 // Mount 注册模块路由（会在已认证分组内调用 fn）。
 // 由各模块包（import api）提供 RegisterRoutes，main 负责装配，避免 import cycle。
 func (s *Server) Mount(fn func(chi.Router)) {
 	s.mounters = append(s.mounters, fn)
+}
+
+// SetConfigRestore 设置配置备份所需的版本号与导入成功后的热重载回调。
+// hook 由各服务的 Reload 组成，在导入落盘成功后调用。
+func (s *Server) SetConfigRestore(version string, hook func()) {
+	s.version = version
+	s.restoreHook = hook
 }
 
 // Router 构建 API 路由。
@@ -72,6 +88,8 @@ func (s *Server) Router() http.Handler {
 		r.Post("/api/settings/totp/enable", s.handleTOTPEnable)
 		r.Post("/api/settings/totp/disable", s.handleTOTPDisable)
 		r.Post("/api/settings/totp/recovery/regenerate", s.handleTOTPRecoveryRegenerate)
+		r.Post("/api/system/backup/export", s.handleBackupExport)
+		r.Post("/api/system/backup/import", s.handleBackupImport)
 		for _, m := range s.mounters {
 			m(r)
 		}
@@ -122,6 +140,16 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 	})
 }
 
+// dummyLoginHash 用户名不匹配时用于执行等时 bcrypt 校验的占位哈希，
+// 避免通过响应耗时探测管理用户名是否存在。
+var dummyLoginHash = func() string {
+	h, err := auth.HashPassword("dummy-password-for-timing")
+	if err != nil {
+		panic(err) // bcrypt 默认参数下不会失败
+	}
+	return h
+}()
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	ip := directIP(r.RemoteAddr)
 	if s.loginLimited(ip) {
@@ -148,10 +176,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.cfg.RUnlock()
 
 	valid := false
-	if hash == "" {
-		valid = false
+	if hash != "" && subtle.ConstantTimeCompare([]byte(body.Username), []byte(user)) == 1 {
+		valid = auth.CheckPassword(hash, body.Password)
 	} else {
-		valid = subtle.ConstantTimeCompare([]byte(body.Username), []byte(user)) == 1 && auth.CheckPassword(hash, body.Password)
+		// 用户名不匹配（或尚未初始化密码）时也执行一次 bcrypt 校验，
+		// 保持两条路径耗时一致，结果丢弃。
+		_ = auth.CheckPassword(dummyLoginHash, body.Password)
 	}
 	if !valid {
 		s.recordLoginFailure(ip)
@@ -237,9 +267,17 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 400, "新密码至少 10 个字符且不超过 72 字节")
 		return
 	}
-	if hash != "" && !auth.CheckPassword(hash, body.OldPassword) {
-		Fail(w, 403, "原密码错误")
-		return
+	if hash != "" {
+		if PasswordConfirmLimited("password", r.RemoteAddr) {
+			Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
+			return
+		}
+		if !auth.CheckPassword(hash, body.OldPassword) {
+			RecordPasswordConfirmFailure("password", r.RemoteAddr)
+			Fail(w, 403, "原密码错误")
+			return
+		}
+		ClearPasswordConfirmFailures("password", r.RemoteAddr)
 	}
 	newHash, err := auth.HashPassword(body.NewPassword)
 	if err != nil {
@@ -269,44 +307,11 @@ func directIP(remote string) string {
 }
 
 func (s *Server) loginLimited(ip string) bool {
-	s.loginMu.Lock()
-	defer s.loginMu.Unlock()
-	cut := time.Now().Add(-5 * time.Minute)
-	list := s.failures[ip]
-	n := 0
-	for _, t := range list {
-		if t.After(cut) {
-			list[n] = t
-			n++
-		}
-	}
-	list = list[:n]
-	s.failures[ip] = list
-	return len(list) >= 5
+	return s.loginLimiter.limited(ip)
 }
 func (s *Server) recordLoginFailure(ip string) {
-	s.loginMu.Lock()
-	if len(s.failures) >= 1024 {
-		cut := time.Now().Add(-5 * time.Minute)
-		for key, attempts := range s.failures {
-			if len(attempts) == 0 || attempts[len(attempts)-1].Before(cut) {
-				delete(s.failures, key)
-			}
-		}
-		// 大量伪造源地址也不能让限速状态无限占用内存。超过硬上限时
-		// 淘汰任意旧桶；直接连接 IP 仍会在后续失败时重新建立计数。
-		for len(s.failures) >= 4096 {
-			for key := range s.failures {
-				delete(s.failures, key)
-				break
-			}
-		}
-	}
-	s.failures[ip] = append(s.failures[ip], time.Now())
-	s.loginMu.Unlock()
+	s.loginLimiter.record(ip)
 }
 func (s *Server) clearLoginFailures(ip string) {
-	s.loginMu.Lock()
-	delete(s.failures, ip)
-	s.loginMu.Unlock()
+	s.loginLimiter.clear(ip)
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWriteRedactsAndExtractsStructuredFields(t *testing.T) {
@@ -93,5 +94,26 @@ func TestRedactionAndRotationLimit(t *testing.T) {
 	}
 	if total > 5*(1<<20) {
 		t.Fatalf("rotated logs use %d bytes, expected <= 5 MiB", total)
+	}
+}
+
+func TestClearAfterCloseDoesNotBlock(t *testing.T) {
+	dir := t.TempDir()
+	c, err := New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.Clear() }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Clear after Close should return an error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Clear after Close blocked")
 	}
 }

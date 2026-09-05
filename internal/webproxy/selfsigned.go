@@ -3,12 +3,15 @@ package webproxy
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -44,4 +47,21 @@ func generateSelfSigned() (*tls.Certificate, error) {
 		return nil, err
 	}
 	return &cert, nil
+}
+
+// certFingerprint 返回证书 DER 的 SHA-256 指纹（AA:BB:CC 大写冒号格式），
+// 供管理员在浏览器确认证书时核对。
+func certFingerprint(cert *tls.Certificate) string {
+	if cert == nil || len(cert.Certificate) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(cert.Certificate[0])
+	var sb strings.Builder
+	for i, b := range sum {
+		if i > 0 {
+			sb.WriteByte(':')
+		}
+		fmt.Fprintf(&sb, "%02X", b)
+	}
+	return sb.String()
 }
