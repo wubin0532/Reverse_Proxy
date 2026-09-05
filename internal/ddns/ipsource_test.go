@@ -22,6 +22,7 @@ func TestSplitDomain(t *testing.T) {
 		{"home.example.com.cn", "home", "example.com.cn"},
 		{"example.co.uk", "@", "example.co.uk"},
 		{"www.example.co.uk", "www", "example.co.uk"},
+		{"home.example.co.za", "home", "example.co.za"},
 		{"HOME.Example.COM.", "home", "example.com"},
 	}
 	for _, c := range cases {
@@ -110,10 +111,14 @@ func TestGetIP(t *testing.T) {
 	if err != nil || ip != "203.0.113.9" {
 		t.Fatalf("GetIP api = %q, %v", ip, err)
 	}
-	if _, err := GetIP(context.Background(), config.DDNSTask{Name: "t2", IPSource: "webhook"}); err == nil {
-		t.Fatal("webhook 应返回未实现错误")
-	}
 	if _, err := GetIP(context.Background(), config.DDNSTask{Name: "t3", IPSource: "interface"}); err == nil {
 		t.Fatal("未配置网卡名应报错")
+	}
+}
+
+func TestSafeURLForLogDropsCredentials(t *testing.T) {
+	got := safeURLForLog("https://user:pass@example.com/ip?token=CANARY#part")
+	if got != "https://example.com/ip" {
+		t.Fatalf("safeURLForLog = %q", got)
 	}
 }

@@ -25,9 +25,6 @@ type TaskStatus struct {
 type Worker struct {
 	cfg *config.Config
 
-	// Notify 事件通知回调（可为 nil），IP 变化更新成功或状态转失败时调用。
-	Notify func(event, title, content string)
-
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -64,6 +61,10 @@ func (w *Worker) lockTask(taskID string) *sync.Mutex {
 func (w *Worker) Start() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.startLocked()
+}
+
+func (w *Worker) startLocked() {
 	if w.cancel != nil {
 		return
 	}
@@ -87,9 +88,13 @@ func (w *Worker) Start() {
 // Stop 停止全部任务并等待退出。
 func (w *Worker) Stop() {
 	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.stopLocked()
+}
+
+func (w *Worker) stopLocked() {
 	cancel := w.cancel
 	w.cancel = nil
-	w.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
@@ -98,8 +103,10 @@ func (w *Worker) Stop() {
 
 // Reload 任务配置变更后重启调度。
 func (w *Worker) Reload() {
-	w.Stop()
-	w.Start()
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.stopLocked()
+	w.startLocked()
 }
 
 // Status 查询单个任务状态，未运行过返回 nil。
@@ -179,14 +186,9 @@ func (w *Worker) setStatus(taskID, ip, iface string, success bool, msg string) *
 	return prev
 }
 
-// failWithNotify 记录失败状态，并在“上次成功、本次失败”的状态变化时推送通知。
-func (w *Worker) failWithNotify(task config.DDNSTask, ip, iface, errMsg string) {
-	prev := w.setStatus(task.ID, ip, iface, false, errMsg)
-	if w.Notify != nil && prev != nil && prev.Success {
-		w.Notify("ddns", "andey-Proxy DDNS 更新失败",
-			fmt.Sprintf("任务: %s\n域名: %s\nIP: %s\n错误: %s",
-				task.Name, strings.Join(task.Domains, ", "), ip, errMsg))
-	}
+// failTask 记录任务失败状态。
+func (w *Worker) failTask(task config.DDNSTask, ip, iface, errMsg string) {
+	w.setStatus(task.ID, ip, iface, false, errMsg)
 }
 
 func (w *Worker) providerFor(providerID string) (Provider, error) {
@@ -213,16 +215,13 @@ func (w *Worker) runTask(ctx context.Context, task config.DDNSTask, force bool) 
 
 	ip, iface, err := GetIPDetail(ctx, task)
 	if err != nil {
-		w.failWithNotify(task, "", "", err.Error())
+		w.failTask(task, "", "", err.Error())
 		return err
 	}
 	cacheKey := task.ID + "|" + task.IPType
 	w.smu.Lock()
 	oldIP := w.lastIP[cacheKey]
 	changed := oldIP != ip
-	if changed {
-		w.lastIP[cacheKey] = ip
-	}
 	w.smu.Unlock()
 	if !changed && !force {
 		w.setStatus(task.ID, ip, iface, true, "IP 未变化，跳过更新")
@@ -235,29 +234,23 @@ func (w *Worker) runTask(ctx context.Context, task config.DDNSTask, force bool) 
 	}
 	provider, err := w.providerFor(task.ProviderID)
 	if err != nil {
-		w.failWithNotify(task, ip, iface, err.Error())
+		w.failTask(task, ip, iface, err.Error())
 		return err
 	}
 	var msgs []string
 	for _, d := range task.Domains {
 		msg, err := provider.UpsertRecord(ctx, d, recordType, ip, task.TTL)
 		if err != nil {
-			w.failWithNotify(task, ip, iface, fmt.Sprintf("%s: %v", d, err))
+			w.failTask(task, ip, iface, fmt.Sprintf("%s: %v", d, err))
 			return fmt.Errorf("更新 %s 失败: %w", d, err)
 		}
 		log.Printf("[DDNS] 任务 %s: %s", task.Name, msg)
 		msgs = append(msgs, msg)
 	}
 	result := strings.Join(msgs, "；")
+	w.smu.Lock()
+	w.lastIP[cacheKey] = ip
+	w.smu.Unlock()
 	w.setStatus(task.ID, ip, iface, true, result)
-	// 实际执行了更新（IP 变化或强制）才通知成功
-	if w.Notify != nil {
-		if oldIP == "" {
-			oldIP = "（无）"
-		}
-		w.Notify("ddns", "andey-Proxy DDNS 更新成功",
-			fmt.Sprintf("任务: %s\n域名: %s\nIP: %s → %s\n结果: %s",
-				task.Name, strings.Join(task.Domains, ", "), oldIP, ip, result))
-	}
 	return nil
 }

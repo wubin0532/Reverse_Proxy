@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/logcenter"
 )
 
 // siteHandler 站点入口：规则匹配 → 安全检查 → 按类型分发，并记录访问日志。
@@ -19,19 +20,35 @@ type siteHandler struct {
 func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-	ruleName := "-"
+	ruleID := h.ss.siteSnapshot().ID
 	defer func() {
-		h.ss.logs.Add(fmt.Sprintf("%s %s %s%s 规则[%s] %d %dms",
-			clientIP(r), r.Method, r.Host, r.URL.RequestURI(), ruleName,
-			sw.status, time.Since(start).Milliseconds()))
+		path := r.URL.EscapedPath()
+		if path == "" {
+			path = "/"
+		}
+		message := fmt.Sprintf("%s %s %d %dms", clientIP(r), path, sw.status, time.Since(start).Milliseconds())
+		h.ss.logs.Add(message)
+		level := "info"
+		if sw.status >= 500 {
+			level = "error"
+		} else if sw.status >= 400 {
+			level = "warn"
+		}
+		logcenter.Add("webproxy", ruleID, clientIP(r), level, message)
 	}()
 
-	rule := matchRule(h.ss.site.Rules, r.Host, r.URL.Path)
+	site := h.ss.siteSnapshot()
+	rule := matchRule(site.Rules, r.Host, r.URL.Path)
 	if rule == nil {
 		writeNotFound(sw, r)
 		return
 	}
-	ruleName = rule.Name
+	ruleID = rule.ID
+	if allowed, retryAfter := h.ss.limiter.allow(rule, clientIP(r), time.Now()); !allowed {
+		w.Header().Set("Retry-After", fmt.Sprint(retryAfter))
+		http.Error(sw, "429 Too Many Requests", http.StatusTooManyRequests)
+		return
+	}
 
 	if !checkRuleGuard(sw, r, rule, h.ss.logs) {
 		return
@@ -39,6 +56,14 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch rule.Type {
 	case "reverse":
+		if rule.MaxRequestBodyMiB > 0 {
+			limit := int64(rule.MaxRequestBodyMiB) << 20
+			if r.ContentLength > limit {
+				http.Error(sw, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			r.Body = http.MaxBytesReader(sw, r.Body, limit)
+		}
 		rh, err := h.ss.reverseHandlerFor(rule)
 		if err != nil {
 			h.ss.logs.Add(fmt.Sprintf("%s 规则[%s] 反代不可用: %v", clientIP(r), rule.Name, err))
@@ -109,14 +134,8 @@ func hostOnly(h string) string {
 	return h
 }
 
-// clientIP 取客户端 IP：优先 X-Forwarded-For 首跳，否则 RemoteAddr。
+// clientIP 只信任直接连接地址，避免攻击者伪造 X-Forwarded-For 绕过名单。
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i >= 0 {
-			return strings.TrimSpace(xff[:i])
-		}
-		return strings.TrimSpace(xff)
-	}
 	return hostOnly(r.RemoteAddr)
 }
 

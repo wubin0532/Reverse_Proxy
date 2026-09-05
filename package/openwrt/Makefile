@@ -14,7 +14,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=andey-proxy
-PKG_VERSION:=0.1.5
+PKG_VERSION:=0.2.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=MIT
@@ -48,7 +48,7 @@ endef
 define Package/andey-proxy/description
   参考 lucky 的软硬路由公网工具：动态域名解析（阿里云/Cloudflare/DNSPod）、
   Web服务（反向代理/重定向/文件服务）、ACME 自动证书（DNS-01）、TCP/UDP 端口转发。
-  默认后台端口 16601，默认账号密码 666/666，首次登录请修改。
+  默认后台端口 16601 并启用 HTTPS，首次密码随机生成。
 endef
 
 define Package/andey-proxy/conffiles
@@ -74,7 +74,7 @@ define Package/andey-proxy/postinst
 if [ "$$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
 	/etc/init.d/andey-proxy restart 2>/dev/null
 fi
-echo "andey-Proxy 已安装，后台: http://<路由IP>:16601  默认账号密码 666/666"
+echo "andey-Proxy 已安装，后台: https://<路由IP>:16601（首次密码见启动日志）"
 echo "启动: /etc/init.d/andey-proxy start（或将 /etc/config/andey-proxy 中 enabled 置 1 后 reload）"
 exit 0
 endef

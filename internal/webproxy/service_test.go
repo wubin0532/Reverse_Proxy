@@ -2,11 +2,13 @@ package webproxy
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -95,13 +97,18 @@ func mustGet(t *testing.T, client *http.Client, url string, mutate func(*http.Re
 
 // TestReverseEndToEnd 反代透传：路径拼接、Header 改写、PreserveHost=false。
 func TestReverseEndToEnd(t *testing.T) {
-	var gotHost, gotPath, gotQuery, gotCustom, gotXFF string
+	var gotHost, gotPath, gotQuery, gotCustom, gotXFF, gotRealIP, gotForwardedHost, gotForwardedProto, gotRealProto, gotForwardedPort string
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotHost = r.Host
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		gotCustom = r.Header.Get("X-Custom")
 		gotXFF = r.Header.Get("X-Forwarded-For")
+		gotRealIP = r.Header.Get("X-Real-IP")
+		gotForwardedHost = r.Header.Get("X-Forwarded-Host")
+		gotForwardedProto = r.Header.Get("X-Forwarded-Proto")
+		gotRealProto = r.Header.Get("X-Real-Proto")
+		gotForwardedPort = r.Header.Get("X-Forwarded-Port")
 		fmt.Fprint(w, "backend-ok")
 	}))
 	defer backend.Close()
@@ -123,7 +130,11 @@ func TestReverseEndToEnd(t *testing.T) {
 	if addr == "" {
 		t.Fatal("站点未在监听")
 	}
-	code, _, body := mustGet(t, httpClient(), "http://"+addr+"/foo/bar?x=1", nil)
+	code, _, body := mustGet(t, httpClient(), "http://"+addr+"/foo/bar?x=1", func(r *http.Request) {
+		r.Header.Set("X-Forwarded-For", "203.0.113.66")
+		r.Header.Set("X-Real-IP", "203.0.113.66")
+		r.Header.Set("X-Forwarded-Proto", "https")
+	})
 	if code != http.StatusOK || body != "backend-ok" {
 		t.Fatalf("反代透传失败: code=%d body=%q", code, body)
 	}
@@ -139,14 +150,44 @@ func TestReverseEndToEnd(t *testing.T) {
 	if gotCustom != "yes" {
 		t.Fatalf("附加 Header 未写入: %q", gotCustom)
 	}
-	if gotXFF == "" {
-		t.Fatal("X-Forwarded-For 应由 ReverseProxy 自动追加")
+	if gotXFF != "127.0.0.1" || gotRealIP != "127.0.0.1" {
+		t.Fatalf("代理 IP 头应忽略伪造值，got XFF=%q RealIP=%q", gotXFF, gotRealIP)
+	}
+	if gotForwardedHost != addr || gotForwardedProto != "http" || gotRealProto != "http" || gotForwardedPort == "" {
+		t.Fatalf("自动代理头不完整: host=%q proto=%q realProto=%q port=%q", gotForwardedHost, gotForwardedProto, gotRealProto, gotForwardedPort)
 	}
 
 	// 访问日志应有记录
 	logs := svc.Logs("s1")
-	if len(logs) == 0 || !strings.Contains(logs[len(logs)-1], "规则[反代] 200") {
+	if len(logs) == 0 || !strings.Contains(logs[len(logs)-1], "/foo/bar 200") || strings.Contains(logs[len(logs)-1], "x=1") {
 		t.Fatalf("访问日志缺失或内容不对: %v", logs)
+	}
+}
+
+func TestValidateSiteRejectsUnsafeAndBrokenRules(t *testing.T) {
+	cfg, svc := newTestService(t)
+	h := &apiHandler{cfg: cfg, svc: svc}
+	valid := config.Site{Name: " test ", Listen: "8080", Rules: []config.SubRule{{Name: "proxy", Type: "reverse", Enabled: true, Backends: []string{"https://example.com"}}}}
+	ensureRuleIDs(&valid)
+	if err := h.validateSite(&valid, false); err != nil {
+		t.Fatal(err)
+	}
+	if valid.Listen != ":8080" || valid.Name != "test" || valid.Rules[0].ID == "" {
+		t.Fatalf("站点未正确规范化: %+v", valid)
+	}
+	cases := []config.Site{
+		{Name: "x", Listen: ":0", Rules: []config.SubRule{{Name: "r", Type: "reverse", Backends: []string{"https://example.com"}}}},
+		{Name: "x", Listen: ":80", Rules: []config.SubRule{{Name: "r", Type: "reverse", Backends: []string{"file://server/path"}}}},
+		{Name: "x", Listen: ":80", Rules: []config.SubRule{{Name: "r", Type: "reverse", Backends: []string{"https://user:pass@example.com"}}}},
+		{Name: "x", Listen: ":80", Rules: []config.SubRule{{Name: "r", Type: "reverse", Backends: []string{"https://example.com"}, Headers: map[string]string{"X-Test": "ok\r\nInjected: yes"}}}},
+		{Name: "x", Listen: ":80", Rules: []config.SubRule{{Name: "r", Type: "reverse", Backends: []string{"https://example.com"}, BasicAuth: true, AuthUser: "u"}}},
+		{Name: "x", Listen: ":80", Rules: []config.SubRule{{Name: "r", Type: "redirect", RedirectURL: "javascript:alert(1)"}}},
+	}
+	for i := range cases {
+		ensureRuleIDs(&cases[i])
+		if err := h.validateSite(&cases[i], false); err == nil {
+			t.Fatalf("危险配置 #%d 未被拒绝: %+v", i, cases[i])
+		}
 	}
 }
 
@@ -319,12 +360,12 @@ func TestGuardEndToEnd(t *testing.T) {
 	addr := svc.ListenAddr("s1")
 	client := httpClient()
 
-	// IP 白名单：XFF 命中放行
+	// XFF 不可信，即使伪造值命中白名单也不得放行。
 	code, _, _ := mustGet(t, client, "http://"+addr+"/ip", func(r *http.Request) {
 		r.Header.Set("X-Forwarded-For", "10.0.0.1")
 	})
-	if code != http.StatusOK {
-		t.Fatalf("IP 白名单应放行, got %d", code)
+	if code != http.StatusForbidden {
+		t.Fatalf("伪造 XFF 应被忽略, got %d", code)
 	}
 	// 未命中（RemoteAddr 127.0.0.1）
 	code, _, _ = mustGet(t, client, "http://"+addr+"/ip", nil)
@@ -373,6 +414,34 @@ func TestTLSSelfSignedFallback(t *testing.T) {
 	code, _, _ := mustGet(t, client, "https://"+addr+"/", nil)
 	if code != http.StatusFound {
 		t.Fatalf("TLS 站点握手后应正常分发, got %d", code)
+	}
+}
+
+func TestBackendTLSVerifyIsIsolatedPerRule(t *testing.T) {
+	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") }))
+	defer backend.Close()
+	logs := newTestRingLog()
+	strict, err := newReverseHandler(config.SubRule{ID: "strict", Name: "strict", Backends: []string{backend.URL}}, logs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://proxy/", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	strict.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("strict TLS should reject self-signed backend, got %d", rec.Code)
+	}
+	insecure, err := newReverseHandler(config.SubRule{ID: "insecure", Name: "insecure", Backends: []string{backend.URL}, SkipBackendTLSVerify: true}, logs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "http://proxy/", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	insecure.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "ok" {
+		t.Fatalf("opt-in TLS bypass failed: %d %q", rec.Code, rec.Body.String())
 	}
 }
 
@@ -442,8 +511,10 @@ func TestAccessLogContent(t *testing.T) {
 	noFollow := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
-	mustGet(t, noFollow, "http://"+addr+"/path?q=1", func(r *http.Request) {
+	mustGet(t, noFollow, "http://"+addr+"/path?token=CANARY", func(r *http.Request) {
 		r.Header.Set("X-Forwarded-For", "9.9.9.9")
+		r.Header.Set("Authorization", "Bearer CANARY")
+		r.Header.Set("Cookie", "session=CANARY")
 	})
 
 	logs := svc.Logs("s1")
@@ -451,9 +522,14 @@ func TestAccessLogContent(t *testing.T) {
 		t.Fatalf("应有 1 条日志, got %v", logs)
 	}
 	entry := logs[0]
-	for _, want := range []string{"9.9.9.9", "GET", "/path?q=1", "规则[跳转]", "302"} {
+	for _, want := range []string{"127.0.0.1", "/path", "302"} {
 		if !strings.Contains(entry, want) {
 			t.Errorf("日志 %q 缺少 %q", entry, want)
+		}
+	}
+	for _, secret := range []string{"CANARY", "token=", "Authorization", "Cookie", "9.9.9.9", "GET", "跳转"} {
+		if strings.Contains(entry, secret) {
+			t.Errorf("日志 %q 泄露或信任了外部值 %q", entry, secret)
 		}
 	}
 	// 不存在站点的日志
@@ -481,5 +557,20 @@ func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("写文件失败: %v", err)
+	}
+}
+
+func TestProxyErrorLogSanitization(t *testing.T) {
+	target, err := url.Parse("https://user:password@example.com/api?access_token=CANARY#fragment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := backendURLForLog(target); got != "https://example.com/api" {
+		t.Fatalf("sanitized backend URL = %q", got)
+	}
+	wrapped := &url.Error{Op: "Get", URL: target.String(), Err: errors.New("connection refused")}
+	got := proxyErrorForLog(wrapped)
+	if strings.Contains(got, "CANARY") || strings.Contains(got, "password") || strings.Contains(got, target.String()) {
+		t.Fatalf("proxy error leaked URL credentials: %q", got)
 	}
 }

@@ -20,7 +20,7 @@ func checkRuleGuard(w http.ResponseWriter, r *http.Request, rule *config.SubRule
 		return false
 	}
 	if !guard.AllowUA(rule.UAListMode, rule.UAList, r.UserAgent()) {
-		logs.Add(fmt.Sprintf("%s 规则[%s] 被 UA 名单拦截 UA=%q", ip, rule.Name, r.UserAgent()))
+		logs.Add(fmt.Sprintf("%s 规则[%s] 被 UA 名单拦截", ip, rule.Name))
 		http.Error(w, "403 Forbidden", http.StatusForbidden)
 		return false
 	}

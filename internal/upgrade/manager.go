@@ -1,400 +1,577 @@
 package upgrade
 
 import (
-	"context"
+	"archive/tar"
+	"bufio"
+	"compress/gzip"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"debug/elf"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 )
 
-const (
-	// apiBase GitHub API 地址，测试中可替换为 httptest 服务。
-	defaultAPIBase = "https://api.github.com"
-	repoPath       = "/repos/wubin0532/Reverse_Proxy"
+const maxRunSize = 100 << 20
+const payloadMarker = "__PAYLOAD_BELOW__"
+const binaryName = "andey-proxy"
+const releasePublicKey = "ToHBQVbq44rZjR0Ya37kgLfjTaHrkDpyhjkiKQwAonU="
 
-	// maxRunSize .run 包下载上限 100MB。
-	maxRunSize = 100 << 20
+var versionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
 
-	// initdPath OpenWrt procd 服务脚本，存在则用它重启。
-	initdPath = "/etc/init.d/andey-proxy"
-)
-
-// State 升级状态机状态。
 type State string
 
 const (
-	StateIdle        State = "idle"        // 空闲
-	StateDownloading State = "downloading" // 下载安装包中
-	StateInstalling  State = "installing"  // 解包、校验、替换二进制中
-	StateRestarting  State = "restarting"  // 触发服务重启中
-	StateDone        State = "done"        // 完成（含需手动重启的情况）
-	StateFailed      State = "failed"      // 失败，error 字段有原因
+	StateIdle       State = "idle"
+	StateInspecting State = "inspecting"
+	StateInspected  State = "inspected"
+	StateInstalling State = "installing"
+	StateRestarting State = "restarting"
+	StateDone       State = "done"
+	StateFailed     State = "failed"
 )
 
-// busy 报告状态是否处于升级进行中（用于防并发）。
-func (s State) busy() bool {
-	return s == StateDownloading || s == StateInstalling || s == StateRestarting
-}
-
-// Status 升级状态快照。
 type Status struct {
-	State   State  `json:"state"`
-	Version string `json:"version,omitempty"` // 目标版本
-	Error   string `json:"error,omitempty"`   // 失败原因
-	Note    string `json:"note,omitempty"`    // 附加提示（如需手动重启）
+	State      State       `json:"state"`
+	Version    string      `json:"version,omitempty"`
+	Error      string      `json:"error,omitempty"`
+	Note       string      `json:"note,omitempty"`
+	Inspection *Inspection `json:"inspection,omitempty"`
 }
-
-// ghRelease GitHub release API 返回结构（仅取需要的字段）。
-type ghRelease struct {
-	TagName string `json:"tag_name"`
-	HTMLURL string `json:"html_url"`
-	Assets  []struct {
-		Name               string `json:"name"`
-		BrowserDownloadURL string `json:"browser_download_url"`
-	} `json:"assets"`
+type Manifest struct {
+	Version string `json:"version"`
+	GOOS    string `json:"goos"`
+	GOARCH  string `json:"goarch"`
+	Size    int64  `json:"size"`
+	SHA256  string `json:"sha256"`
 }
-
-// CheckResult 版本检查结果。
-type CheckResult struct {
-	Current    string `json:"current"`
-	Latest     string `json:"latest"`
-	HasUpdate  bool   `json:"hasUpdate"`
-	ReleaseURL string `json:"releaseUrl"`
+type Inspection struct {
+	UploadID string `json:"uploadId"`
+	Manifest
+	Compatible bool `json:"compatible"`
+	Downgrade  bool `json:"downgrade"`
+	Signed     bool `json:"signed"`
 }
-
-// Manager 在线升级管理器，持有状态机并执行下载、安装、重启。
+type stagedPackage struct {
+	path, binaryPath string
+	inspection       Inspection
+	expires          time.Time
+}
 type Manager struct {
-	version string // 当前版本（main 注入）
-	started time.Time
-
-	mu      sync.Mutex
-	state   State
-	target  string
-	errMsg  string
-	note    string
-
-	// 以下字段可在测试中替换
-	client  *http.Client // GitHub API / 元数据请求客户端（15s 超时）
-	dlClient *http.Client // 大文件下载客户端（5 分钟超时）
-	apiBase string
+	version, dir string
+	statusPath   string
+	mu           sync.Mutex
+	state        State
+	errMsg, note string
+	staged       *stagedPackage
 }
 
-// NewManager 创建升级管理器，version 为当前版本号。
-func NewManager(version string) *Manager {
-	return &Manager{
-		version:  version,
-		started:  time.Now(),
-		state:    StateIdle,
-		client:   &http.Client{Timeout: 15 * time.Second},
-		dlClient: &http.Client{Timeout: 5 * time.Minute},
-		apiBase:  defaultAPIBase,
+func NewManager(version, dir string) *Manager {
+	cleanupStaleUploads(dir)
+	m := &Manager{version: version, dir: dir, statusPath: filepath.Join(dir, "update-status.json"), state: StateIdle}
+	if data, err := os.ReadFile(m.statusPath); err == nil {
+		var previous Status
+		if json.Unmarshal(data, &previous) == nil {
+			m.state, m.errMsg, m.note = previous.State, previous.Error, previous.Note
+			if previous.Version != "" && previous.State == StateRestarting && compareVersions(version, previous.Version) != 0 {
+				m.state = StateFailed
+				m.errMsg = fmt.Sprintf("服务已重新启动，但运行版本 %s 与待安装版本 %s 不一致", version, previous.Version)
+			}
+		} else {
+			m.state = StateFailed
+			m.errMsg = "更新状态文件损坏"
+		}
 	}
+	return m
 }
-
-// Version 返回当前版本号。
 func (m *Manager) Version() string { return m.version }
-
-// Uptime 返回进程启动至今的秒数。
-func (m *Manager) Uptime() int64 { return int64(time.Since(m.started).Seconds()) }
-
-// Status 返回当前升级状态快照。
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return Status{State: m.state, Version: m.target, Error: m.errMsg, Note: m.note}
+	ver := m.version
+	var inspection *Inspection
+	if m.staged != nil {
+		ver = m.staged.inspection.Version
+		copy := m.staged.inspection
+		inspection = &copy
+	}
+	return Status{State: m.state, Version: ver, Error: m.errMsg, Note: m.note, Inspection: inspection}
 }
 
-// setState 推进状态机。
-func (m *Manager) setState(s State) {
+// MarkStarted 在新进程完成核心模块启动后确认上一次更新成功。
+func (m *Manager) MarkStarted() {
 	m.mu.Lock()
-	m.state = s
-	m.mu.Unlock()
+	defer m.mu.Unlock()
+	if m.state != StateRestarting {
+		return
+	}
+	m.state = StateDone
+	m.errMsg = ""
+	m.note = "新版本已启动"
+	_ = m.persistStatusLocked(m.version)
+	log.Printf("[update] 更新 %s 已完成并成功启动", m.version)
 }
 
-// fail 将状态机置为 failed 并记录原因。
+func (m *Manager) InspectUpload(w http.ResponseWriter, r *http.Request) (*Inspection, error) {
+	m.mu.Lock()
+	if m.staged != nil || m.state == StateInspecting || m.state == StateInstalling || m.state == StateRestarting {
+		m.mu.Unlock()
+		return nil, errors.New("已有更新包正在处理")
+	}
+	m.state = StateInspecting
+	m.mu.Unlock()
+	completed := false
+	defer func() {
+		if completed {
+			return
+		}
+		m.mu.Lock()
+		if m.state == StateInspecting {
+			m.state = StateIdle
+		}
+		m.mu.Unlock()
+	}()
+	r.Body = http.MaxBytesReader(w, r.Body, maxRunSize+(1<<20))
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		return nil, fmt.Errorf("更新包超过 100 MiB 或格式错误")
+	}
+	defer r.MultipartForm.RemoveAll()
+	file, hdr, err := r.FormFile("package")
+	if err != nil {
+		return nil, errors.New("请选择 .run 更新包")
+	}
+	defer file.Close()
+	if !strings.HasSuffix(strings.ToLower(hdr.Filename), ".run") {
+		return nil, errors.New("只支持 .run 更新包")
+	}
+	tmp, err := os.CreateTemp(m.dir, "update-*.run")
+	if err != nil {
+		return nil, err
+	}
+	_ = tmp.Chmod(0o600)
+	n, copyErr := io.Copy(tmp, io.LimitReader(file, maxRunSize+1))
+	closeErr := tmp.Close()
+	if copyErr != nil || closeErr != nil || n > maxRunSize {
+		_ = os.Remove(tmp.Name())
+		return nil, errors.New("保存更新包失败或文件超过 100 MiB")
+	}
+	manifest, binPath, err := inspectSignedRun(tmp.Name(), m.dir)
+	if err != nil {
+		_ = os.Remove(tmp.Name())
+		return nil, err
+	}
+	idBytes := make([]byte, 16)
+	if _, err := rand.Read(idBytes); err != nil {
+		_ = os.Remove(tmp.Name())
+		_ = os.Remove(binPath)
+		return nil, errors.New("生成上传标识失败")
+	}
+	id := hex.EncodeToString(idBytes)
+	ins := Inspection{UploadID: id, Manifest: *manifest, Compatible: manifest.GOOS == runtime.GOOS && manifest.GOARCH == runtime.GOARCH, Signed: true, Downgrade: compareVersions(manifest.Version, m.version) < 0}
+	if !ins.Compatible {
+		_ = os.Remove(tmp.Name())
+		_ = os.Remove(binPath)
+		return nil, fmt.Errorf("更新包架构 %s/%s 与当前 %s/%s 不兼容", manifest.GOOS, manifest.GOARCH, runtime.GOOS, runtime.GOARCH)
+	}
+	m.mu.Lock()
+	m.staged = &stagedPackage{path: tmp.Name(), binaryPath: binPath, inspection: ins, expires: time.Now().Add(10 * time.Minute)}
+	m.state = StateInspected
+	m.errMsg = ""
+	m.note = ""
+	m.mu.Unlock()
+	completed = true
+	time.AfterFunc(10*time.Minute, func() { m.expire(id) })
+	log.Printf("[update] 更新包已通过签名与架构检查，版本: %s", ins.Version)
+	return &ins, nil
+}
+func (m *Manager) Cancel(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.staged == nil || m.staged.inspection.UploadID != id {
+		return false
+	}
+	m.removeStagedLocked()
+	m.state = StateIdle
+	log.Printf("[update] 已取消并删除临时更新包")
+	return true
+}
+func (m *Manager) Install(id string, allowDowngrade bool) error {
+	m.mu.Lock()
+	if m.staged == nil || m.staged.inspection.UploadID != id {
+		m.mu.Unlock()
+		return errors.New("更新包不存在或已过期")
+	}
+	if time.Now().After(m.staged.expires) {
+		m.removeStagedLocked()
+		m.mu.Unlock()
+		return errors.New("更新包已过期")
+	}
+	if m.staged.inspection.Downgrade && !allowDowngrade {
+		m.mu.Unlock()
+		return errors.New("默认禁止降级，请明确允许降级")
+	}
+	bin := m.staged.binaryPath
+	ver := m.staged.inspection.Version
+	m.state = StateInstalling
+	m.mu.Unlock()
+	if err := installAtomic(bin); err != nil {
+		m.fail(err)
+		return err
+	}
+	m.mu.Lock()
+	m.state = StateRestarting
+	m.note = "新版本已安装，服务即将重启"
+	if m.staged != nil {
+		_ = os.Remove(m.staged.path)
+		_ = os.Remove(m.staged.binaryPath)
+		m.staged = nil
+	}
+	if err := m.persistStatusLocked(ver); err != nil {
+		m.mu.Unlock()
+		_ = restoreBackup()
+		m.fail(fmt.Errorf("保存更新状态失败: %w", err))
+		return err
+	}
+	m.mu.Unlock()
+	log.Printf("[update] 更新 %s 已安装，已安排服务重启", ver)
+	go func() {
+		time.Sleep(time.Second)
+		if err := startRestart(); err != nil {
+			if rollbackErr := restoreBackup(); rollbackErr != nil {
+				err = fmt.Errorf("重启失败: %v；恢复备份也失败: %w", err, rollbackErr)
+			}
+			m.fail(err)
+		}
+	}()
+	return nil
+}
 func (m *Manager) fail(err error) {
 	m.mu.Lock()
 	m.state = StateFailed
 	m.errMsg = err.Error()
+	_ = m.persistStatusLocked(m.version)
 	m.mu.Unlock()
+	log.Printf("[update] 更新失败: %v", err)
 }
 
-// Check 查询 GitHub 最新 release 并与当前版本比较。
-func (m *Manager) Check(ctx context.Context) (*CheckResult, error) {
-	rel, err := m.fetchRelease(ctx, "")
+func (m *Manager) persistStatusLocked(version string) error {
+	status := Status{State: m.state, Version: version, Error: m.errMsg, Note: m.note}
+	data, err := json.Marshal(status)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	latest := strings.TrimPrefix(rel.TagName, "v")
-	return &CheckResult{
-		Current:    m.version,
-		Latest:     latest,
-		HasUpdate:  hasUpdate(m.version, rel.TagName),
-		ReleaseURL: rel.HTMLURL,
-	}, nil
-}
-
-// Start 尝试启动一次升级，已有升级进行中返回 false；成功则后台异步执行。
-func (m *Manager) Start(version string) bool {
-	m.mu.Lock()
-	if m.state.busy() {
-		m.mu.Unlock()
-		return false
-	}
-	m.state = StateDownloading
-	m.target = version
-	m.errMsg = ""
-	m.note = ""
-	m.mu.Unlock()
-
-	go m.run(version)
-	return true
-}
-
-// fetchRelease 拉取 release 信息；tag 为空取 latest，否则按 tag 查询。
-func (m *Manager) fetchRelease(ctx context.Context, tag string) (*ghRelease, error) {
-	url := m.apiBase + repoPath + "/releases/latest"
-	if tag != "" {
-		url = m.apiBase + repoPath + "/releases/tags/" + normalizeTag(tag)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	tmp, err := os.OpenFile(m.statusPath+".tmp", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "andey-proxy/"+m.version)
-
-	resp, err := m.client.Do(req)
+	if _, err = tmp.Write(data); err == nil {
+		err = tmp.Sync()
+	}
+	if err == nil {
+		err = tmp.Chmod(0o600)
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
-		return nil, fmt.Errorf("无法连接 GitHub，请检查网络或稍后重试: %w", err)
+		_ = os.Remove(m.statusPath + ".tmp")
+		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("未找到版本 %s 的发布", tag)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API 返回错误（HTTP %d），请稍后重试", resp.StatusCode)
-	}
-	var rel ghRelease
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rel); err != nil {
-		return nil, fmt.Errorf("解析 GitHub 响应失败: %w", err)
-	}
-	return &rel, nil
-}
-
-// run 升级主流程：下载 → 校验 → 解包 → 替换 → 重启。
-func (m *Manager) run(version string) {
-	ctx := context.Background()
-
-	// 解析目标 release（空则 latest）
-	rel, err := m.fetchRelease(ctx, version)
-	if err != nil {
-		m.fail(err)
-		return
-	}
-	ver := strings.TrimPrefix(rel.TagName, "v")
-	m.mu.Lock()
-	m.target = ver
-	m.mu.Unlock()
-
-	// 匹配当前架构的 .run 资产
-	suffix, ok := archSuffix(runtime.GOARCH)
-	if !ok {
-		m.fail(fmt.Errorf("当前架构 %s 不支持在线升级", runtime.GOARCH))
-		return
-	}
-	assetName := fmt.Sprintf("andey-proxy_%s_linux_%s.run", ver, suffix)
-	var runURL, sumURL string
-	for _, a := range rel.Assets {
-		switch a.Name {
-		case assetName:
-			runURL = a.BrowserDownloadURL
-		case "checksums.txt":
-			sumURL = a.BrowserDownloadURL
-		}
-	}
-	if runURL == "" {
-		m.fail(fmt.Errorf("版本 %s 中未找到安装包 %s", ver, assetName))
-		return
-	}
-	if sumURL == "" {
-		m.fail(errors.New("release 中未找到 checksums.txt，无法校验安装包"))
-		return
-	}
-
-	// 下载校验和并取目标包对应行
-	expect, err := m.fetchChecksum(ctx, sumURL, assetName)
-	if err != nil {
-		m.fail(err)
-		return
-	}
-
-	// 下载 .run 到 /tmp，同时计算 SHA256
-	runPath, err := m.download(ctx, runURL, expect)
-	if err != nil {
-		m.fail(err)
-		return
-	}
-	defer os.Remove(runPath)
-
-	// 解包并安装
-	m.setState(StateInstalling)
-	dir, err := extractPayload(runPath)
-	if err != nil {
-		m.fail(err)
-		return
-	}
-	defer os.RemoveAll(dir)
-
-	if err := install(filepath.Join(dir, binaryName)); err != nil {
-		m.fail(err)
-		return
-	}
-
-	// 重启：优先 procd 服务脚本
-	if _, err := os.Stat(initdPath); err == nil {
-		m.setState(StateRestarting)
-		if err := exec.Command(initdPath, "restart").Start(); err != nil {
-			m.mu.Lock()
-			m.state = StateDone
-			m.note = "新版本已安装，但自动重启失败，请手动重启服务"
-			m.mu.Unlock()
-		}
-		// 重启命令发出后 procd 会拉起新进程，本进程随即退出
-		return
-	}
-	m.mu.Lock()
-	m.state = StateDone
-	m.note = "升级完成，请手动重启进程以运行新版本"
-	m.mu.Unlock()
-}
-
-// fetchChecksum 下载 checksums.txt 并解析出指定文件的 SHA256。
-func (m *Manager) fetchChecksum(ctx context.Context, url, name string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := m.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("下载校验文件失败: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("下载校验文件失败（HTTP %d）", resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", fmt.Errorf("读取校验文件失败: %w", err)
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[1] == name {
-			return strings.ToLower(fields[0]), nil
-		}
-	}
-	return "", fmt.Errorf("校验文件中未找到 %s 的 SHA256", name)
-}
-
-// download 流式下载到 /tmp 临时文件，限制 100MB 并校验 SHA256，成功后返回文件路径。
-func (m *Manager) download(ctx context.Context, url, expectSum string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := m.dlClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("下载安装包失败: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("下载安装包失败（HTTP %d）", resp.StatusCode)
-	}
-
-	tmp, err := os.CreateTemp("", "andey-proxy-*.run")
-	if err != nil {
-		return "", err
-	}
-	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(resp.Body, maxRunSize+1))
-	if err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return "", fmt.Errorf("下载安装包失败: %w", err)
-	}
-	if n > maxRunSize {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return "", errors.New("安装包超过 100MB 上限，已中止")
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-	if sum := hex.EncodeToString(h.Sum(nil)); sum != expectSum {
-		os.Remove(tmp.Name())
-		return "", fmt.Errorf("安装包 SHA256 校验失败（期望 %s，实际 %s）", expectSum, sum)
-	}
-	return tmp.Name(), nil
-}
-
-// install 备份当前二进制为 <路径>.bak 后用新二进制覆盖；失败时回滚。
-func install(newBin string) error {
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("获取当前程序路径失败: %w", err)
-	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-	backup := exe + ".bak"
-
-	// 备份当前二进制
-	if err := copyFile(exe, backup, 0o755); err != nil {
-		return fmt.Errorf("备份当前程序失败: %w", err)
-	}
-
-	// 覆盖安装（rename 失败说明跨文件系统，退化为复制）
-	if err := os.Rename(newBin, exe); err != nil {
-		if err := copyFile(newBin, exe, 0o755); err != nil {
-			// 回滚备份
-			if rbErr := os.Rename(backup, exe); rbErr != nil {
-				return fmt.Errorf("写入新程序失败: %w；且回滚失败: %v", err, rbErr)
-			}
-			return fmt.Errorf("写入新程序失败: %w（已回滚到旧版本）", err)
-		}
-	}
-	if err := os.Chmod(exe, 0o755); err != nil {
-		return fmt.Errorf("设置执行权限失败: %w", err)
+	if err = os.Rename(m.statusPath+".tmp", m.statusPath); err != nil {
+		_ = os.Remove(m.statusPath + ".tmp")
+		return err
 	}
 	return nil
 }
 
-// copyFile 复制文件内容并设置权限。
-func copyFile(src, dst string, mode os.FileMode) error {
-	in, err := os.Open(src)
+func cleanupStaleUploads(dir string) {
+	for _, pattern := range []string{"update-*.run", "update-bin-*"} {
+		matches, _ := filepath.Glob(filepath.Join(dir, pattern))
+		for _, path := range matches {
+			if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
+				_ = os.Remove(path)
+			}
+		}
+	}
+}
+func (m *Manager) expire(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.staged != nil && m.staged.inspection.UploadID == id && time.Now().After(m.staged.expires) {
+		m.removeStagedLocked()
+		m.state = StateIdle
+	}
+}
+func (m *Manager) removeStagedLocked() {
+	if m.staged != nil {
+		_ = os.Remove(m.staged.path)
+		_ = os.Remove(m.staged.binaryPath)
+		m.staged = nil
+	}
+}
+
+func inspectSignedRun(path, dir string) (*Manifest, string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, "", err
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	headerBytes := 0
+	for {
+		line, e := br.ReadSlice('\n')
+		headerBytes += len(line)
+		if e == bufio.ErrBufferFull || headerBytes > 64<<10 {
+			return nil, "", errors.New("更新包脚本头超过 64 KiB")
+		}
+		if trimLine(string(line)) == payloadMarker {
+			break
+		}
+		if e != nil {
+			return nil, "", errors.New("更新包缺少 payload 标记")
+		}
+	}
+	gz, err := gzip.NewReader(br)
+	if err != nil {
+		return nil, "", errors.New("更新包 payload 无效")
+	}
+	defer gz.Close()
+	tr := tar.NewReader(io.LimitReader(gz, maxRunSize+(2<<20)))
+	var manifestBytes, sig []byte
+	var binPath string
+	var binSize int64
+	var binDigest string
+	cleanup := func() {
+		if binPath != "" {
+			_ = os.Remove(binPath)
+		}
+	}
+	for {
+		h, e := tr.Next()
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			cleanup()
+			return nil, "", e
+		}
+		name := filepath.Base(h.Name)
+		if h.Typeflag != tar.TypeReg {
+			continue
+		}
+		switch name {
+		case "manifest.json":
+			if len(manifestBytes) != 0 {
+				cleanup()
+				return nil, "", errors.New("更新包包含重复清单")
+			}
+			manifestBytes, e = io.ReadAll(io.LimitReader(tr, 1<<20))
+		case "manifest.sig":
+			if len(sig) != 0 {
+				cleanup()
+				return nil, "", errors.New("更新包包含重复签名")
+			}
+			sig, e = io.ReadAll(io.LimitReader(tr, 4096))
+		case binaryName:
+			if binPath != "" {
+				cleanup()
+				return nil, "", errors.New("更新包包含重复二进制")
+			}
+			tmp, createErr := os.CreateTemp(dir, "update-bin-*")
+			if createErr != nil {
+				return nil, "", createErr
+			}
+			binPath = tmp.Name()
+			_ = tmp.Chmod(0o700)
+			hash := sha256.New()
+			binSize, e = io.Copy(io.MultiWriter(tmp, hash), io.LimitReader(tr, maxRunSize+1))
+			if e == nil && binSize > maxRunSize {
+				e = errors.New("更新包内二进制超过 100 MiB")
+			}
+			if e == nil {
+				e = tmp.Sync()
+			}
+			if closeErr := tmp.Close(); e == nil {
+				e = closeErr
+			}
+			binDigest = hex.EncodeToString(hash.Sum(nil))
+		}
+		if e != nil {
+			cleanup()
+			return nil, "", e
+		}
+	}
+	if len(manifestBytes) == 0 || len(sig) == 0 || binPath == "" || binSize == 0 {
+		cleanup()
+		return nil, "", errors.New("更新包缺少二进制、清单或签名")
+	}
+	pub, err := base64.StdEncoding.DecodeString(releasePublicKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		cleanup()
+		return nil, "", errors.New("内置更新公钥无效")
+	}
+	sigRaw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig)))
+	if err != nil || !ed25519.Verify(ed25519.PublicKey(pub), manifestBytes, sigRaw) {
+		cleanup()
+		return nil, "", errors.New("更新包签名验证失败")
+	}
+	var manifest Manifest
+	if json.Unmarshal(manifestBytes, &manifest) != nil || !versionPattern.MatchString(manifest.Version) || manifest.GOOS != "linux" {
+		cleanup()
+		return nil, "", errors.New("更新清单的版本或平台无效")
+	}
+	if binSize != manifest.Size || binDigest != strings.ToLower(manifest.SHA256) {
+		cleanup()
+		return nil, "", errors.New("更新包大小或 SHA256 校验失败")
+	}
+	ef, err := elf.Open(binPath)
+	if err != nil {
+		cleanup()
+		return nil, "", errors.New("更新包不是有效 ELF")
+	}
+	machine, elfType, byteOrder := ef.Machine, ef.Type, ef.Data
+	_ = ef.Close()
+	if (elfType != elf.ET_EXEC && elfType != elf.ET_DYN) || !elfMatches(machine, byteOrder, manifest.GOARCH) {
+		cleanup()
+		return nil, "", errors.New("ELF 类型或架构与清单不一致")
+	}
+	return &manifest, binPath, nil
+}
+func elfMatches(m elf.Machine, data elf.Data, arch string) bool {
+	switch arch {
+	case "amd64":
+		return m == elf.EM_X86_64 && data == elf.ELFDATA2LSB
+	case "arm64":
+		return m == elf.EM_AARCH64 && data == elf.ELFDATA2LSB
+	case "arm":
+		return m == elf.EM_ARM && data == elf.ELFDATA2LSB
+	case "mips":
+		return m == elf.EM_MIPS && data == elf.ELFDATA2MSB
+	case "mipsle":
+		return m == elf.EM_MIPS && data == elf.ELFDATA2LSB
+	}
+	return false
+}
+func installAtomic(newBin string) error {
+	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if r, e := filepath.EvalSymlinks(exe); e == nil {
+		exe = r
+	}
+	dir := filepath.Dir(exe)
+	tmp, err := os.CreateTemp(dir, ".andey-proxy-new-*")
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	src, err := os.Open(newBin)
+	if err != nil {
+		tmp.Close()
 		return err
 	}
-	return out.Close()
+	_, err = io.Copy(tmp, src)
+	src.Close()
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if err == nil {
+		err = tmp.Chmod(0o755)
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	backup := exe + ".bak"
+	_ = os.Remove(backup)
+	if err = os.Rename(exe, backup); err != nil {
+		return err
+	}
+	if err = os.Rename(tmpName, exe); err != nil {
+		_ = os.Rename(backup, exe)
+		return err
+	}
+	if dirHandle, openErr := os.Open(dir); openErr == nil {
+		err = dirHandle.Sync()
+		_ = dirHandle.Close()
+	}
+	if err != nil {
+		failed := exe + ".failed-update"
+		_ = os.Rename(exe, failed)
+		_ = os.Rename(backup, exe)
+		_ = os.Remove(failed)
+		return err
+	}
+	return nil
+}
+
+func executablePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(exe); resolveErr == nil {
+		exe = resolved
+	}
+	return exe, nil
+}
+
+func startRestart() error {
+	var cmd *exec.Cmd
+	if _, err := os.Stat("/etc/init.d/andey-proxy"); err == nil {
+		cmd = exec.Command("/etc/init.d/andey-proxy", "restart")
+	} else if systemctl, err := exec.LookPath("systemctl"); err == nil {
+		cmd = exec.Command(systemctl, "restart", "andey-proxy")
+	} else {
+		return errors.New("未找到可用的服务重启方式")
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(output))
+		if msg == "" {
+			return err
+		}
+		return fmt.Errorf("%w: %s", err, msg)
+	}
+	return nil
+}
+
+func restoreBackup() error {
+	exe, err := executablePath()
+	if err != nil {
+		return err
+	}
+	backup := exe + ".bak"
+	failed := exe + ".failed-update"
+	if err := os.Rename(exe, failed); err != nil {
+		return err
+	}
+	if err := os.Rename(backup, exe); err != nil {
+		_ = os.Rename(failed, exe)
+		return err
+	}
+	_ = os.Remove(failed)
+	return nil
+}
+
+func trimLine(s string) string {
+	return strings.TrimRight(s, "\r\n")
 }

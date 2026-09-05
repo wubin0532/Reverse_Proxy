@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/http2"
+
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
@@ -34,8 +36,9 @@ type Service struct {
 	// Start/Reload 后会按 Enabled && AutoFW 的站点上报期望放行集合。
 	FW *firewall.Manager
 
-	mu    sync.Mutex
-	sites map[string]*siteServer
+	mu       sync.Mutex
+	reloadMu sync.Mutex
+	sites    map[string]*siteServer
 
 	certMu    sync.Mutex
 	certFiles map[string]*certFileCache
@@ -47,10 +50,12 @@ type Service struct {
 
 // siteServer 一个站点监听器及其运行状态。
 type siteServer struct {
-	site config.Site // 启动时的配置快照，Reload 据此判断是否需要重启
-	srv  *http.Server
-	ln   net.Listener
-	logs *forward.RingLog
+	siteMu  sync.RWMutex
+	site    config.Site // 当前不可变配置快照
+	srv     *http.Server
+	ln      net.Listener
+	logs    *forward.RingLog
+	limiter *ruleLimiter
 
 	mu  sync.Mutex
 	err error // 最近一次的监听/运行错误
@@ -82,7 +87,9 @@ func (s *Service) Start() {
 	defer s.mu.Unlock()
 	s.cfg.RLock()
 	sites := make([]config.Site, len(s.cfg.Sites))
-	copy(sites, s.cfg.Sites)
+	for i := range s.cfg.Sites {
+		sites[i] = cloneSite(s.cfg.Sites[i])
+	}
 	s.cfg.RUnlock()
 	for _, site := range sites {
 		if !site.Enabled {
@@ -91,7 +98,7 @@ func (s *Service) Start() {
 		if _, ok := s.sites[site.ID]; ok {
 			continue
 		}
-		s.startLocked(site)
+		_ = s.startLocked(site)
 	}
 	s.syncFirewall()
 }
@@ -116,32 +123,39 @@ func (s *Service) Stop() {
 
 // Reload 按当前配置增量调整监听器：
 // 新增/重新启用 → 启动；删除/禁用/配置变化/处于错误状态 → 重启或停止。
-func (s *Service) Reload() {
+func (s *Service) Reload() error {
+	s.reloadMu.Lock()
+	defer s.reloadMu.Unlock()
 	s.cfg.RLock()
 	want := make(map[string]config.Site)
 	for _, site := range s.cfg.Sites {
 		if site.Enabled {
-			want[site.ID] = site
+			want[site.ID] = cloneSite(site)
 		}
 	}
 	s.cfg.RUnlock()
 
 	var toStop []*siteServer
 	var toStart []config.Site
+	var firstErr error
 
 	s.mu.Lock()
 	for id, ss := range s.sites {
 		ns, ok := want[id]
+		current := ss.siteSnapshot()
 		switch {
 		case !ok:
 			// 已删除或禁用
 			toStop = append(toStop, ss)
 			delete(s.sites, id)
-		case !reflect.DeepEqual(ss.site, ns) || ss.getErr() != nil:
-			// 配置变化或上次启动失败，重启
+		case current.Listen != ns.Listen || current.TLS != ns.TLS || ss.getErr() != nil:
+			// 只有监听地址、明文/TLS 模式变化或运行错误才重建监听器。
 			toStop = append(toStop, ss)
 			delete(s.sites, id)
 			toStart = append(toStart, ns)
+		case !reflect.DeepEqual(current, ns):
+			// 非监听配置热更新，并重建规则缓存。
+			ss.updateSite(ns)
 		}
 	}
 	for id, site := range want {
@@ -159,15 +173,20 @@ func (s *Service) Reload() {
 			}
 		}
 	}
-	for _, site := range toStart {
-		s.startLocked(site)
-	}
 	s.mu.Unlock()
 
 	for _, ss := range toStop {
 		stopSite(ss)
 	}
+	s.mu.Lock()
+	for _, site := range toStart {
+		if err := s.startLocked(site); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	s.mu.Unlock()
 	s.syncFirewall()
+	return firstErr
 }
 
 // syncFirewall 按当前配置向防火墙管理器上报 web 来源的期望放行集合：
@@ -205,10 +224,12 @@ func listenPort(listen string) (int, error) {
 
 // startLocked 启动单个站点监听器，失败时错误记录在 siteServer 上。
 // 调用方须持有 s.mu。
-func (s *Service) startLocked(site config.Site) {
+func (s *Service) startLocked(site config.Site) error {
+	site = cloneSite(site)
 	ss := &siteServer{
 		site:       site,
 		logs:       forward.NewRingLog(300),
+		limiter:    newRuleLimiter(),
 		revHandler: make(map[string]http.Handler),
 		revErr:     make(map[string]error),
 	}
@@ -218,7 +239,7 @@ func (s *Service) startLocked(site config.Site) {
 	if err != nil {
 		ss.setErr(err)
 		log.Printf("[webproxy] 站点 %s 监听 %s 失败: %v", site.Name, site.Listen, err)
-		return
+		return err
 	}
 	ss.ln = ln
 	ss.srv = &http.Server{
@@ -227,11 +248,19 @@ func (s *Service) startLocked(site config.Site) {
 		IdleTimeout:       120 * time.Second,
 		// 不设 WriteTimeout，避免掐断 WebSocket/流式长连接
 	}
+	if site.TLS {
+		ss.srv.TLSConfig = s.tlsConfig(ss.siteSnapshot)
+		if err := http2.ConfigureServer(ss.srv, &http2.Server{}); err != nil {
+			_ = ln.Close()
+			ss.setErr(err)
+			return err
+		}
+	}
 	log.Printf("[webproxy] 站点 %s 开始监听 %s (TLS=%v)", site.Name, site.Listen, site.TLS)
 	go func() {
 		var err error
 		if site.TLS {
-			err = ss.srv.Serve(tls.NewListener(ln, s.tlsConfig(site)))
+			err = ss.srv.Serve(tls.NewListener(ln, ss.srv.TLSConfig))
 		} else {
 			err = ss.srv.Serve(ln)
 		}
@@ -240,16 +269,76 @@ func (s *Service) startLocked(site config.Site) {
 			log.Printf("[webproxy] 站点 %s 服务异常: %v", site.Name, err)
 		}
 	}()
+	return nil
 }
 
 func stopSite(ss *siteServer) {
+	ss.closeIdleConnections()
 	if ss.srv == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := ss.srv.Shutdown(ctx); err != nil {
-		log.Printf("[webproxy] 站点 %s 关闭异常: %v", ss.site.Name, err)
+		log.Printf("[webproxy] 站点 %s 关闭异常: %v", ss.siteSnapshot().Name, err)
+	}
+}
+
+func (ss *siteServer) siteSnapshot() config.Site {
+	ss.siteMu.RLock()
+	defer ss.siteMu.RUnlock()
+	return ss.site
+}
+
+func (ss *siteServer) updateSite(site config.Site) {
+	site = cloneSite(site)
+	ss.siteMu.Lock()
+	ss.site = site
+	ss.siteMu.Unlock()
+	ss.handlerMu.Lock()
+	old := ss.revHandler
+	ss.revHandler = make(map[string]http.Handler)
+	ss.revErr = make(map[string]error)
+	ss.handlerMu.Unlock()
+	for _, handler := range old {
+		if reverse, ok := handler.(*reverseHandler); ok {
+			reverse.closeIdleConnections()
+		}
+	}
+}
+
+// cloneSite creates an immutable runtime snapshot. A shallow struct copy would
+// share rule slices and maps with Config, making changes invisible to Reload's
+// comparison and racing with live request dispatch.
+func cloneSite(site config.Site) config.Site {
+	cloned := site
+	cloned.Rules = make([]config.SubRule, len(site.Rules))
+	for i := range site.Rules {
+		cloned.Rules[i] = site.Rules[i]
+		cloned.Rules[i].Backends = append([]string(nil), site.Rules[i].Backends...)
+		cloned.Rules[i].IPList = append([]string(nil), site.Rules[i].IPList...)
+		cloned.Rules[i].UAList = append([]string(nil), site.Rules[i].UAList...)
+		if site.Rules[i].Headers != nil {
+			cloned.Rules[i].Headers = make(map[string]string, len(site.Rules[i].Headers))
+			for key, value := range site.Rules[i].Headers {
+				cloned.Rules[i].Headers[key] = value
+			}
+		}
+	}
+	return cloned
+}
+
+func (ss *siteServer) closeIdleConnections() {
+	ss.handlerMu.Lock()
+	handlers := make([]http.Handler, 0, len(ss.revHandler))
+	for _, handler := range ss.revHandler {
+		handlers = append(handlers, handler)
+	}
+	ss.handlerMu.Unlock()
+	for _, handler := range handlers {
+		if reverse, ok := handler.(*reverseHandler); ok {
+			reverse.closeIdleConnections()
+		}
 	}
 }
 
@@ -303,10 +392,11 @@ func (s *Service) ListenAddr(siteID string) string {
 
 // tlsConfig 构建站点 TLS 配置，GetCertificate 回退链：
 // 1) 注入的 CertGetter（ACME 模块） 2) 配置目录证书文件 3) 内存自签证书。
-func (s *Service) tlsConfig(site config.Site) *tls.Config {
+func (s *Service) tlsConfig(siteSnapshot func() config.Site) *tls.Config {
 	return &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			site := siteSnapshot()
 			if s.certGetter != nil {
 				if cert, err := s.certGetter(hello); err == nil && cert != nil {
 					return cert, nil
@@ -322,6 +412,11 @@ func (s *Service) tlsConfig(site config.Site) *tls.Config {
 			return s.selfSigned()
 		},
 	}
+}
+
+// AdminTLSConfig 为管理后台提供与 Web 站点相同的 SNI/自签回退链。
+func (s *Service) AdminTLSConfig() *tls.Config {
+	return s.tlsConfig(func() config.Site { return config.Site{Name: "管理后台"} })
 }
 
 // loadCertFile 从 cfg.Dir()/certs/<CertID>.crt/.key 加载证书，按文件修改时间缓存。

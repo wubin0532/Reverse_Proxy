@@ -32,6 +32,28 @@ func TestAllowIP(t *testing.T) {
 	}
 }
 
+func TestValidateRuleNormalizesAndRejectsInvalidConfig(t *testing.T) {
+	rule := config.ForwardRule{Name: " test ", Proto: "", Listen: "12345", Targets: []string{"127.0.0.1:80"}}
+	if err := validateRule(&rule); err != nil {
+		t.Fatal(err)
+	}
+	if rule.Name != "test" || rule.Proto != "tcp" || rule.Listen != ":12345" {
+		t.Fatalf("规则未规范化: %+v", rule)
+	}
+	bad := []config.ForwardRule{
+		{Name: "x", Proto: "icmp", Listen: ":80", Targets: []string{"127.0.0.1:80"}},
+		{Name: "x", Proto: "tcp", Listen: ":0", Targets: []string{"127.0.0.1:80"}},
+		{Name: "x", Proto: "tcp", Listen: ":80"},
+		{Name: "x", Proto: "tcp", Listen: ":80", Targets: []string{"missing-port"}},
+		{Name: "x", Proto: "tcp", Listen: ":80", Targets: []string{"127.0.0.1:80"}, IPListMode: "whitelist", IPList: []string{"not-an-ip"}},
+	}
+	for i := range bad {
+		if err := validateRule(&bad[i]); err == nil {
+			t.Fatalf("无效规则 %d 未被拒绝: %+v", i, bad[i])
+		}
+	}
+}
+
 func TestTCPForward(t *testing.T) {
 	// 起后端 echo 服务
 	backend, err := net.Listen("tcp", "127.0.0.1:0")
@@ -134,4 +156,3 @@ func TestReloadStopsDisabled(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
-

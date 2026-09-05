@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"andey-proxy/internal/config"
 )
@@ -35,7 +35,7 @@ func newCloudflareProvider(conf config.DNSProviderConf) *cloudflareProvider {
 	return &cloudflareProvider{
 		token:    token,
 		endpoint: strings.TrimSuffix(ep, "/"),
-		client:   &http.Client{Timeout: 15 * time.Second},
+		client:   providerHTTPClient(),
 	}
 }
 
@@ -70,7 +70,7 @@ func (p *cloudflareProvider) do(ctx context.Context, method, path string, query 
 	}
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return err
+		return safeRequestError("Cloudflare", err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -85,14 +85,14 @@ func (p *cloudflareProvider) do(ctx context.Context, method, path string, query 
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(data, &head); err != nil {
-		return fmt.Errorf("Cloudflare 响应解析失败: %s", truncate(string(data), 200))
+		return errors.New("cloudflare 响应解析失败")
 	}
 	if !head.Success {
 		msg := "未知错误"
 		if len(head.Errors) > 0 {
 			msg = head.Errors[0].Message
 		}
-		return fmt.Errorf("Cloudflare 错误: %s", msg)
+		return fmt.Errorf("cloudflare 错误: %s", redactProviderMessage(msg, p.token))
 	}
 	if out != nil {
 		return json.Unmarshal(data, out)
@@ -112,7 +112,7 @@ func (p *cloudflareProvider) zoneID(ctx context.Context, root string) (string, e
 		return "", err
 	}
 	if len(out.Result) == 0 {
-		return "", fmt.Errorf("Cloudflare 未找到域 %s 的 Zone", root)
+		return "", fmt.Errorf("cloudflare 未找到域 %s 的 zone", root)
 	}
 	return out.Result[0].ID, nil
 }

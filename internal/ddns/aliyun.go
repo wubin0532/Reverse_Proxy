@@ -38,7 +38,7 @@ func newAliyunProvider(conf config.DNSProviderConf) *aliyunProvider {
 		key:      conf.Key,
 		secret:   conf.Secret,
 		endpoint: strings.TrimSuffix(ep, "/"),
-		client:   &http.Client{Timeout: 15 * time.Second},
+		client:   providerHTTPClient(),
 	}
 }
 
@@ -104,7 +104,7 @@ func (p *aliyunProvider) do(ctx context.Context, action string, params map[strin
 	}
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return err
+		return safeRequestError("阿里云", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -116,10 +116,10 @@ func (p *aliyunProvider) do(ctx context.Context, action string, params map[strin
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(body, &head); err != nil {
-		return fmt.Errorf("阿里云响应解析失败: %s", truncate(string(body), 200))
+		return fmt.Errorf("阿里云响应解析失败")
 	}
 	if head.Code != "" {
-		return fmt.Errorf("阿里云错误 %s: %s", head.Code, head.Message)
+		return fmt.Errorf("阿里云错误 %s: %s", head.Code, redactProviderMessage(head.Message, p.key, p.secret))
 	}
 	if out != nil {
 		return json.Unmarshal(body, out)
@@ -135,11 +135,11 @@ func (p *aliyunProvider) findRecord(ctx context.Context, root, rr, recordType st
 		} `json:"DomainRecords"`
 	}
 	err := p.do(ctx, "DescribeDomainRecords", map[string]string{
-		"DomainName":   root,
-		"RRKeyWord":    rr,
-		"TypeKeyWord":  recordType,
-		"PageSize":     "100",
-		"SearchMode":   "ADVANCED",
+		"DomainName":  root,
+		"RRKeyWord":   rr,
+		"TypeKeyWord": recordType,
+		"PageSize":    "100",
+		"SearchMode":  "ADVANCED",
 	}, &out)
 	if err != nil {
 		return nil, err
@@ -212,11 +212,4 @@ func (p *aliyunProvider) UpsertRecord(ctx context.Context, domain, recordType, i
 		return "", err
 	}
 	return fmt.Sprintf("更新记录 %s %s: %s -> %s", domain, recordType, rec.Value, ip), nil
-}
-
-func truncate(s string, n int) string {
-	if len(s) > n {
-		return s[:n] + "..."
-	}
-	return s
 }

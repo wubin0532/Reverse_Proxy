@@ -4,11 +4,21 @@ set -e
 cd "$(dirname "$0")/.."
 export PATH="/opt/homebrew/bin:$PATH"
 
-VERSION=${VERSION:-0.1.0}
+VERSION=${VERSION:-0.2.0}
 PKG_RELEASE=1
+SIGNING_KEY=${RELEASE_SIGNING_KEY:-}
+NODE_BIN=${NODE_BIN:-node}
 OUT="$(pwd)/release"
 WORK="$OUT/work"
 rm -rf "$OUT" && mkdir -p "$WORK"
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
 
 # goarch 后缀|GOARCH|opkg 架构|GOARM|GOMIPS
 TARGETS=(
@@ -40,6 +50,7 @@ make_ipk() {
   chmod 755 "$root/data/etc/init.d/andey-proxy"
   cp package/openwrt/files/andey-proxy.config "$root/data/etc/config/andey-proxy"
   chmod 644 "$root/data/etc/config/andey-proxy"
+	chmod 700 "$root/data/etc/andey-proxy"
 
   local size
   size=$(du -sk "$root/data" | cut -f1)
@@ -52,7 +63,7 @@ Architecture: $opkgarch
 Installed-Size: $size
 Maintainer: andey
 Description: andey-Proxy DDNS/反向代理/ACME证书一体工具
- 默认后台端口 16601，默认账号密码 666/666，首次登录请修改
+ 默认后台端口 16601，初始密码在首次启动时随机生成
 EOF
 
   # conffiles：升级时保留用户的 UCI 配置（不声明会被包内默认配置覆盖）
@@ -66,7 +77,7 @@ EOF
 if [ "$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
   /etc/init.d/andey-proxy restart 2>/dev/null
 fi
-echo "andey-Proxy 已安装，后台: http://<路由IP>:16601  默认账号密码 666/666"
+echo "andey-Proxy 已安装，后台: https://<路由IP>:16601"
 echo "启动: /etc/init.d/andey-proxy start"
 exit 0
 EOF
@@ -146,6 +157,7 @@ EOF
 
 make_run() {
   local suffix=$1
+  local goarch=$2
   local root="$WORK/run_$suffix"
   mkdir -p "$root/payload"
   cp "$WORK/bin_$suffix" "$root/payload/andey-proxy"
@@ -212,7 +224,7 @@ tail -n +"$LINE" "$0" | tar xz -C "$TMP"
 echo "安装 andey-Proxy $VERSION ..."
 install -m 755 "$TMP/andey-proxy" "$INSTALL_DIR/$BIN_NAME"
 install -m 755 "$TMP/andey-proxy-uninstall" "$INSTALL_DIR/andey-proxy-uninstall"
-mkdir -p "$CONF_DIR"
+install -d -m 700 "$CONF_DIR"
 
 if [ -d /etc/init.d ]; then
   install -m 755 "$TMP/andey-proxy.init" /etc/init.d/$BIN_NAME
@@ -239,12 +251,26 @@ else
 fi
 
 echo ""
-echo "安装完成！后台管理: http://<本机IP>:16601  默认账号密码 666/666（首次登录请修改）"
+echo "安装完成！后台管理: https://<本机IP>:16601"
+echo "首次启动会在控制台输出一次性随机密码。"
 echo "卸载: sudo andey-proxy-uninstall"
 exit 0
 __PAYLOAD_BELOW__
 INSTEOF
-  sed -i '' "s/__VERSION__/$VERSION/" "$root/install.sh"
+  sed "s/__VERSION__/$VERSION/" "$root/install.sh" > "$root/install.sh.tmp"
+  mv "$root/install.sh.tmp" "$root/install.sh"
+
+  if [ -z "$SIGNING_KEY" ] || [ ! -f "$SIGNING_KEY" ]; then
+    echo "错误：构建 .run 需要 RELEASE_SIGNING_KEY 指向 Ed25519 私钥" >&2
+    exit 1
+  fi
+  local size digest
+  size=$(wc -c < "$root/payload/andey-proxy" | tr -d ' ')
+  digest=$(sha256_file "$root/payload/andey-proxy")
+  printf '{"version":"%s","goos":"linux","goarch":"%s","size":%s,"sha256":"%s"}' \
+    "$VERSION" "$goarch" "$size" "$digest" > "$root/payload/manifest.json"
+  "$NODE_BIN" -e 'const fs=require("fs"),c=require("crypto");const [m,k,o]=process.argv.slice(1);fs.writeFileSync(o,c.sign(null,fs.readFileSync(m),fs.readFileSync(k)).toString("base64"))' \
+    "$root/payload/manifest.json" "$SIGNING_KEY" "$root/payload/manifest.sig"
 
   local out="$OUT/andey-proxy_${VERSION}_linux_${suffix}.run"
   (cd "$root/payload" && COPYFILE_DISABLE=1 tar --format=ustar -czf "$root/payload.tar.gz" .)
@@ -257,11 +283,11 @@ for t in "${TARGETS[@]}"; do
   IFS='|' read -r suffix goarch opkgarch goarm gomips <<< "$t"
   build_binary "$suffix" "$goarch" "$goarm" "$gomips"
   make_ipk "$suffix" "$opkgarch"
-  make_run "$suffix"
+  make_run "$suffix" "$goarch"
 done
 make_luci_ipk
 
-(cd "$OUT" && for f in *.ipk *.run; do shasum -a 256 "$f"; done > checksums.txt)
+(cd "$OUT" && for f in *.ipk *.run; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done > checksums.txt)
 rm -rf "$WORK"
 echo ""
 echo "全部完成，产物："

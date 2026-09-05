@@ -2,6 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -18,9 +21,9 @@ func OK(w http.ResponseWriter, data interface{}) {
 }
 
 func Fail(w http.ResponseWriter, code int, msg string) {
-	status := http.StatusOK
-	if code == 401 {
-		status = http.StatusUnauthorized
+	status := code
+	if status < 400 || status > 599 {
+		status = http.StatusBadRequest
 	}
 	writeJSON(w, status, Response{Code: code, Msg: msg})
 }
@@ -33,5 +36,17 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 
 // DecodeBody 解析 JSON 请求体。
 func DecodeBody(r *http.Request, v interface{}) error {
-	return json.NewDecoder(r.Body).Decode(v)
+	r.Body = http.MaxBytesReader(nil, r.Body, 1<<20)
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(v); err != nil {
+		return err
+	}
+	var extra interface{}
+	if err := d.Decode(&extra); err == nil {
+		return fmt.Errorf("请求体包含多个 JSON 值")
+	} else if !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }

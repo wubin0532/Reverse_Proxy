@@ -110,18 +110,16 @@ func TestGuardIPUAAndBasicAuth(t *testing.T) {
 		return r
 	}
 
-	// IP 白名单：XFF 首跳命中放行，RemoteAddr 不在名单拒绝
+	// IP 白名单只使用直连地址，客户端伪造 XFF 不能绕过。
 	rule := &config.SubRule{Name: "g", IPListMode: "whitelist", IPList: []string{"10.0.0.0/8"}}
 	rec := newRecorder()
-	if !checkRuleGuard(rec, newReq("10.1.2.3, 1.1.1.1", ""), rule, newTestRingLog()) {
-		t.Fatal("XFF 首跳在白名单网段应放行")
+	if checkRuleGuard(rec, newReq("10.1.2.3, 1.1.1.1", ""), rule, newTestRingLog()) {
+		t.Fatal("伪造 XFF 不应绕过直连 IP 白名单")
 	}
+	rule.IPList = []string{"127.0.0.1"}
 	rec = newRecorder()
-	if checkRuleGuard(rec, newReq("", ""), rule, newTestRingLog()) {
-		t.Fatal("127.0.0.1 不在白名单应拦截")
-	}
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("IP 拦截应为 403, got %d", rec.Code)
+	if !checkRuleGuard(rec, newReq("203.0.113.9", ""), rule, newTestRingLog()) {
+		t.Fatal("直连 IP 在白名单时应放行")
 	}
 
 	// UA 黑名单

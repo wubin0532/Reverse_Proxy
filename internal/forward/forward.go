@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/guard"
+	"andey-proxy/internal/logcenter"
 )
 
 // Service 端口转发服务，管理所有规则的监听器。
@@ -28,19 +30,28 @@ type Service struct {
 	mu      sync.Mutex
 	lmu     sync.Mutex // 保护 logs，与 mu 分离避免 startRuleLocked 持锁时死锁
 	wg      sync.WaitGroup
-	running map[string]context.CancelFunc // ruleID -> 停止函数
+	running map[string]*ruleRunner // ruleID -> 运行项
 	logs    map[string]*RingLog
 }
 
+type ruleRunner struct {
+	rule   config.ForwardRule
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 func NewService(cfg *config.Config) *Service {
-	return &Service{cfg: cfg, running: make(map[string]context.CancelFunc), logs: make(map[string]*RingLog)}
+	return &Service{cfg: cfg, running: make(map[string]*ruleRunner), logs: make(map[string]*RingLog)}
 }
 
 // Start 启动所有已启用规则。
 func (s *Service) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, rule := range s.cfg.Forwards {
+	s.cfg.RLock()
+	rules := append([]config.ForwardRule(nil), s.cfg.Forwards...)
+	s.cfg.RUnlock()
+	for _, rule := range rules {
 		if rule.Enabled {
 			s.startRuleLocked(rule)
 		}
@@ -51,11 +62,16 @@ func (s *Service) Start() {
 // Stop 停止全部监听器并等待连接排空。
 func (s *Service) Stop() {
 	s.mu.Lock()
-	for id, cancel := range s.running {
-		cancel()
+	var done []chan struct{}
+	for id, runner := range s.running {
+		runner.cancel()
+		done = append(done, runner.done)
 		delete(s.running, id)
 	}
 	s.mu.Unlock()
+	for _, ch := range done {
+		<-ch
+	}
 	s.wg.Wait()
 	// 服务整体停止：清空 forward 来源的自动放行规则
 	if s.FW != nil {
@@ -65,25 +81,38 @@ func (s *Service) Stop() {
 
 // Reload 按当前配置重算运行状态（配置变更后调用）。
 func (s *Service) Reload() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	want := make(map[string]bool)
-	for _, rule := range s.cfg.Forwards {
-		want[rule.ID] = rule.Enabled
+	s.cfg.RLock()
+	rules := append([]config.ForwardRule(nil), s.cfg.Forwards...)
+	s.cfg.RUnlock()
+	want := make(map[string]config.ForwardRule)
+	for _, rule := range rules {
+		if rule.Enabled {
+			want[rule.ID] = rule
+		}
 	}
-	for id, cancel := range s.running {
-		if !want[id] {
-			cancel()
+	var stopped []*ruleRunner
+	s.mu.Lock()
+	for id, runner := range s.running {
+		next, ok := want[id]
+		if !ok || !reflect.DeepEqual(runner.rule, next) {
+			runner.cancel()
+			stopped = append(stopped, runner)
 			delete(s.running, id)
 		}
 	}
-	for _, rule := range s.cfg.Forwards {
+	s.mu.Unlock()
+	for _, runner := range stopped {
+		<-runner.done
+	}
+	s.mu.Lock()
+	for _, rule := range rules {
 		if rule.Enabled {
 			if _, ok := s.running[rule.ID]; !ok {
 				s.startRuleLocked(rule)
 			}
 		}
 	}
+	s.mu.Unlock()
 	s.syncFirewall()
 }
 
@@ -95,7 +124,10 @@ func (s *Service) syncFirewall() {
 		return
 	}
 	var rules []firewall.Rule
-	for _, rule := range s.cfg.Forwards {
+	s.cfg.RLock()
+	rulesCfg := append([]config.ForwardRule(nil), s.cfg.Forwards...)
+	s.cfg.RUnlock()
+	for _, rule := range rulesCfg {
 		if !rule.Enabled || !rule.AutoFW {
 			continue
 		}
@@ -132,9 +164,30 @@ func (s *Service) Logs(ruleID string) []string {
 	return nil
 }
 
+// RuleStatus reports whether a configured listener is still running.
+func (s *Service) RuleStatus(ruleID string) (string, string) {
+	s.mu.Lock()
+	runner, ok := s.running[ruleID]
+	s.mu.Unlock()
+	if !ok {
+		return "stopped", "监听未启动"
+	}
+	select {
+	case <-runner.done:
+		return "error", "监听启动或运行已停止，请查看日志"
+	default:
+		return "listening", ""
+	}
+}
+
 func (s *Service) logf(ruleID, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	log.Printf("[转发] %s", msg)
+	level := "info"
+	if strings.Contains(msg, "失败") || strings.Contains(msg, "错误") {
+		level = "error"
+	}
+	logcenter.Add("forward", ruleID, "", level, msg)
 	s.lmu.Lock()
 	rl, ok := s.logs[ruleID]
 	if !ok {
@@ -147,16 +200,24 @@ func (s *Service) logf(ruleID, format string, args ...interface{}) {
 
 func (s *Service) startRuleLocked(rule config.ForwardRule) {
 	ctx, cancel := context.WithCancel(context.Background())
-	s.running[rule.ID] = cancel
+	runner := &ruleRunner{rule: rule, cancel: cancel, done: make(chan struct{})}
+	s.running[rule.ID] = runner
 	proto := strings.ToLower(rule.Proto)
-	if proto == "tcp" || proto == "tcpudp" || proto == "" {
-		s.wg.Add(1)
-		go func() { defer s.wg.Done(); s.serveTCP(ctx, rule) }()
-	}
-	if proto == "udp" || proto == "tcpudp" {
-		s.wg.Add(1)
-		go func() { defer s.wg.Done(); s.serveUDP(ctx, rule) }()
-	}
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		defer close(runner.done)
+		var wg sync.WaitGroup
+		if proto == "tcp" || proto == "tcpudp" || proto == "" {
+			wg.Add(1)
+			go func() { defer wg.Done(); s.serveTCP(ctx, rule) }()
+		}
+		if proto == "udp" || proto == "tcpudp" {
+			wg.Add(1)
+			go func() { defer wg.Done(); s.serveUDP(ctx, rule) }()
+		}
+		wg.Wait()
+	}()
 	s.logf(rule.ID, "规则 %q 已启动，监听 %s", rule.Name, rule.Listen)
 }
 
@@ -228,9 +289,9 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule) {
 	var mu sync.Mutex
 
 	// 过期清理
-	s.wg.Add(1)
+	cleanupDone := make(chan struct{})
 	go func() {
-		defer s.wg.Done()
+		defer close(cleanupDone)
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for {
@@ -260,6 +321,7 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule) {
 					sess.dst.Close()
 				}
 				mu.Unlock()
+				<-cleanupDone
 				return
 			}
 			continue

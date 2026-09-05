@@ -146,20 +146,38 @@
 
         <template v-if="ruleDialog.form.type === 'reverse'">
           <el-form-item label="后端地址" required>
-            <el-input
-              v-model="ruleDialog.form.backendsText"
-              placeholder="多个用英文逗号分隔，如 http://10.0.0.2:80, http://10.0.0.3:80"
-            />
+            <div class="backend-editor">
+              <el-input
+                v-model="ruleDialog.form.backendsText"
+                placeholder="多个用英文逗号分隔，如 http://10.0.0.2:80, http://10.0.0.3:80"
+              />
+              <div class="backend-test-row">
+                <el-button size="small" :loading="backendTesting" @click="testBackend">测试第一个后端</el-button>
+                <span v-if="backendTestResult" class="form-tip">{{ backendTestResult }}</span>
+              </div>
+            </div>
+          </el-form-item>
+          <el-form-item label="移除路径前缀">
+            <el-switch v-model="ruleDialog.form.stripPrefix" />
+            <span class="form-tip">例如 /app/api 转发为 /api，并设置 X-Forwarded-Prefix</span>
           </el-form-item>
           <el-form-item label="透传 Host">
             <el-switch v-model="ruleDialog.form.preserveHost" />
             <span class="form-tip">开启后将原始 Host 头传给后端</span>
           </el-form-item>
+          <el-form-item label="自动代理头">
+            <el-switch v-model="ruleDialog.form.autoProxyHeaders" />
+            <span class="form-tip">清除外部伪造值并生成 Host、X-Forwarded-*、X-Real-*</span>
+          </el-form-item>
+          <el-form-item label="忽略后端 TLS">
+            <el-switch v-model="ruleDialog.form.skipBackendTlsVerify" />
+            <span class="form-tip">仅当前子规则生效，用于内网自签证书</span>
+          </el-form-item>
           <el-form-item label="附加请求头">
             <div class="headers-editor">
               <div v-for="(h, i) in ruleDialog.headersList" :key="i" class="header-row">
                 <el-input v-model="h.key" placeholder="Header 名，如 X-Real-IP" style="width: 220px" />
-                <el-input v-model="h.value" placeholder="值" style="width: 240px" />
+                <el-input v-model="h.value" type="password" show-password :placeholder="h.configured ? '已配置，留空保持不变' : '值（只写）'" style="width: 240px" />
                 <el-button link type="danger" @click="ruleDialog.headersList.splice(i, 1)">删除</el-button>
               </div>
               <el-button size="small" plain @click="ruleDialog.headersList.push({ key: '', value: '' })">
@@ -167,6 +185,41 @@
               </el-button>
             </div>
           </el-form-item>
+
+          <el-collapse class="security-collapse">
+            <el-collapse-item title="稳定性与公网保护" name="stability">
+              <div class="number-grid">
+                <el-form-item label="连接超时">
+                  <el-input-number v-model="ruleDialog.form.connectTimeoutSeconds" :min="0" :max="30" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="响应头超时">
+                  <el-input-number v-model="ruleDialog.form.responseHeaderTimeoutSeconds" :min="0" :max="600" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="每 IP 每秒请求">
+                  <el-input-number v-model="ruleDialog.form.rateLimitRPS" :min="0" :max="100000" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="允许突发请求">
+                  <el-input-number v-model="ruleDialog.form.rateLimitBurst" :min="0" :max="200000" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="请求体上限（MiB）">
+                  <el-input-number v-model="ruleDialog.form.maxRequestBodyMiB" :min="0" :max="10240" controls-position="right" />
+                </el-form-item>
+              </div>
+              <div class="collapse-tip">超时单位为秒；0 表示保持系统默认或关闭限制。新规则建议连接 5 秒、响应头 60 秒。</div>
+            </el-collapse-item>
+            <el-collapse-item title="响应重写（可选）" name="response">
+              <el-form-item label="修正 Location">
+                <el-switch v-model="ruleDialog.form.rewriteLocation" />
+                <span class="form-tip">仅改写指向当前后端的绝对重定向地址</span>
+              </el-form-item>
+              <el-form-item label="Cookie Domain">
+                <div class="rewrite-pair"><el-input v-model="ruleDialog.form.cookieDomainFrom" placeholder="原域名" /><span>→</span><el-input v-model="ruleDialog.form.cookieDomainTo" placeholder="新域名，空为删除" /></div>
+              </el-form-item>
+              <el-form-item label="Cookie Path">
+                <div class="rewrite-pair"><el-input v-model="ruleDialog.form.cookiePathFrom" placeholder="原路径，如 /app" /><span>→</span><el-input v-model="ruleDialog.form.cookiePathTo" placeholder="新路径，空为删除" /></div>
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
         </template>
 
         <template v-if="ruleDialog.form.type === 'redirect'">
@@ -202,7 +255,7 @@
                 <el-input v-model="ruleDialog.form.authUser" style="width: 240px" />
               </el-form-item>
               <el-form-item label="认证密码">
-                <el-input v-model="ruleDialog.form.authPass" type="password" show-password style="width: 240px" />
+                <el-input v-model="ruleDialog.form.authPass" type="password" show-password :placeholder="ruleDialog.form.authPassConfigured ? '已配置，留空保持不变' : '请输入密码'" style="width: 240px" />
               </el-form-item>
             </template>
             <el-form-item label="IP 访问控制">
@@ -370,7 +423,11 @@ const emptyRule = () => ({
   id: '', name: '', type: 'reverse', enabled: true,
   frontendHost: '', frontendPath: '',
   backendsText: '', redirectUrl: '', redirectCode: 302, rootDir: '',
-  preserveHost: true, basicAuth: false, authUser: '', authPass: '',
+  preserveHost: false, autoProxyHeaders: true, skipBackendTlsVerify: false,
+	stripPrefix: false, connectTimeoutSeconds: 5, responseHeaderTimeoutSeconds: 60,
+	rateLimitRPS: 0, rateLimitBurst: 0, maxRequestBodyMiB: 0,
+	rewriteLocation: false, cookieDomainFrom: '', cookieDomainTo: '', cookiePathFrom: '', cookiePathTo: '',
+  basicAuth: false, authUser: '', authPass: '', authPassConfigured: false,
   ipListMode: '', uaListMode: ''
 })
 
@@ -382,6 +439,8 @@ const ruleDialog = reactive({
   ipListText: '',
   uaListText: ''
 })
+const backendTesting = ref(false)
+const backendTestResult = ref('')
 
 function openRuleDialog(row, index = -1) {
   ruleDialog.index = index
@@ -398,19 +457,58 @@ function openRuleDialog(row, index = -1) {
         redirectCode: row.redirectCode || 302,
         rootDir: row.rootDir || '',
         preserveHost: !!row.preserveHost,
+        autoProxyHeaders: row.autoProxyHeaders !== false,
+        skipBackendTlsVerify: !!row.skipBackendTlsVerify,
+		stripPrefix: !!row.stripPrefix,
+		connectTimeoutSeconds: row.connectTimeoutSeconds ?? 0,
+		responseHeaderTimeoutSeconds: row.responseHeaderTimeoutSeconds ?? 0,
+		rateLimitRPS: row.rateLimitRPS ?? 0,
+		rateLimitBurst: row.rateLimitBurst ?? 0,
+		maxRequestBodyMiB: row.maxRequestBodyMiB ?? 0,
+		rewriteLocation: !!row.rewriteLocation,
+		cookieDomainFrom: row.cookieDomainFrom || '',
+		cookieDomainTo: row.cookieDomainTo || '',
+		cookiePathFrom: row.cookiePathFrom || '',
+		cookiePathTo: row.cookiePathTo || '',
         basicAuth: !!row.basicAuth,
         authUser: row.authUser || '',
-        authPass: row.authPass || '',
+        authPass: '',
+        authPassConfigured: !!row.basicAuth,
         ipListMode: row.ipListMode || '',
         uaListMode: row.uaListMode || ''
       }
     : emptyRule()
   ruleDialog.headersList = row
-    ? Object.entries(row.headers || {}).map(([key, value]) => ({ key, value }))
+    ? Object.entries(row.headers || {}).map(([key]) => ({ key, value: '', configured: true }))
     : []
   ruleDialog.ipListText = row ? (row.ipList || []).join(', ') : ''
   ruleDialog.uaListText = row ? (row.uaList || []).join(', ') : ''
+	backendTestResult.value = ''
   ruleDialog.visible = true
+}
+
+async function testBackend() {
+	const backend = splitList(ruleDialog.form.backendsText)[0]
+	if (!backend) {
+		ElMessage.warning('请先填写后端地址')
+		return
+	}
+	backendTesting.value = true
+	backendTestResult.value = ''
+	try {
+		const res = await request.post('/api/sites/backend-test', {
+			url: backend,
+			connectTimeoutSeconds: ruleDialog.form.connectTimeoutSeconds || 5,
+			skipBackendTlsVerify: ruleDialog.form.skipBackendTlsVerify
+		})
+		const data = res.data || {}
+		backendTestResult.value = `连接成功 · ${data.latencyMs ?? 0} ms${data.tls ? ' · TLS 正常' : ''}`
+		ElMessage.success('后端连接测试通过')
+	} catch {
+		backendTestResult.value = '连接失败'
+	} finally {
+		backendTesting.value = false
+	}
 }
 
 function splitList(text) {
@@ -448,6 +546,19 @@ function confirmRule() {
     rootDir: f.type === 'fileserver' ? f.rootDir.trim() : '',
     headers,
     preserveHost: f.preserveHost,
+    autoProxyHeaders: f.autoProxyHeaders,
+    skipBackendTlsVerify: f.skipBackendTlsVerify,
+	stripPrefix: f.stripPrefix,
+	connectTimeoutSeconds: f.connectTimeoutSeconds || 0,
+	responseHeaderTimeoutSeconds: f.responseHeaderTimeoutSeconds || 0,
+	rateLimitRPS: f.rateLimitRPS || 0,
+	rateLimitBurst: f.rateLimitRPS ? (f.rateLimitBurst || f.rateLimitRPS * 2) : 0,
+	maxRequestBodyMiB: f.maxRequestBodyMiB || 0,
+	rewriteLocation: f.rewriteLocation,
+	cookieDomainFrom: f.cookieDomainFrom.trim(),
+	cookieDomainTo: f.cookieDomainTo.trim(),
+	cookiePathFrom: f.cookiePathFrom.trim(),
+	cookiePathTo: f.cookiePathTo.trim(),
     basicAuth: f.basicAuth,
     authUser: f.basicAuth ? f.authUser : '',
     authPass: f.basicAuth ? f.authPass : '',
@@ -476,9 +587,8 @@ function openLogs(row) {
 
 async function loadLogs() {
   try {
-    const res = await request.get(`/api/sites/${logsDrawer.id}/logs`)
-    // 后端返回按时间正序（最新在最后），界面倒序展示
-    logsDrawer.logs = (res.data || []).slice().reverse()
+	const res = await request.get('/api/logs', { params: { entityId: logsDrawer.id, limit: 200 } })
+	logsDrawer.logs = (res.data?.entries || []).map((entry) => `${new Date(entry.time).toLocaleString()} [${entry.level}] ${entry.message}`)
   } catch {
     logsDrawer.logs = []
   }
@@ -549,6 +659,26 @@ onMounted(() => {
 }
 .headers-editor {
   width: 100%;
+}
+.backend-editor { width: 100%; }
+.backend-test-row { display: flex; align-items: center; margin-top: 8px; }
+.number-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.number-grid :deep(.el-input-number) { width: 100%; }
+.rewrite-pair { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.collapse-tip { margin: -4px 0 12px 110px; color: #8a9698; font-size: 12px; }
+@media (max-width: 599px) {
+  .number-grid { grid-template-columns: 1fr; }
+  .rewrite-pair { grid-template-columns: 1fr; }
+  .rewrite-pair > span { display: none; }
+  .collapse-tip { margin-left: 0; }
+  :deep(.el-form-item) { display: block; }
+  :deep(.el-form-item__label) {
+    width: 100% !important;
+    height: auto;
+    justify-content: flex-start;
+    margin-bottom: 6px;
+  }
+  :deep(.el-form-item__content) { margin-left: 0 !important; }
 }
 .header-row {
   display: flex;

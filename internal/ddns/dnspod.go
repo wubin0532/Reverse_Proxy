@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"andey-proxy/internal/config"
 )
@@ -32,7 +31,7 @@ func newDnspodProvider(conf config.DNSProviderConf) *dnspodProvider {
 		tokenID:  conf.Key,
 		token:    conf.Secret,
 		endpoint: strings.TrimSuffix(ep, "/"),
-		client:   &http.Client{Timeout: 15 * time.Second},
+		client:   providerHTTPClient(),
 	}
 }
 
@@ -58,7 +57,7 @@ func (p *dnspodProvider) do(ctx context.Context, action string, form url.Values,
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return err
+		return safeRequestError("DNSPod", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -72,10 +71,10 @@ func (p *dnspodProvider) do(ctx context.Context, action string, form url.Values,
 		} `json:"status"`
 	}
 	if err := json.Unmarshal(body, &head); err != nil {
-		return fmt.Errorf("DNSPod 响应解析失败: %s", truncate(string(body), 200))
+		return fmt.Errorf("DNSPod 响应解析失败")
 	}
 	if head.Status.Code != "1" {
-		return fmt.Errorf("DNSPod 错误 %s: %s", head.Status.Code, head.Status.Message)
+		return fmt.Errorf("DNSPod 错误 %s: %s", head.Status.Code, redactProviderMessage(head.Status.Message, p.tokenID, p.token))
 	}
 	if out != nil {
 		return json.Unmarshal(body, out)

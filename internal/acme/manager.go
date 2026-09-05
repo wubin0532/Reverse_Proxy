@@ -29,6 +29,7 @@ import (
 	"github.com/go-acme/lego/v4/registration"
 
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/logcenter"
 )
 
 // defaultRenewDays RenewDays 未配置时的默认续签提前天数。
@@ -58,9 +59,6 @@ func (u *acmeUser) GetPrivateKey() crypto.PrivateKey        { return u.key }
 type Manager struct {
 	cfg *config.Config
 
-	// Notify 事件通知回调（可为 nil），申请/续签成功或失败时调用。
-	Notify func(event, title, content string)
-
 	mu       sync.RWMutex
 	cache    map[string]*cachedCert // key: CertConf.ID
 	inflight map[string]bool        // 正在申请中的证书 ID
@@ -84,14 +82,9 @@ func (m *Manager) certsDir() string { return filepath.Join(m.cfg.Dir(), "certs")
 
 // certPath 返回证书的证书/私钥绝对路径。
 func (m *Manager) certPath(c *config.CertConf) (certFile, keyFile string) {
-	certFile, keyFile = c.CertFile, c.KeyFile
-	if certFile == "" {
-		certFile = filepath.Join("certs", c.ID+".crt")
-	}
-	if keyFile == "" {
-		keyFile = filepath.Join("certs", c.ID+".key")
-	}
-	return filepath.Join(m.cfg.Dir(), certFile), filepath.Join(m.cfg.Dir(), keyFile)
+	// 证书路径只由内部 ID 决定，不信任历史配置中的路径字段，避免目录穿越。
+	base := filepath.Base(c.ID)
+	return filepath.Join(m.certsDir(), base+".crt"), filepath.Join(m.certsDir(), base+".key")
 }
 
 // findCert 按 ID 取证书配置快照。
@@ -195,6 +188,7 @@ func (m *Manager) loadAccountKey() (*rsa.PrivateKey, error) {
 				return key, nil
 			}
 		}
+		return nil, errors.New("ACME 账户私钥损坏，拒绝自动覆盖")
 	}
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -207,7 +201,19 @@ func (m *Manager) loadAccountKey() (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 	pemData := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	if err := os.WriteFile(fp, pemData, 0o600); err != nil {
+	tmp, err := writeTempFile(m.certsDir(), ".account-key-*", pemData)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Rename(tmp, fp); err != nil {
+		_ = os.Remove(tmp)
+		return nil, err
+	}
+	if dir, openErr := os.Open(m.certsDir()); openErr == nil {
+		err = dir.Sync()
+		_ = dir.Close()
+	}
+	if err != nil {
 		return nil, err
 	}
 	return key, nil
@@ -280,21 +286,23 @@ func (m *Manager) invalidate(certID string) {
 
 // setResult 申请结束后回写 CertConf 的证书路径、到期时间与错误信息。
 func (m *Manager) setResult(certID, notAfter, lastErr string) {
-	m.cfg.Lock()
-	for i := range m.cfg.Certs {
-		if m.cfg.Certs[i].ID == certID {
-			c := &m.cfg.Certs[i]
+	err := m.cfg.Update(func(cfg *config.Config) error {
+		for i := range cfg.Certs {
+			if cfg.Certs[i].ID != certID {
+				continue
+			}
+			c := &cfg.Certs[i]
 			if lastErr == "" {
 				c.CertFile = filepath.Join("certs", certID+".crt")
 				c.KeyFile = filepath.Join("certs", certID+".key")
 				c.NotAfter = notAfter
 			}
 			c.LastError = lastErr
-			break
+			return nil
 		}
-	}
-	m.cfg.Unlock()
-	if err := m.cfg.Save(); err != nil {
+		return fmt.Errorf("证书不存在: %s", certID)
+	})
+	if err != nil {
 		log.Printf("[acme] 保存配置失败: %v", err)
 	}
 }
@@ -308,30 +316,30 @@ func (m *Manager) Obtain(ctx context.Context, certID string) error {
 
 	notAfter, err := m.obtain(ctx, certID)
 	if err != nil {
-		m.setResult(certID, "", err.Error())
-		m.notifyResult(certID, false, "", err)
-		return err
+		safeErr := m.sanitizeError(certID, err)
+		m.setResult(certID, "", safeErr.Error())
+		return safeErr
 	}
 	m.setResult(certID, notAfter, "")
 	m.invalidate(certID)
-	m.notifyResult(certID, true, notAfter, nil)
 	return nil
 }
 
-// notifyResult 申请/续签结束后推送结果通知（未设置回调时跳过）。
-func (m *Manager) notifyResult(certID string, success bool, notAfter string, err error) {
-	if m.Notify == nil {
-		return
+func (m *Manager) sanitizeError(certID string, err error) error {
+	if err == nil {
+		return nil
 	}
-	cert, _ := m.findCert(certID)
-	domains := strings.Join(cert.Domains, ", ")
-	if success {
-		m.Notify("cert", "andey-Proxy 证书申请成功",
-			fmt.Sprintf("证书: %s\n域名: %s\n到期时间: %s", cert.Name, domains, notAfter))
-		return
+	message := err.Error()
+	if cert, ok := m.findCert(certID); ok {
+		if provider, found := m.findProvider(cert.ProviderID); found {
+			for _, secret := range []string{provider.Key, provider.Secret} {
+				if secret != "" {
+					message = strings.ReplaceAll(message, secret, "[REDACTED]")
+				}
+			}
+		}
 	}
-	m.Notify("cert", "andey-Proxy 证书申请失败",
-		fmt.Sprintf("证书: %s\n域名: %s\n错误: %s", cert.Name, domains, err.Error()))
+	return errors.New(logcenter.Redact(message))
 }
 
 // obtain 执行一次完整的申请流程，成功返回新证书到期时间（RFC3339）。
@@ -398,14 +406,105 @@ func (m *Manager) obtain(ctx context.Context, certID string) (string, error) {
 		return "", err
 	}
 	certFile, keyFile := m.certPath(&cert)
-	if err := os.WriteFile(certFile, res.Certificate, 0o600); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(keyFile, res.PrivateKey, 0o600); err != nil {
+	if err := writeCertificatePair(certFile, keyFile, res.Certificate, res.PrivateKey); err != nil {
 		return "", err
 	}
 	log.Printf("[acme] 证书 %s 申请成功，到期时间 %s", cert.Name, notAfter.Format(time.RFC3339))
 	return notAfter.Format(time.RFC3339), nil
+}
+
+// writeCertificatePair validates and stages both files before replacing the
+// active pair. A failure restores the previous pair instead of leaving a new
+// certificate with an old key (or a truncated private key).
+func writeCertificatePair(certFile, keyFile string, certPEM, keyPEM []byte) error {
+	if _, err := tls.X509KeyPair(certPEM, keyPEM); err != nil {
+		return fmt.Errorf("证书与私钥不匹配: %w", err)
+	}
+	dir := filepath.Dir(certFile)
+	certTmp, err := writeTempFile(dir, ".cert-*", certPEM)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(certTmp)
+	keyTmp, err := writeTempFile(dir, ".key-*", keyPEM)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(keyTmp)
+
+	certBackup, keyBackup := certFile+".previous", keyFile+".previous"
+	_ = os.Remove(certBackup)
+	_ = os.Remove(keyBackup)
+	hadCert, err := moveIfExists(certFile, certBackup)
+	if err != nil {
+		return err
+	}
+	hadKey, err := moveIfExists(keyFile, keyBackup)
+	if err != nil {
+		if hadCert {
+			_ = os.Rename(certBackup, certFile)
+		}
+		return err
+	}
+	restore := func() {
+		_ = os.Remove(certFile)
+		_ = os.Remove(keyFile)
+		if hadCert {
+			_ = os.Rename(certBackup, certFile)
+		}
+		if hadKey {
+			_ = os.Rename(keyBackup, keyFile)
+		}
+	}
+	if err := os.Rename(keyTmp, keyFile); err != nil {
+		restore()
+		return err
+	}
+	if err := os.Rename(certTmp, certFile); err != nil {
+		restore()
+		return err
+	}
+	if handle, openErr := os.Open(dir); openErr == nil {
+		err = handle.Sync()
+		_ = handle.Close()
+	}
+	if err != nil {
+		restore()
+		return err
+	}
+	_ = os.Remove(certBackup)
+	_ = os.Remove(keyBackup)
+	return nil
+}
+
+func writeTempFile(dir, pattern string, data []byte) (string, error) {
+	f, err := os.CreateTemp(dir, pattern)
+	if err != nil {
+		return "", err
+	}
+	name := f.Name()
+	_ = f.Chmod(0o600)
+	if _, err = f.Write(data); err == nil {
+		err = f.Sync()
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(name)
+		return "", err
+	}
+	return name, nil
+}
+
+func moveIfExists(from, to string) (bool, error) {
+	if err := os.Rename(from, to); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // Start 启动后台续签循环：立即扫描一次，之后每 12 小时扫描。

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -54,8 +55,6 @@ func GetIPDetail(ctx context.Context, task config.DDNSTask) (ip, ifaceName strin
 		}
 		ip, err := fetchIPFromAPI(ctx, task.APIURL, task.IPType == "ipv6")
 		return ip, "", err
-	case "webhook":
-		return "", "", errNotImplemented
 	default:
 		return "", "", fmt.Errorf("未知的 IP 来源: %s", task.IPSource)
 	}
@@ -106,6 +105,9 @@ var publicDNSServers = []string{"223.5.5.5", "119.29.29.29", "1.1.1.1"}
 // publicDNSClient 绕过系统解析器的 HTTP 客户端，域名直接经公共递归 DNS 解析。
 var publicDNSClient = &http.Client{
 	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
 	Transport: &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
@@ -136,12 +138,19 @@ var publicDNSClient = &http.Client{
 	},
 }
 
+var ipAPIClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
 // fetchIPFromAPI 通过 HTTP 接口获取纯文本 IP。
 // 本地 DNS 解析失败（如被代理软件劫持为 fake-ip/NXDOMAIN）时，自动改用公共 DNS 重试。
 func fetchIPFromAPI(ctx context.Context, rawURL string, wantV6 bool) (string, error) {
-	body, err := httpGetText(ctx, http.DefaultClient, rawURL)
+	body, err := httpGetText(ctx, ipAPIClient, rawURL)
 	if err != nil && isDNSNotFound(err) {
-		log.Printf("[DDNS] 本地 DNS 解析失败，改用公共 DNS 重试 %s", rawURL)
+		log.Printf("[DDNS] 本地 DNS 解析失败，改用公共 DNS 重试 %s", safeURLForLog(rawURL))
 		body, err = httpGetText(ctx, publicDNSClient, rawURL)
 	}
 	if err != nil {
@@ -150,17 +159,28 @@ func fetchIPFromAPI(ctx context.Context, rawURL string, wantV6 bool) (string, er
 	return validateIP(strings.TrimSpace(string(body)), wantV6)
 }
 
+func safeURLForLog(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "[invalid URL]"
+	}
+	u.User = nil
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
 // httpGetText 发起 GET 请求并返回文本内容。
 func httpGetText(ctx context.Context, client *http.Client, rawURL string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return "", err
+		return "", errors.New("IP 查询地址无效")
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", safeRequestError("IP 查询接口", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
@@ -187,14 +207,14 @@ func validateIP(s string, wantV6 bool) (string, error) {
 	s = strings.TrimSpace(s)
 	ip := net.ParseIP(s)
 	if ip == nil {
-		return "", fmt.Errorf("接口返回的内容不是合法 IP: %q", s)
+		return "", fmt.Errorf("接口返回的内容不是合法 IP")
 	}
 	isV4 := ip.To4() != nil
 	if wantV6 && isV4 {
-		return "", fmt.Errorf("接口返回的不是 IPv6 地址: %q", s)
+		return "", fmt.Errorf("接口返回的不是 IPv6 地址")
 	}
 	if !wantV6 && !isV4 {
-		return "", fmt.Errorf("接口返回的不是 IPv4 地址: %q", s)
+		return "", fmt.Errorf("接口返回的不是 IPv4 地址")
 	}
 	return ip.String(), nil
 }

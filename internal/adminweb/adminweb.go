@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// Vite 配置会移除 chunk 名的前导下划线，避免 Go 的目录嵌入规则静默
+// 忽略这类文件。adminweb_test 会验证所有构建引用都确实进入二进制。
 //go:embed dist
 var distFS embed.FS
 

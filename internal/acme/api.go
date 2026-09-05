@@ -4,8 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"log"
+	"mime"
+	"net"
 	"net/http"
+	"net/mail"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,12 +20,18 @@ import (
 
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
+	"golang.org/x/net/idna"
 )
 
 type handler struct {
 	cfg *config.Config
 	m   *Manager
 }
+
+var (
+	errCertNotFound = errors.New("证书不存在")
+	errCertInUse    = errors.New("证书正在使用")
+)
 
 // RegisterRoutes 在已认证的 chi.Group 中挂载证书相关路由。
 func RegisterRoutes(r chi.Router, cfg *config.Config, m *Manager) {
@@ -33,7 +46,7 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, m *Manager) {
 }
 
 func newID() string {
-	buf := make([]byte, 4)
+	buf := make([]byte, 16)
 	rand.Read(buf)
 	return hex.EncodeToString(buf)
 }
@@ -85,17 +98,52 @@ func (h *handler) listCerts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) validateCert(c *config.CertConf) (int, string) {
+	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" {
 		return 400, "证书名称不能为空"
 	}
-	if len(c.Domains) == 0 {
-		return 400, "域名列表不能为空"
+	if len(c.Domains) == 0 || len(c.Domains) > 100 {
+		return 400, "域名数量必须为 1 到 100 个"
 	}
-	for _, d := range c.Domains {
-		d = strings.TrimSpace(d)
-		if d == "" || strings.ContainsAny(d, " /\\") {
-			return 400, "域名格式不正确: " + d
+	for i, raw := range c.Domains {
+		domain := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(raw), "."))
+		wildcard := false
+		if strings.HasPrefix(domain, "*.") {
+			wildcard = true
+			domain = strings.TrimPrefix(domain, "*.")
 		}
+		ascii, err := idna.Lookup.ToASCII(domain)
+		if err != nil || ascii == "" || strings.Contains(ascii, "..") || strings.ContainsAny(ascii, " /\\*") {
+			return 400, "域名格式不正确: " + raw
+		}
+		if wildcard {
+			ascii = "*." + ascii
+		}
+		c.Domains[i] = ascii
+	}
+	if c.Email != "" {
+		address, err := mail.ParseAddress(strings.TrimSpace(c.Email))
+		if err != nil || address.Address != strings.TrimSpace(c.Email) {
+			return 400, "联系邮箱格式不正确"
+		}
+		c.Email = address.Address
+	}
+	if c.RenewDays < 0 || c.RenewDays > 90 {
+		return 400, "提前续签天数必须为 0 到 90"
+	}
+	if c.CADirURL != "" {
+		u, err := url.Parse(strings.TrimSpace(c.CADirURL))
+		if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return 400, "ACME CA 地址无效"
+		}
+		if u.Scheme == "http" {
+			host := u.Hostname()
+			ip := net.ParseIP(host)
+			if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+				return 400, "非本机 ACME CA 必须使用 HTTPS"
+			}
+		}
+		c.CADirURL = u.String()
 	}
 	h.cfg.RLock()
 	found := false
@@ -125,13 +173,14 @@ func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.ID = newID()
-	h.cfg.Lock()
-	h.cfg.Certs = append(h.cfg.Certs, c)
-	h.cfg.Unlock()
-	if err := h.cfg.Save(); err != nil {
+	if err := h.cfg.Update(func(cfg *config.Config) error {
+		cfg.Certs = append(cfg.Certs, c)
+		return nil
+	}); err != nil {
 		api.Fail(w, 500, "保存配置失败")
 		return
 	}
+	log.Printf("[security] 新增证书配置，ID: %s", c.ID)
 	api.OK(w, c)
 }
 
@@ -147,34 +196,33 @@ func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, code, msg)
 		return
 	}
-	h.cfg.Lock()
-	idx := -1
-	for i := range h.cfg.Certs {
-		if h.cfg.Certs[i].ID == id {
-			idx = i
-			break
+	err := h.cfg.Update(func(cfg *config.Config) error {
+		for i := range cfg.Certs {
+			if cfg.Certs[i].ID != id {
+				continue
+			}
+			old := cfg.Certs[i]
+			// 保留原有证书文件与状态；域名变化时作废，等待重新申请
+			c.CertFile, c.KeyFile = old.CertFile, old.KeyFile
+			c.NotAfter, c.LastError = old.NotAfter, old.LastError
+			if !sameDomains(old.Domains, c.Domains) {
+				c.CertFile, c.KeyFile, c.NotAfter, c.LastError = "", "", "", ""
+			}
+			cfg.Certs[i] = c
+			return nil
 		}
-	}
-	if idx >= 0 {
-		old := h.cfg.Certs[idx]
-		// 保留原有证书文件与状态；域名变化时作废，等待重新申请
-		c.CertFile, c.KeyFile = old.CertFile, old.KeyFile
-		c.NotAfter, c.LastError = old.NotAfter, old.LastError
-		if !sameDomains(old.Domains, c.Domains) {
-			c.CertFile, c.KeyFile, c.NotAfter, c.LastError = "", "", "", ""
-		}
-		h.cfg.Certs[idx] = c
-	}
-	h.cfg.Unlock()
-	if idx < 0 {
+		return errCertNotFound
+	})
+	if errors.Is(err, errCertNotFound) {
 		api.Fail(w, 404, "证书不存在")
 		return
 	}
-	if err := h.cfg.Save(); err != nil {
+	if err != nil {
 		api.Fail(w, 500, "保存配置失败")
 		return
 	}
 	h.m.invalidate(id)
+	log.Printf("[security] 修改证书配置，ID: %s", id)
 	api.OK(w, c)
 }
 
@@ -192,59 +240,66 @@ func sameDomains(a, b []string) bool {
 
 func (h *handler) deleteCert(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	h.cfg.Lock()
-	idx := -1
-	for i := range h.cfg.Certs {
-		if h.cfg.Certs[i].ID == id {
-			idx = i
-			break
-		}
-	}
 	var removed config.CertConf
-	if idx >= 0 {
-		removed = h.cfg.Certs[idx]
-		h.cfg.Certs = append(h.cfg.Certs[:idx], h.cfg.Certs[idx+1:]...)
+	usedBy := ""
+	err := h.cfg.Update(func(cfg *config.Config) error {
+		for _, site := range cfg.Sites {
+			if site.CertID == id {
+				usedBy = site.Name
+				return errCertInUse
+			}
+		}
+		for i := range cfg.Certs {
+			if cfg.Certs[i].ID == id {
+				removed = cfg.Certs[i]
+				cfg.Certs = append(cfg.Certs[:i], cfg.Certs[i+1:]...)
+				return nil
+			}
+		}
+		return errCertNotFound
+	})
+	if errors.Is(err, errCertInUse) {
+		api.Fail(w, 400, "该证书正被站点「"+usedBy+"」使用，无法删除")
+		return
 	}
-	h.cfg.Unlock()
-	if idx < 0 {
+	if errors.Is(err, errCertNotFound) {
 		api.Fail(w, 404, "证书不存在")
 		return
 	}
-	if err := h.cfg.Save(); err != nil {
+	if err != nil {
 		api.Fail(w, 500, "保存配置失败")
 		return
 	}
 	h.m.RemoveFiles(&removed)
+	log.Printf("[security] 删除证书配置，ID: %s", id)
 	api.OK(w, nil)
 }
 
 func (h *handler) toggleCert(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	h.cfg.Lock()
-	idx := -1
-	for i := range h.cfg.Certs {
-		if h.cfg.Certs[i].ID == id {
-			idx = i
-			break
-		}
-	}
 	var enabled bool
-	if idx >= 0 {
-		h.cfg.Certs[idx].Enabled = !h.cfg.Certs[idx].Enabled
-		enabled = h.cfg.Certs[idx].Enabled
-	}
-	h.cfg.Unlock()
-	if idx < 0 {
+	err := h.cfg.Update(func(cfg *config.Config) error {
+		for i := range cfg.Certs {
+			if cfg.Certs[i].ID == id {
+				cfg.Certs[i].Enabled = !cfg.Certs[i].Enabled
+				enabled = cfg.Certs[i].Enabled
+				return nil
+			}
+		}
+		return errCertNotFound
+	})
+	if errors.Is(err, errCertNotFound) {
 		api.Fail(w, 404, "证书不存在")
 		return
 	}
-	if err := h.cfg.Save(); err != nil {
+	if err != nil {
 		api.Fail(w, 500, "保存配置失败")
 		return
 	}
 	if !enabled {
 		h.m.invalidate(id)
 	}
+	log.Printf("[security] 切换证书配置，ID: %s，启用: %t", id, enabled)
 	api.OK(w, map[string]bool{"enabled": enabled})
 }
 
@@ -297,6 +352,7 @@ func (h *handler) downloadCert(w http.ResponseWriter, r *http.Request) {
 		name = c.ID
 	}
 	w.Header().Set("Content-Type", "application/x-pem-file")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+name+ext+"\"")
+	name = filepath.Base(name)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name + ext}))
 	w.Write(data)
 }

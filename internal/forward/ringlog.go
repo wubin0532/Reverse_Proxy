@@ -3,6 +3,8 @@ package forward
 import (
 	"sync"
 	"time"
+
+	"andey-proxy/internal/logcenter"
 )
 
 // RingLog 固定容量的环形日志。
@@ -19,7 +21,7 @@ func NewRingLog(capacity int) *RingLog {
 func (r *RingLog) Add(msg string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.entries = append(r.entries, time.Now().Format("2006-01-02 15:04:05")+" "+msg)
+	r.entries = append(r.entries, time.Now().Format("2006-01-02 15:04:05")+" "+logcenter.Redact(msg))
 	if len(r.entries) > r.cap {
 		r.entries = r.entries[len(r.entries)-r.cap:]
 	}

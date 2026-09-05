@@ -17,7 +17,7 @@
             <el-tag>{{ providerTypeName(row.type) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="key" label="Key / Token" min-width="160" show-overflow-tooltip />
+        <el-table-column label="Key / Token" min-width="160"><template #default="{row}"><el-tag :type="row.keyConfigured ? 'success':'warning'">{{ row.keyConfigured ? '已安全配置':'未配置' }}</el-tag></template></el-table-column>
         <el-table-column label="操作" width="160">
           <template #default="{ row }">
             <el-button link type="primary" @click="openProviderDialog(row)">编辑</el-button>
@@ -109,11 +109,14 @@
           <el-input v-model="providerDialog.form.remark" placeholder="可选，便于区分多个凭据" />
         </el-form-item>
         <el-form-item :label="keyLabel" prop="key">
-          <el-input v-model="providerDialog.form.key" :placeholder="keyPlaceholder" />
+          <el-input v-model="providerDialog.form.key" type="password" show-password :placeholder="providerDialog.isEdit && providerDialog.form.keyConfigured ? '已配置，留空保持不变' : keyPlaceholder" />
         </el-form-item>
         <el-form-item v-if="providerDialog.form.type !== 'cloudflare'" :label="secretLabel" prop="secret">
-          <el-input v-model="providerDialog.form.secret" type="password" show-password :placeholder="secretPlaceholder" />
+          <el-input v-model="providerDialog.form.secret" type="password" show-password :placeholder="providerDialog.isEdit && providerDialog.form.secretConfigured ? '已配置，留空保持不变' : secretPlaceholder" />
         </el-form-item>
+		<el-form-item label="自定义端点">
+		  <el-input v-model="providerDialog.form.endpoint" placeholder="可选；生产环境建议保持默认" />
+		</el-form-item>
         <el-form-item label="测试域名">
           <el-input v-model="providerDialog.testDomain" placeholder="如 home.example.com，用于测试凭据" />
         </el-form-item>
@@ -225,7 +228,7 @@ const providerDialog = reactive({
   saving: false,
   testing: false,
   testDomain: '',
-  form: { id: '', type: 'aliyun', remark: '', key: '', secret: '' }
+	form: { id: '', type: 'aliyun', remark: '', key: '', secret: '', endpoint: '' }
 })
 
 const keyLabel = computed(() => {
@@ -247,16 +250,16 @@ const secretPlaceholder = computed(() =>
 
 const providerRules = {
   type: [{ required: true, message: '请选择服务商', trigger: 'change' }],
-  key: [{ required: true, message: 'Key 不能为空', trigger: 'blur' }],
-  secret: [{ required: true, message: 'Secret 不能为空', trigger: 'blur' }]
+  key: [{ validator: (_,v,done) => (v || (providerDialog.isEdit && providerDialog.form.keyConfigured)) ? done() : done(new Error('Key 不能为空')), trigger: 'blur' }],
+  secret: [{ validator: (_,v,done) => (providerDialog.form.type === 'cloudflare' || v || (providerDialog.isEdit && providerDialog.form.secretConfigured)) ? done() : done(new Error('Secret 不能为空')), trigger: 'blur' }]
 }
 
 function openProviderDialog(row) {
   providerDialog.isEdit = !!row
   providerDialog.testDomain = ''
   providerDialog.form = row
-    ? { id: row.id, type: row.type, remark: row.remark || '', key: row.key, secret: row.secret || '' }
-    : { id: '', type: 'aliyun', remark: '', key: '', secret: '' }
+	? { id: row.id, type: row.type, remark: row.remark || '', key: '', secret: '', endpoint: row.endpoint || '', keyConfigured: !!row.keyConfigured, secretConfigured: !!row.secretConfigured, endpointConfigured: !!row.endpoint }
+	: { id: '', type: 'aliyun', remark: '', key: '', secret: '', endpoint: '' }
   providerDialog.visible = true
 }
 
@@ -268,9 +271,11 @@ async function testProvider() {
   providerDialog.testing = true
   try {
     const res = await request.post('/api/providers/test', {
+	  id: providerDialog.form.id,
       type: providerDialog.form.type,
       key: providerDialog.form.key,
       secret: providerDialog.form.secret,
+	  endpoint: providerDialog.form.endpoint,
       domain: providerDialog.testDomain
     })
     ElMessage.success(res.data?.message || '凭据有效')
@@ -289,7 +294,9 @@ async function saveProvider() {
       type: providerDialog.form.type,
       remark: providerDialog.form.remark,
       key: providerDialog.form.key,
-      secret: providerDialog.form.secret
+	  secret: providerDialog.form.secret,
+	  endpoint: providerDialog.form.endpoint,
+	  clearEndpoint: providerDialog.isEdit && providerDialog.form.endpointConfigured && !providerDialog.form.endpoint
     }
     if (providerDialog.isEdit) {
       await request.put(`/api/providers/${providerDialog.form.id}`, body)

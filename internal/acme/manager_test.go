@@ -1,6 +1,7 @@
 package acme
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -11,6 +12,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -199,6 +201,71 @@ func TestParseNotAfter(t *testing.T) {
 	}
 	if _, err := parseNotAfter([]byte("not a pem")); err == nil {
 		t.Fatal("非法 PEM 应报错")
+	}
+}
+
+func TestCertPathCannotEscapeConfigDirectory(t *testing.T) {
+	cfg := newTestConfig(t)
+	m := NewManager(cfg)
+	cert, key := m.certPath(&config.CertConf{ID: "../../outside", CertFile: "../../etc/passwd", KeyFile: "/tmp/key"})
+	wantDir := filepath.Join(cfg.Dir(), "certs")
+	if filepath.Dir(cert) != wantDir || filepath.Dir(key) != wantDir {
+		t.Fatalf("证书路径越界: cert=%s key=%s", cert, key)
+	}
+}
+
+func TestCorruptAccountKeyFailsClosed(t *testing.T) {
+	cfg := newTestConfig(t)
+	m := NewManager(cfg)
+	if err := os.MkdirAll(m.certsDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(m.accountKeyPath(), []byte("broken-key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.loadAccountKey(); err == nil {
+		t.Fatal("损坏的账户私钥不应被静默覆盖")
+	}
+	got, _ := os.ReadFile(m.accountKeyPath())
+	if string(got) != "broken-key" {
+		t.Fatal("损坏的账户私钥被覆盖")
+	}
+}
+
+func TestSanitizeErrorRemovesProviderSecrets(t *testing.T) {
+	cfg, err := config.Load(filepath.Join(t.TempDir(), "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Update(func(c *config.Config) error {
+		c.Providers = []config.DNSProviderConf{{ID: "p1", Key: "KEY-CANARY", Secret: "SECRET-CANARY"}}
+		c.Certs = []config.CertConf{{ID: "c1", ProviderID: "p1"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(cfg)
+	got := m.sanitizeError("c1", errors.New("request key=KEY-CANARY secret SECRET-CANARY failed")).Error()
+	if strings.Contains(got, "KEY-CANARY") || strings.Contains(got, "SECRET-CANARY") {
+		t.Fatalf("credential leak: %s", got)
+	}
+}
+
+func TestWriteCertificatePairRejectsMismatchWithoutDamagingActivePair(t *testing.T) {
+	dir := t.TempDir()
+	certFile, keyFile := filepath.Join(dir, "site.crt"), filepath.Join(dir, "site.key")
+	oldCert, oldKey := genSelfSigned(t, []string{"old.example.com"}, time.Now().Add(time.Hour))
+	if err := writeCertificatePair(certFile, keyFile, oldCert, oldKey); err != nil {
+		t.Fatal(err)
+	}
+	newCert, _ := genSelfSigned(t, []string{"new.example.com"}, time.Now().Add(2*time.Hour))
+	if err := writeCertificatePair(certFile, keyFile, newCert, oldKey); err == nil {
+		t.Fatal("mismatched pair must be rejected")
+	}
+	gotCert, _ := os.ReadFile(certFile)
+	gotKey, _ := os.ReadFile(keyFile)
+	if !bytes.Equal(gotCert, oldCert) || !bytes.Equal(gotKey, oldKey) {
+		t.Fatal("active certificate pair changed after rejected update")
 	}
 }
 
