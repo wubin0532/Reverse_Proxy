@@ -111,8 +111,8 @@ func TestGetIP(t *testing.T) {
 	if err != nil || ip != "203.0.113.9" {
 		t.Fatalf("GetIP api = %q, %v", ip, err)
 	}
-	if _, err := GetIP(context.Background(), config.DDNSTask{Name: "t3", IPSource: "interface"}); err == nil {
-		t.Fatal("未配置网卡名应报错")
+	if _, err := GetIP(context.Background(), config.DDNSTask{Name: "t3", IPSource: "interface", Interface: "andey-does-not-exist"}); err == nil {
+		t.Fatal("不存在的网卡名应报错")
 	}
 }
 
