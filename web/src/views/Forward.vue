@@ -2,98 +2,98 @@
   <el-card>
     <template #header>
       <div class="card-header">
-        <span>端口转发规则</span>
-        <el-button type="primary" size="small" @click="openDialog()">新增规则</el-button>
+        <span>{{ $t('forward.title') }}</span>
+        <el-button type="primary" size="small" @click="openDialog()">{{ $t('forward.addRule') }}</el-button>
       </div>
     </template>
     <el-table :data="rules" v-loading="loading">
-      <el-table-column prop="name" label="名称" min-width="120" />
-      <el-table-column label="协议" width="100">
+      <el-table-column prop="name" :label="$t('forward.colName')" min-width="120" />
+      <el-table-column :label="$t('forward.colProto')" width="100">
         <template #default="{ row }">
           <el-tag size="small">{{ protoText(row.proto) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="listen" label="监听地址" width="120" />
-      <el-table-column label="目标地址" min-width="180" show-overflow-tooltip>
+      <el-table-column prop="listen" :label="$t('forward.colListen')" width="120" />
+      <el-table-column :label="$t('forward.colTargets')" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">{{ (row.targets || []).join(', ') }}</template>
       </el-table-column>
-      <el-table-column label="启用" width="70">
+      <el-table-column :label="$t('forward.colEnabled')" width="70">
         <template #default="{ row }">
           <el-switch :model-value="row.enabled" @change="toggleRule(row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column :label="$t('forward.colActions')" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openLogs(row)">日志</el-button>
-          <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
-          <el-popconfirm title="确定删除该规则？" @confirm="deleteRule(row)">
+          <el-button link type="primary" @click="openLogs(row)">{{ $t('common.logs') }}</el-button>
+          <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
+          <el-popconfirm :title="$t('forward.deleteConfirm')" @confirm="deleteRule(row)">
             <template #reference>
-              <el-button link type="danger">删除</el-button>
+              <el-button link type="danger">{{ $t('common.delete') }}</el-button>
             </template>
           </el-popconfirm>
         </template>
       </el-table-column>
-      <template #empty><el-empty description="暂无转发规则，点击右上角新增" :image-size="60" /></template>
+      <template #empty><el-empty :description="$t('forward.empty')" :image-size="60" /></template>
     </el-table>
 
     <el-dialog
       v-model="dialog.visible"
-      :title="dialog.isEdit ? '编辑规则' : '新增规则'"
+      :title="dialog.isEdit ? $t('forward.editRule') : $t('forward.addRuleTitle')"
       width="520px"
       destroy-on-close
     >
       <el-form ref="formRef" :model="dialog.form" :rules="formRules" label-width="100px">
-        <el-form-item label="规则名称" prop="name">
-          <el-input v-model="dialog.form.name" placeholder="如 远程桌面" />
+        <el-form-item :label="$t('forward.ruleName')" prop="name">
+          <el-input v-model="dialog.form.name" :placeholder="$t('forward.ruleNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="协议" prop="proto">
+        <el-form-item :label="$t('forward.colProto')" prop="proto">
           <el-select v-model="dialog.form.proto" style="width: 100%">
             <el-option label="TCP" value="tcp" />
             <el-option label="UDP" value="udp" />
             <el-option label="TCP + UDP" value="tcpudp" />
           </el-select>
         </el-form-item>
-        <el-form-item label="监听地址" prop="listen">
-          <el-input v-model="dialog.form.listen" placeholder="如 :13389" />
+        <el-form-item :label="$t('forward.colListen')" prop="listen">
+          <el-input v-model="dialog.form.listen" :placeholder="$t('forward.listenPlaceholder')" />
         </el-form-item>
-        <el-form-item label="目标地址" prop="targetsText">
+        <el-form-item :label="$t('forward.targets')" prop="targetsText">
           <el-input
             v-model="dialog.form.targetsText"
-            placeholder="英文逗号分隔，如 192.168.1.10:3389, 192.168.1.11:3389"
+            :placeholder="$t('forward.targetsPlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="防火墙">
+        <el-form-item :label="$t('forward.firewall')">
           <el-switch v-model="dialog.form.autoFw" />
-          <span class="form-tip">仅 OpenWrt 生效：自动在防火墙放行 WAN 侧该端口</span>
+          <span class="form-tip">{{ $t('forward.firewallTip') }}</span>
         </el-form-item>
-        <el-form-item label="IP 访问控制">
+        <el-form-item :label="$t('forward.ipAccess')">
           <el-select v-model="dialog.form.ipListMode" style="width: 100%">
-            <el-option value="" label="不限制" />
-            <el-option value="whitelist" label="白名单（仅允许列表内 IP）" />
-            <el-option value="blacklist" label="黑名单（拦截列表内 IP）" />
+            <el-option value="" :label="$t('common.noLimit')" />
+            <el-option value="whitelist" :label="$t('common.ipWhitelist')" />
+            <el-option value="blacklist" :label="$t('common.ipBlacklist')" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="dialog.form.ipListMode" label="IP 列表">
+        <el-form-item v-if="dialog.form.ipListMode" :label="$t('common.ipList')">
           <el-input
             v-model="dialog.ipListText"
             type="textarea"
             :rows="2"
-            placeholder="英文逗号分隔，支持 CIDR，如 192.168.1.0/24, 10.0.0.5"
+            :placeholder="$t('common.ipListPlaceholder')"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="dialog.saving" @click="save">保存</el-button>
+        <el-button @click="dialog.visible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="dialog.saving" @click="save">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-drawer v-model="logsDrawer.visible" :title="`转发日志 - ${logsDrawer.name}`" size="560px">
+    <el-drawer v-model="logsDrawer.visible" :title="$t('forward.logsTitle', { name: logsDrawer.name })" size="560px">
       <div class="log-toolbar">
-        <el-button size="small" @click="loadLogs">刷新</el-button>
+        <el-button size="small" @click="loadLogs">{{ $t('common.refresh') }}</el-button>
       </div>
       <div class="log-list">
-        <el-empty v-if="!logsDrawer.logs.length" description="暂无日志" :image-size="60" />
+        <el-empty v-if="!logsDrawer.logs.length" :description="$t('forward.noLogs')" :image-size="60" />
         <div v-for="(line, i) in logsDrawer.logs" :key="i" class="log-line">{{ line }}</div>
       </div>
     </el-drawer>
@@ -101,9 +101,12 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import request from '../api'
+
+const { t } = useI18n()
 
 const rules = ref([])
 const loading = ref(false)
@@ -122,11 +125,11 @@ const dialog = reactive({
   form: { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', autoFw: false, ipListMode: '', enabled: true }
 })
 
-const formRules = {
-  name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
-  listen: [{ required: true, message: '请输入监听地址', trigger: 'blur' }],
-  targetsText: [{ required: true, message: '请输入目标地址', trigger: 'blur' }]
-}
+const formRules = computed(() => ({
+  name: [{ required: true, message: t('forward.nameRequired'), trigger: 'blur' }],
+  listen: [{ required: true, message: t('forward.listenRequired'), trigger: 'blur' }],
+  targetsText: [{ required: true, message: t('forward.targetsRequired'), trigger: 'blur' }]
+}))
 
 function openDialog(row) {
   dialog.isEdit = !!row
@@ -170,7 +173,7 @@ async function save() {
     } else {
       await request.post('/api/forwards', body)
     }
-    ElMessage.success('保存成功')
+    ElMessage.success(t('common.saveSuccess'))
     dialog.visible = false
     load()
   } catch {
@@ -185,14 +188,15 @@ async function toggleRule(row) {
     await request.post(`/api/forwards/${row.id}/toggle`)
     load()
   } catch {
-    // 拦截器已提示
+    // 拦截器已提示；刷新真实状态，避免开关停留在错误位置
+    load()
   }
 }
 
 async function deleteRule(row) {
   try {
     await request.delete(`/api/forwards/${row.id}`)
-    ElMessage.success('已删除')
+    ElMessage.success(t('common.deleted'))
     load()
   } catch {
     // 拦截器已提示
@@ -240,7 +244,7 @@ onMounted(load)
 }
 .form-tip {
   margin-left: 10px;
-  color: #999;
+  color: var(--ap-muted);
   font-size: 12px;
 }
 .log-toolbar {
@@ -254,6 +258,6 @@ onMounted(load)
   padding: 3px 0;
   border-bottom: 1px solid #f0f0f0;
   word-break: break-all;
-  color: #333;
+  color: var(--ap-text);
 }
 </style>

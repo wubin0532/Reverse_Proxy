@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../store/auth'
+import i18n from '../locales'
 
 const routes = [
   {
@@ -14,12 +15,12 @@ const routes = [
     component: () => import('../layout/Layout.vue'),
     redirect: '/dashboard',
     children: [
-      { path: 'dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '运维控制台' } },
-      { path: 'ddns', name: 'DDNS', component: () => import('../views/DDNS.vue'), meta: { title: '动态域名' } },
-      { path: 'certs', name: 'Certs', component: () => import('../views/Certs.vue'), meta: { title: '证书管理' } },
-      { path: 'web-service', name: 'WebService', component: () => import('../views/WebService.vue'), meta: { title: 'Web服务' } },
-      { path: 'forward', name: 'Forward', component: () => import('../views/Forward.vue'), meta: { title: '端口转发' } },
-      { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue'), meta: { title: '日志中心' } },
+      { path: 'dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue'), meta: { titleKey: 'nav.dashboard' } },
+      { path: 'ddns', name: 'DDNS', component: () => import('../views/DDNS.vue'), meta: { titleKey: 'nav.ddns' } },
+      { path: 'certs', name: 'Certs', component: () => import('../views/Certs.vue'), meta: { titleKey: 'nav.certs' } },
+      { path: 'web-service', name: 'WebService', component: () => import('../views/WebService.vue'), meta: { titleKey: 'nav.webServiceTitle' } },
+      { path: 'forward', name: 'Forward', component: () => import('../views/Forward.vue'), meta: { titleKey: 'nav.forward' } },
+      { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue'), meta: { titleKey: 'nav.logs' } },
       { path: 'settings', redirect: '/dashboard' }
     ]
   },
@@ -46,7 +47,7 @@ router.beforeEach(async (to) => {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (auth.needChangePassword && to.path !== '/dashboard') {
-    ElMessage.warning('请先修改一次性初始密码')
+    ElMessage.warning(i18n.global.t('router.needChangePassword'))
     return '/dashboard'
   }
   return true

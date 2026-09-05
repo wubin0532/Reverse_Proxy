@@ -1,0 +1,1 @@
+import{i as o}from"./locales-CB0PFv59.js";function a(t){if(!t)return"-";const e=new Date(t);return Number.isNaN(e.getTime())?"-":e.toLocaleString(o.global.locale.value,{hour12:!1})}function u(t){if(!t||t<=0)return"0 B";const e=["B","KB","MB","GB","TB"];let r=t,i=0;for(;r>=1024&&i<e.length-1;)r/=1024,i++;return`${i===0||r>=100?Math.round(r):r.toFixed(1)} ${e[i]}`}export{a,u as f};

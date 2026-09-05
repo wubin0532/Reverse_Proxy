@@ -3,30 +3,30 @@
     <el-card class="login-card">
       <div class="brand-mark">A</div>
       <div class="login-title">andey-proxy</div>
-      <p class="login-subtitle">安全管理反向代理与网络入口</p>
-      <el-alert :type="secure ? 'success' : 'error'" :title="secure ? 'HTTPS 安全连接' : '当前为明文 HTTP 连接'" :closable="false" class="https-state" />
+      <p class="login-subtitle">{{ $t('login.subtitle') }}</p>
+      <el-alert :type="secure ? 'success' : 'error'" :title="secure ? $t('login.httpsSecure') : $t('login.httpsInsecure')" :closable="false" class="https-state" />
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="onSubmit">
         <template v-if="step === 'password'">
           <el-form-item prop="username">
-            <el-input v-model="form.username" placeholder="账号" :prefix-icon="User" />
+            <el-input v-model="form.username" :placeholder="$t('login.username')" autocomplete="username" :prefix-icon="User" />
           </el-form-item>
           <el-form-item prop="password">
-            <el-input v-model="form.password" type="password" placeholder="密码" show-password :prefix-icon="Lock" />
+            <el-input v-model="form.password" type="password" :placeholder="$t('login.password')" show-password autocomplete="current-password" :prefix-icon="Lock" />
           </el-form-item>
         </template>
         <template v-else>
-          <el-alert type="info" title="密码验证成功，请输入 Google Authenticator 动态验证码。" :closable="false" class="totp-hint" />
+          <el-alert type="info" :title="$t('login.totpHint')" :closable="false" class="totp-hint" />
           <el-form-item prop="code">
-            <el-input v-model="form.code" :placeholder="useRecovery ? '输入一次性恢复码' : '输入 6 位动态验证码'" :inputmode="useRecovery ? 'text' : 'numeric'" autocomplete="one-time-code" :prefix-icon="Key" />
+            <el-input v-model="form.code" :placeholder="useRecovery ? $t('login.recoveryPlaceholder') : $t('login.codePlaceholder')" :inputmode="useRecovery ? 'text' : 'numeric'" autocomplete="one-time-code" :prefix-icon="Key" />
           </el-form-item>
           <div class="login-options">
-            <el-button link type="primary" @click="useRecovery = !useRecovery">{{ useRecovery ? '使用动态验证码' : '使用恢复码' }}</el-button>
-            <el-button link @click="backToPassword">返回账号密码</el-button>
+            <el-button link type="primary" @click="useRecovery = !useRecovery">{{ useRecovery ? $t('login.useTotp') : $t('login.useRecovery') }}</el-button>
+            <el-button link @click="backToPassword">{{ $t('login.backToPassword') }}</el-button>
           </div>
         </template>
         <el-form-item>
           <el-button type="primary" class="login-btn" :loading="loading" @click="onSubmit">
-            {{ step === 'password' ? '登 录' : '验证并登录' }}
+            {{ step === 'password' ? $t('login.submit') : $t('login.submitTotp') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -35,15 +35,17 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Key } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../store/auth'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const formRef = ref()
 const loading = ref(false)
@@ -53,11 +55,11 @@ const challengeId = ref('')
 const useRecovery = ref(false)
 const secure = window.location.protocol === 'https:'
 
-const rules = {
-  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  code: [{ validator: (_, value, done) => step.value === 'totp' && !value.trim() ? done(new Error('请输入动态验证码或恢复码')) : done(), trigger: 'blur' }]
-}
+const rules = computed(() => ({
+  username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }],
+  code: [{ validator: (_, value, done) => step.value === 'totp' && !value.trim() ? done(new Error(t('login.codeRequired'))) : done(), trigger: 'blur' }]
+}))
 
 function backToPassword() {
   step.value = 'password'
@@ -67,7 +69,7 @@ function backToPassword() {
 }
 
 async function onSubmit() {
-  await formRef.value.validate()
+  try { await formRef.value.validate() } catch { return }
   loading.value = true
   try {
 	if (step.value === 'password') {
@@ -76,15 +78,15 @@ async function onSubmit() {
 		challengeId.value = data.challengeId
 		step.value = 'totp'
 		form.password = ''
-		ElMessage.info('请输入双重验证码')
+		ElMessage.info(t('login.enter2fa'))
 		return
 	  }
 	} else {
 	  await auth.completeTwoFactor(form.username, challengeId.value, form.code.trim())
 	}
-    ElMessage.success('登录成功')
+    ElMessage.success(t('login.loginSuccess'))
     if (auth.needChangePassword) {
-      ElMessage.warning('请立即修改首次启动生成的一次性密码')
+      ElMessage.warning(t('login.changeInitialPassword'))
       router.push('/dashboard')
     } else {
       router.push(route.query.redirect || '/dashboard')
