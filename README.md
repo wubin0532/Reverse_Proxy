@@ -9,11 +9,14 @@
   - 自动可信代理头、透传 Host、只写自定义请求头、Basic Auth、后端自签 TLS
   - 子规则热更新、连接/响应超时、路径前缀移除及后端连接测试
   - 可选按直接客户端 IP 限速、请求体上限、Location 与 Cookie Domain/Path 改写
+  - 站点级"强制 HTTPS"开关：同端口明文/TLS 嗅探分流，明文请求 301 跳转
+  - 站点流量统计面板：请求数、状态码分布与出入流量（内存统计，重启清零）
   - 301/302 跳转
   - 静态文件服务
 - **HTTPS 证书**:ACME 自动申请与续签(DNS-01,支持泛域名),按 SNI 自动供给证书;无证书时回退自签
   - 支持阿里云、Cloudflare、DNSPod
 - **端口转发**:TCP / UDP 四层转发,带实时日志
+  - 规则级 `idleTimeout` TCP 空闲超时（默认 600 秒，仅 API/配置字段）
 - **DDNS 动态域名**:定时检测 IP 变化并更新 DNS 记录
   - IP 来源:网卡 / 自定义 API
   - 支持 IPv4 / IPv6,阿里云、Cloudflare、DNSPod
@@ -21,6 +24,8 @@
 - **管理后台**:Vue 3 + Element Plus,通过 `go:embed` 嵌入二进制,无需额外部署
 - **运维控制台**:健康概览、防火墙、手动更新和最近错误统一管理
 - **日志中心**:结构化查询、下载与审计，磁盘占用上限约 5 MiB
+- **通知推送**:通用 Webhook，支持证书 / DDNS / 站点 / 转发事件，Dashboard 中配置订阅类型与推送地址
+- **配置备份**:Dashboard 导出/导入加密备份文件（口令派生密钥，可跨设备迁移）
 - **账户安全**:可选 Google Authenticator 双重验证、一次性恢复码和设备本机重置
 
 ## 快速开始
@@ -41,6 +46,7 @@
 ```bash
 ./andey-proxy              # 默认后台端口 16601,配置目录 ./andey-proxy-conf
 ./andey-proxy -p 8080      # 指定后台端口
+./andey-proxy -listen 192.168.1.1  # 只绑定指定网卡地址（默认监听全部网卡）
 ./andey-proxy -cd /etc/andey-proxy  # 指定配置目录
 ```
 
@@ -86,6 +92,8 @@ make build          # 构建前端 + 本机二进制(输出 andey-proxy)
 ## 配置
 
 所有配置使用 AES-256-GCM 整体加密保存。设备密钥独立保存；OpenWrt 默认为 `/etc/andey-proxy.key`，权限 `0600`。DNS Token、Basic Auth 密码和自定义请求头都是只写字段，API 不返回明文。
+
+安全注意事项：备份或迁移配置目录时，`.key` 文件（配置加密密钥）与配置本体同等敏感，须一并保护、切勿随备份外泄；丢失 `.key` 则既有加密配置无法解密。Dashboard 的备份导出使用独立口令派生密钥，不受 `.key` 影响。使用自签证书首次访问管理后台时，请对照启动日志中输出的 SHA-256 指纹核对浏览器提示的证书指纹后再信任。
 
 ### Google Authenticator 双重验证
 
