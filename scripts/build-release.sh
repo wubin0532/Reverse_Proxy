@@ -12,6 +12,21 @@ OUT="$(pwd)/release"
 WORK="$OUT/work"
 rm -rf "$OUT" && mkdir -p "$WORK"
 
+# GNU tar (GitHub Actions/Linux) and bsdtar (macOS) use different option
+# names for normalising archive ownership. Keep release archives reproducible
+# on both builders instead of relying on one implementation's flags.
+if tar --version 2>/dev/null | grep -q 'GNU tar'; then
+  TAR_OWNER_OPTS=(--owner=0 --group=0 --numeric-owner)
+else
+  TAR_OWNER_OPTS=(--uid=0 --gid=0 --numeric-owner)
+fi
+
+make_tar_gz() {
+  local source_dir=$1 output_file=$2
+  shift 2
+  (cd "$source_dir" && COPYFILE_DISABLE=1 tar --format=ustar "${TAR_OWNER_OPTS[@]}" -czf "$output_file" "$@")
+}
+
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'
@@ -101,11 +116,10 @@ exit 0
 EOF
   chmod 755 "$root/control/postinst" "$root/control/prerm" "$root/control/postrm"
 
-  local taropt="--format=ustar --uid=0 --gid=0 --numeric-owner"
-  (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
-  (cd "$root/control" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/control.tar.gz" .)
+  make_tar_gz "$root/data" "$root/data.tar.gz" .
+  make_tar_gz "$root/control" "$root/control.tar.gz" .
   echo "2.0" > "$root/debian-binary"
-  (cd "$root" && COPYFILE_DISABLE=1 tar $taropt -czf "$OUT/andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz)
+  make_tar_gz "$root" "$OUT/andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz
   echo "==> IPK: andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
 }
 
@@ -147,11 +161,10 @@ exit 0
 EOF
   chmod 755 "$root/control/postinst" "$root/control/postrm"
 
-  local taropt="--format=ustar --uid=0 --gid=0 --numeric-owner"
-  (cd "$root/data" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/data.tar.gz" .)
-  (cd "$root/control" && COPYFILE_DISABLE=1 tar $taropt -czf "$root/control.tar.gz" .)
+  make_tar_gz "$root/data" "$root/data.tar.gz" .
+  make_tar_gz "$root/control" "$root/control.tar.gz" .
   echo "2.0" > "$root/debian-binary"
-  (cd "$root" && COPYFILE_DISABLE=1 tar $taropt -czf "$OUT/luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz)
+  make_tar_gz "$root" "$OUT/luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz
   echo "==> IPK: luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk"
 }
 
