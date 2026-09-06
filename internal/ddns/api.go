@@ -77,8 +77,9 @@ func (h *handler) validateTask(t *config.DDNSTask) (int, string) {
 	}
 	for i, domain := range t.Domains {
 		domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domain), "."))
-		if strings.Contains(domain, "*") {
-			return 400, "DDNS 域名不能使用通配符: " + domain
+		// 仅允许完整通配符前缀（如 *.example.com），拒绝 foo*bar 这类非法形式
+		if strings.Contains(domain, "*") && (!strings.HasPrefix(domain, "*.") || strings.Contains(domain[2:], "*")) {
+			return 400, "DDNS 域名的通配符只能是完整前缀（如 *.example.com）: " + domain
 		}
 		if _, _, err := splitDomain(domain); err != nil {
 			return 400, err.Error()

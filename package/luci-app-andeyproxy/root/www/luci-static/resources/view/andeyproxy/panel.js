@@ -19,6 +19,14 @@ return view.extend({
 			return E('div', {}, [
 				E('div', { 'class': 'cbi-section' }, [
 					E('p', {}, [
+						_('管理面板地址：'),
+						E('a', {
+							'href': url,
+							'target': '_blank',
+							'rel': 'noopener noreferrer'
+						}, url)
+					]),
+					E('p', {}, [
 						E('a', {
 							'href': url,
 							'target': '_blank',

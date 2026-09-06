@@ -2,7 +2,17 @@
 	"luci-app-andeyproxy": {
 		"description": "andey-Proxy 设置访问权限",
 		"read": {
-			"uci": [ "andey-proxy" ]
+			"uci": [ "andey-proxy" ],
+			"ubus": {
+				"luci": [ "getInitList" ],
+				"system": [ "board" ],
+				"service": [ "list" ],
+				"file": [ "exec", "read" ]
+			},
+			"file": {
+				"/usr/bin/andey-proxy": [ "exec" ],
+				"/etc/andey-proxy/initial-password": [ "read" ]
+			}
 		},
 		"write": {
 			"uci": [ "andey-proxy" ],

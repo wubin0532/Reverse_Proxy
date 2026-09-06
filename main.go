@@ -113,8 +113,12 @@ func main() {
 		}); err != nil {
 			log.Fatalf("保存初始密码失败: %v", err)
 		}
-		// 一次性密码只写 stderr，不进入持久化日志中心。
+		// 一次性密码只写 stderr 和 confdir 内的初始密码文件，不进入持久化日志中心；
+		// 该文件供 LuCI 首次配置时读取，管理员修改密码后会被删除。
 		fmt.Fprintf(os.Stderr, "首次启动管理员: %s，一次性密码: %s（仅显示本次）\n", cfg.Settings.AdminUser, initialPassword)
+		if err := os.WriteFile(filepath.Join(abs, "initial-password"), []byte(initialPassword+"\n"), 0o600); err != nil {
+			log.Printf("写入初始密码文件失败: %v", err)
+		}
 	}
 	logs, err := logcenter.New(abs)
 	if err != nil {

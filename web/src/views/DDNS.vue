@@ -298,9 +298,10 @@ async function saveProvider() {
       key: providerDialog.form.key,
     secret: providerDialog.form.secret,
     endpoint: providerDialog.form.endpoint,
-    clearEndpoint: providerDialog.isEdit && providerDialog.form.endpointConfigured && !providerDialog.form.endpoint
     }
+    // clearEndpoint 仅编辑接口（PUT）接受；创建接口带此字段会被后端拒绝
     if (providerDialog.isEdit) {
+      body.clearEndpoint = providerDialog.form.endpointConfigured && !providerDialog.form.endpoint
       await request.put(`/api/providers/${providerDialog.form.id}`, body)
     } else {
       await request.post('/api/providers', body)

@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -293,6 +295,10 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		Fail(w, 500, "保存配置失败")
 		return
+	}
+	// 初始密码已失效，删除供 LuCI 展示的落盘文件（不存在则忽略）。
+	if err := os.Remove(filepath.Join(s.cfg.Dir(), "initial-password")); err != nil && !os.IsNotExist(err) {
+		log.Printf("[security] 删除初始密码文件失败: %v", err)
 	}
 	log.Printf("[security] 管理账号密码已修改，全部会话已撤销")
 	s.revokeAllSessions(w)
