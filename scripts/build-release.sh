@@ -77,6 +77,13 @@ make_ipk() {
   chmod 644 "$root/data/etc/config/andey-proxy"
 	chmod 700 "$root/data/etc/andey-proxy"
 
+  # LuCI 界面（菜单/ACL/设置页）随主包一起安装，不再单独出 luci-app ipk
+  cp -r package/luci-app-andeyproxy/root/. "$root/data/"
+  chmod 644 "$root/data/usr/share/luci/menu.d/luci-app-andeyproxy.json" \
+            "$root/data/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" \
+            "$root/data/www/luci-static/resources/view/andeyproxy/settings.js" \
+            "$root/data/www/luci-static/resources/view/andeyproxy/panel.js"
+
   local size
   size=$(du -sk "$root/data" | cut -f1)
   cat > "$root/control/control" <<EOF
@@ -102,7 +109,11 @@ EOF
 if [ "$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
   /etc/init.d/andey-proxy restart 2>/dev/null
 fi
+# LuCI 界面随主包安装：清缓存并让 rpcd 重新加载 ACL
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+/etc/init.d/rpcd restart 2>/dev/null
 echo "andey-Proxy 已安装，后台: https://<路由IP>:16606"
+echo "LuCI 菜单位于 服务 -> andey-Proxy（强制刷新浏览器页面后可见）"
 echo "启动: /etc/init.d/andey-proxy start"
 exit 0
 EOF
@@ -119,6 +130,8 @@ EOF
 # 卸载后清理：运行数据（config.json/证书/缓存）与 opkg 留下的 conffile 备份
 # 升级时 opkg 也会执行旧包 postrm（参数 upgrade），绝不能删数据
 [ -n "${IPKG_INSTROOT}" ] && exit 0
+# LuCI 文件由 opkg 自动移除，这里清缓存让菜单立即消失
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
 [ "$1" = "upgrade" ] && exit 0
 rm -rf /etc/andey-proxy
 rm -f /etc/config/andey-proxy-opkg
@@ -131,51 +144,6 @@ EOF
   echo "2.0" > "$root/debian-binary"
   make_tar_gz "$root" "$OUT/andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz
   echo "==> IPK: andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
-}
-
-make_luci_ipk() {
-  local root="$WORK/ipk_luci"
-  mkdir -p "$root/data" "$root/control"
-  cp -r package/luci-app-andeyproxy/root/. "$root/data/"
-  chmod 644 "$root/data/usr/share/luci/menu.d/luci-app-andeyproxy.json" \
-            "$root/data/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" \
-            "$root/data/www/luci-static/resources/view/andeyproxy/settings.js" \
-            "$root/data/www/luci-static/resources/view/andeyproxy/panel.js"
-
-  local size
-  size=$(du -sk "$root/data" | cut -f1)
-  cat > "$root/control/control" <<EOF
-Package: luci-app-andeyproxy
-Version: $VERSION-$PKG_RELEASE
-Depends: andey-proxy, luci-base
-Section: luci
-Architecture: all
-Installed-Size: $size
-Maintainer: andey
-Description: LuCI support for andey-Proxy
- LuCI 菜单入口（服务 -> andey-Proxy）与基本设置页
-EOF
-
-  cat > "$root/control/postinst" <<'EOF'
-#!/bin/sh
-[ -n "${IPKG_INSTROOT}" ] && exit 0
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
-echo "andey-Proxy LuCI 菜单已安装，刷新 LuCI 页面后在 服务 菜单查看"
-exit 0
-EOF
-  cat > "$root/control/postrm" <<'EOF'
-#!/bin/sh
-[ -n "${IPKG_INSTROOT}" ] && exit 0
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
-exit 0
-EOF
-  chmod 755 "$root/control/postinst" "$root/control/postrm"
-
-  make_tar_gz "$root/data" "$root/data.tar.gz" .
-  make_tar_gz "$root/control" "$root/control.tar.gz" .
-  echo "2.0" > "$root/debian-binary"
-  make_tar_gz "$root" "$OUT/luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz
-  echo "==> IPK: luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_all.ipk"
 }
 
 make_run() {
@@ -308,7 +276,6 @@ for t in "${TARGETS[@]}"; do
   make_ipk "$suffix" "$opkgarch"
   make_run "$suffix" "$goarch"
 done
-make_luci_ipk
 
 (cd "$OUT" && for f in *.ipk *.run; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done > checksums.txt)
 rm -rf "$WORK"
