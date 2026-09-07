@@ -77,8 +77,8 @@ make_ipk() {
   chmod 644 "$root/data/etc/config/andey-proxy"
 	chmod 700 "$root/data/etc/andey-proxy"
 
-  # LuCI 界面（菜单/ACL/设置页）随主包一起安装，不再单独出 luci-app ipk
-  cp -r package/luci-app-andeyproxy/root/. "$root/data/"
+  # LuCI 界面（菜单/ACL/设置页）随主包一起安装
+  cp -r package/openwrt/luci/. "$root/data/"
   chmod 644 "$root/data/usr/share/luci/menu.d/luci-app-andeyproxy.json" \
             "$root/data/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" \
             "$root/data/www/luci-static/resources/view/andeyproxy/settings.js" \
@@ -87,14 +87,15 @@ make_ipk() {
   local size
   size=$(du -sk "$root/data" | cut -f1)
   cat > "$root/control/control" <<EOF
-Package: andey-proxy
+Package: luci-app-andeyproxy
 Version: $VERSION-$PKG_RELEASE
 Depends: ca-bundle
-Section: net
+Conflicts: andey-proxy
+Section: luci
 Architecture: $opkgarch
 Installed-Size: $size
 Maintainer: andey
-Description: andey-Proxy DDNS/反向代理/ACME证书一体工具
+Description: andey-Proxy DDNS/反向代理/ACME证书一体工具（含 LuCI 界面）
  默认后台端口 16606，初始密码在首次启动时随机生成
 EOF
 
@@ -104,6 +105,16 @@ EOF
   cat > "$root/control/postinst" <<'EOF'
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
+# 旧包名迁移（andey-proxy -> luci-app-andeyproxy）：旧包卸载会删除运行数据，
+# 若按文档先备份到 /etc/andey-proxy.bak(.uci) 则在此自动恢复
+if [ -f /etc/andey-proxy.bak/config.json ] && [ ! -s /etc/andey-proxy/config.json ]; then
+  rm -rf /etc/andey-proxy
+  cp -a /etc/andey-proxy.bak /etc/andey-proxy
+fi
+if [ -f /etc/andey-proxy.bak.uci ]; then
+  cp -a /etc/andey-proxy.bak.uci /etc/config/andey-proxy
+fi
+rm -rf /etc/andey-proxy.bak /etc/andey-proxy.bak.uci
 /etc/init.d/andey-proxy enable
 # 升级场景：旧包 prerm 停了服务，若用户已启用则自动拉起
 if [ "$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
@@ -142,8 +153,8 @@ EOF
   make_tar_gz "$root/data" "$root/data.tar.gz" .
   make_tar_gz "$root/control" "$root/control.tar.gz" .
   echo "2.0" > "$root/debian-binary"
-  make_tar_gz "$root" "$OUT/andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz
-  echo "==> IPK: andey-proxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
+  make_tar_gz "$root" "$OUT/luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk" ./debian-binary ./control.tar.gz ./data.tar.gz
+  echo "==> IPK: luci-app-andeyproxy_${VERSION}-${PKG_RELEASE}_${opkgarch}.ipk"
 }
 
 make_run() {

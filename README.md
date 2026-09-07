@@ -67,7 +67,16 @@ make build          # 构建前端 + 本机二进制(输出 andey-proxy)
 
 ### OpenWrt 安装
 
-`package/openwrt/` 提供了 OpenWrt 包定义,可用 OpenWrt SDK 编译为 ipk,详见该目录下 Makefile 头部注释。默认配置目录 `/etc/andey-proxy`。
+`package/openwrt/` 提供了 OpenWrt 包定义（含 LuCI 界面文件）,可用 OpenWrt SDK 编译为 ipk,详见该目录下 Makefile 头部注释。默认配置目录 `/etc/andey-proxy`。
+
+Release 中的 `luci-app-andeyproxy_*.ipk` 一个包即包含主程序与 LuCI 界面（服务 -> andey-Proxy 菜单）。旧版曾拆分为 `andey-proxy` + `luci-app-andeyproxy` 两个包；从旧包名 `andey-proxy` 迁移时请先备份再卸载（旧包卸载会删除运行数据）：
+
+```bash
+cp -a /etc/andey-proxy /etc/andey-proxy.bak
+cp -a /etc/config/andey-proxy /etc/andey-proxy.bak.uci
+opkg remove andey-proxy
+opkg install luci-app-andeyproxy_*.ipk   # postinst 自动从备份恢复配置
+```
 
 ## 目录结构
 
