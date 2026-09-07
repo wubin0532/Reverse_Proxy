@@ -88,7 +88,7 @@ Architecture: $opkgarch
 Installed-Size: $size
 Maintainer: andey
 Description: andey-Proxy DDNS/反向代理/ACME证书一体工具
- 默认后台端口 16601，初始密码在首次启动时随机生成
+ 默认后台端口 16606，初始密码在首次启动时随机生成
 EOF
 
   # conffiles：升级时保留用户的 UCI 配置（不声明会被包内默认配置覆盖）
@@ -102,7 +102,7 @@ EOF
 if [ "$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
   /etc/init.d/andey-proxy restart 2>/dev/null
 fi
-echo "andey-Proxy 已安装，后台: https://<路由IP>:16601"
+echo "andey-Proxy 已安装，后台: https://<路由IP>:16606"
 echo "启动: /etc/init.d/andey-proxy start"
 exit 0
 EOF
@@ -274,7 +274,7 @@ else
 fi
 
 echo ""
-echo "安装完成！后台管理: https://<本机IP>:16601"
+echo "安装完成！后台管理: https://<本机IP>:16606"
 echo "首次启动会在控制台输出一次性随机密码。"
 echo "卸载: sudo andey-proxy-uninstall"
 exit 0

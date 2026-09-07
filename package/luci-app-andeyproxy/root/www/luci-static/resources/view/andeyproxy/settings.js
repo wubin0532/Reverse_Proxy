@@ -35,7 +35,7 @@ var callServiceList = rpc.declare({
 });
 
 function panelURL() {
-	var port = uci.get('andey-proxy', 'main', 'port') || '16601';
+	var port = uci.get('andey-proxy', 'main', 'port') || '16606';
 	var scheme = uci.get('andey-proxy', 'main', 'admin_http') === '1' ? 'http' : 'https';
 	var host = window.location.hostname;
 	if (host.indexOf(':') !== -1)
@@ -191,7 +191,7 @@ return view.extend({
 
 		o = s.option(form.Value, 'port', _('后台端口'));
 		o.datatype = 'port';
-		o.default = '16601';
+		o.default = '16606';
 		o.rmempty = false;
 
 		o = s.option(form.Value, 'confdir', _('配置目录'), _('存放配置、证书等运行数据'));

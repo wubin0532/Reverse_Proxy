@@ -180,7 +180,7 @@ func Load(dir string) (*Config, error) {
 				return nil, err
 			}
 			c.key = key
-			c.Settings = Settings{AdminUser: "admin", AdminPort: 16601, MustChangePassword: true}
+			c.Settings = Settings{AdminUser: "admin", AdminPort: 16606, MustChangePassword: true}
 			if err := c.Save(); err != nil {
 				return nil, err
 			}

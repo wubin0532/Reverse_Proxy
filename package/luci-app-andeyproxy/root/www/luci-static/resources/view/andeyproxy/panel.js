@@ -9,7 +9,7 @@ return view.extend({
 
 	render: function() {
 		return uci.load('andey-proxy').then(function() {
-			var port = uci.get('andey-proxy', 'main', 'port') || '16601';
+			var port = uci.get('andey-proxy', 'main', 'port') || '16606';
 			var scheme = uci.get('andey-proxy', 'main', 'admin_http') === '1' ? 'http' : 'https';
 			var host = window.location.hostname;
 			if (host.indexOf(':') !== -1)

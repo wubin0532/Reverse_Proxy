@@ -36,7 +36,7 @@ var version = "0.2.2"
 
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
-	port := flag.Int("p", 16601, "后台管理端口")
+	port := flag.Int("p", 16606, "后台管理端口")
 	listen := flag.String("listen", "", "后台管理绑定地址（默认全部网卡）")
 	showVersion := flag.Bool("v", false, "显示版本号")
 	allowHTTP := flag.Bool("admin-http", false, "允许管理后台使用明文 HTTP（不推荐）")

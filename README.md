@@ -44,13 +44,13 @@
 ### 运行
 
 ```bash
-./andey-proxy              # 默认后台端口 16601,配置目录 ./andey-proxy-conf
+./andey-proxy              # 默认后台端口 16606,配置目录 ./andey-proxy-conf
 ./andey-proxy -p 8080      # 指定后台端口
 ./andey-proxy -listen 192.168.1.1  # 只绑定指定网卡地址（默认监听全部网卡）
 ./andey-proxy -cd /etc/andey-proxy  # 指定配置目录
 ```
 
-启动后访问 `https://<设备IP>:16601`。无匹配的 ACME 证书时会使用自签证书，浏览器首次需确认。账号默认为 `admin`，一次性随机密码只在首次启动的控制台输出一次。
+启动后访问 `https://<设备IP>:16606`。无匹配的 ACME 证书时会使用自签证书，浏览器首次需确认。账号默认为 `admin`，一次性随机密码只在首次启动的控制台输出一次。
 
 如必须兼容无法使用 HTTPS 的旧客户端，可显式传入 `-admin-http`；该模式会在首页持续显示高风险警告。
 

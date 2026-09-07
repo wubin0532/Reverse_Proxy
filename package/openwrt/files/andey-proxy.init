@@ -11,7 +11,7 @@ start_service() {
 	config_load andey-proxy
 	config_get enabled main enabled 0
 	config_get confdir main confdir /etc/andey-proxy
-	config_get port main port 16601
+	config_get port main port 16606
 	config_get admin_http main admin_http 0
 
 	[ "$enabled" = "1" ] || return 0
