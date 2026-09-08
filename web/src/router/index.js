@@ -20,6 +20,7 @@ const routes = [
       { path: 'certs', name: 'Certs', component: () => import('../views/Certs.vue'), meta: { titleKey: 'nav.certs' } },
       { path: 'web-service', name: 'WebService', component: () => import('../views/WebService.vue'), meta: { titleKey: 'nav.webServiceTitle' } },
       { path: 'forward', name: 'Forward', component: () => import('../views/Forward.vue'), meta: { titleKey: 'nav.forward' } },
+      { path: 'notifications', name: 'Notifications', component: () => import('../views/Notifications.vue'), meta: { titleKey: 'nav.notifications' } },
       { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue'), meta: { titleKey: 'nav.logs' } },
       { path: 'settings', redirect: '/dashboard' }
     ]

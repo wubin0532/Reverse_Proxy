@@ -87,7 +87,7 @@ func TestEncryptedLegacyFieldsArePurged(t *testing.T) {
 	if err := os.WriteFile(dir+".key", key, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	legacy := []byte(`{"settings":{"adminUser":"admin","adminPassHash":"hash","webhook":{"key":"LEGACY-CANARY"}},"providers":[],"ddns":[],"certs":[],"sites":[],"forwards":[]}`)
+	legacy := []byte(`{"settings":{"adminUser":"admin","adminPassHash":"hash","webhook":{"key":"LEGACY-CANARY"},"notifyWebhookURL":"https://example.test/LEGACY-TOKEN","notifyTypes":["ddns"]},"providers":[],"ddns":[],"certs":[],"sites":[],"forwards":[]}`)
 	encrypted, err := encryptConfig(legacy, key)
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestEncryptedLegacyFieldsArePurged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(plain, []byte("LEGACY-CANARY")) || bytes.Contains(plain, []byte("webhook")) {
+	if bytes.Contains(plain, []byte("LEGACY-CANARY")) || bytes.Contains(plain, []byte("LEGACY-TOKEN")) || bytes.Contains(plain, []byte("webhook")) || bytes.Contains(plain, []byte("notifyWebhookURL")) {
 		t.Fatalf("废弃通知凭据仍残留在配置中: %s", plain)
 	}
 }

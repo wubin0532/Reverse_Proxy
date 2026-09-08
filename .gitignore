@@ -13,3 +13,5 @@ node_modules/
 # Local config / secrets
 *.local
 .env
+.learnings/
+.playwright-cli/

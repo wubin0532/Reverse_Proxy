@@ -1,56 +1,100 @@
 <template>
-  <el-card>
-    <template #header>
-      <div class="card-header">
-        <span>{{ $t('webService.title') }}</span>
-        <el-button type="primary" size="small" @click="openSiteDialog()">{{ $t('webService.addSite') }}</el-button>
+  <div class="web-service-page" v-loading="loading">
+    <section class="sites-panel">
+      <div class="panel-heading">
+        <div><span class="eyebrow">{{ $t('webService.siteManagement') }}</span><h1>{{ $t('webService.title') }}</h1></div>
+        <el-button type="primary" @click="openSiteDialog()">＋ {{ $t('webService.addSite') }}</el-button>
       </div>
-    </template>
-    <el-table :data="sites" v-loading="loading">
-      <el-table-column prop="name" :label="$t('webService.colName')" min-width="110" />
-      <el-table-column prop="listen" :label="$t('webService.colListen')" width="120" />
-      <el-table-column label="TLS" width="110">
-        <template #default="{ row }">
-          <el-tag v-if="row.tls" type="success" size="small">HTTPS</el-tag>
-          <el-tag v-else type="info" size="small">HTTP</el-tag>
-          <el-tag v-if="row.tls && row.forceHttps && row.certId" type="warning" size="small" style="margin-left: 4px">{{ $t('webService.forceRedirect') }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column :label="$t('webService.colSubRules')" width="80">
-        <template #default="{ row }">{{ $t('webService.rulesCount', { n: (row.rules || []).length }) }}</template>
-      </el-table-column>
-      <el-table-column :label="$t('webService.colStatus')" min-width="140">
-        <template #default="{ row }">
-          <el-tag :type="siteStatusType(row)" size="small">{{ siteStatusText(row) }}</el-tag>
-          <el-tooltip v-if="row.error" :content="row.error" placement="top">
-            <span class="error-text">{{ row.error }}</span>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column :label="$t('webService.colEnabled')" width="70">
-        <template #default="{ row }">
-          <el-switch :model-value="row.enabled" @change="toggleSite(row)" />
-        </template>
-      </el-table-column>
-      <el-table-column :label="$t('webService.colActions')" width="220" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openLogs(row)">{{ $t('common.logs') }}</el-button>
-          <el-button link type="primary" @click="openSiteDialog(row)">{{ $t('common.edit') }}</el-button>
-          <el-popconfirm :title="$t('webService.deleteConfirm')" @confirm="deleteSite(row)">
-            <template #reference>
-              <el-button link type="danger">{{ $t('common.delete') }}</el-button>
-            </template>
+      <div v-if="sites.length" class="site-strip">
+        <button
+          v-for="site in sites"
+          :key="site.id"
+          type="button"
+          class="site-tab"
+          :class="{ active: site.id === selectedSiteId }"
+          @click="selectedSiteId = site.id"
+        >
+          <span class="status-dot" :class="site.status" />
+          <span class="site-tab-copy"><b>{{ site.name }}</b><small>{{ site.tls ? 'HTTPS' : 'HTTP' }} · {{ site.listen }}</small></span>
+          <span class="rule-count">{{ (site.rules || []).length }}</span>
+        </button>
+      </div>
+      <el-empty v-else :description="$t('webService.empty')" :image-size="60" />
+    </section>
+
+    <section v-if="activeSite" class="rules-panel">
+      <header class="site-toolbar">
+        <div class="site-identity">
+          <span class="status-dot large" :class="activeSite.status" />
+          <div><h2>{{ activeSite.name }}</h2><span>{{ siteStatusText(activeSite) }}</span></div>
+          <el-tag :type="activeSite.tls ? 'success' : 'info'" effect="plain">{{ activeSite.tls ? 'HTTPS' : 'HTTP' }}</el-tag>
+          <el-tag v-if="activeSite.tls && activeSite.forceHttps && activeSite.certId" type="warning" effect="plain">{{ $t('webService.forceRedirect') }}</el-tag>
+        </div>
+        <div class="toolbar-actions">
+          <el-button @click="openLogs(activeSite)">{{ $t('common.logs') }}</el-button>
+          <el-button @click="openSiteDialog(activeSite)">{{ $t('common.edit') }}</el-button>
+          <el-switch :model-value="activeSite.enabled" @change="toggleSite(activeSite)" />
+          <el-popconfirm :title="$t('webService.deleteConfirm')" @confirm="deleteSite(activeSite)">
+            <template #reference><el-button type="danger" plain>{{ $t('common.delete') }}</el-button></template>
           </el-popconfirm>
-        </template>
-      </el-table-column>
-      <template #empty><el-empty :description="$t('webService.empty')" :image-size="60" /></template>
-    </el-table>
+          <el-button type="primary" @click="openRuleDialog()">＋ {{ $t('webService.addRule') }}</el-button>
+        </div>
+      </header>
+
+      <div class="site-summary">
+        <span>◉ {{ $t('webService.listenAt') }} <b>{{ activeSite.listen }}</b></span>
+        <span>{{ activeSite.tls ? 'TLS' : 'HTTP' }}</span>
+        <span>{{ $t('webService.allRules') }} <b>{{ activeSite.rules?.length || 0 }}</b></span>
+        <span>{{ $t('webService.enabledRules') }} <b>{{ enabledRuleCount }}</b></span>
+        <span class="traffic-chip">↓ {{ fmtBytes(siteStats.bytesIn) }} <small>{{ fmtRate(siteRate.bytesIn) }}</small></span>
+        <span class="traffic-chip outgoing">↑ {{ fmtBytes(siteStats.bytesOut) }} <small>{{ fmtRate(siteRate.bytesOut) }}</small></span>
+        <span>{{ $t('webService.activeConnections') }} <b>{{ siteStats.active || 0 }}</b></span>
+        <span :class="{ danger: siteErrors > 0 }">{{ $t('webService.errors') }} <b>{{ siteErrors }}</b></span>
+      </div>
+
+      <div class="rule-list-heading">
+        <div><h3>{{ $t('webService.subRules') }}</h3><p>{{ $t('webService.dragTip') }}</p></div>
+      </div>
+      <div v-if="activeSite.rules?.length" class="rule-list">
+        <article
+          v-for="(rule, index) in activeSite.rules"
+          :key="rule.id"
+          class="rule-row"
+          :class="{ disabled: !rule.enabled, dragging: dragIndex === index }"
+          @dragover.prevent
+          @drop="dropRule(index)"
+        >
+          <span class="drag-handle" draggable="true" :title="$t('webService.dragTip')" @dragstart="startDrag(index)" @dragend="dragIndex = -1">⋮⋮</span>
+          <div class="rule-name"><b>{{ rule.name }}</b><small>{{ ruleTypeText(rule.type) }}</small></div>
+          <div class="rule-guard"><span>{{ securityLabel(rule) }}</span></div>
+          <div class="rule-route"><b>{{ rule.frontendHost || '*' }}{{ rule.frontendPath || '/' }}</b><small>{{ ruleTarget(rule) }}</small></div>
+          <div class="rule-traffic">
+            <span>↓ <b>{{ fmtBytes(ruleStats(rule.id).bytesIn) }}</b><small>{{ fmtRate(ruleRate(rule.id).bytesIn) }}</small></span>
+            <span class="outgoing">↑ <b>{{ fmtBytes(ruleStats(rule.id).bytesOut) }}</b><small>{{ fmtRate(ruleRate(rule.id).bytesOut) }}</small></span>
+          </div>
+          <div class="rule-health">
+            <span :title="$t('webService.activeConnections')">↔ <b>{{ ruleStats(rule.id).active || 0 }}</b></span>
+            <span :class="{ danger: ruleErrors(rule.id) > 0 }" :title="$t('webService.errors')">⚠ <b>{{ ruleErrors(rule.id) }}</b></span>
+          </div>
+          <div class="rule-actions">
+            <el-switch :model-value="rule.enabled" @change="toggleRule(rule)" />
+            <el-button link type="primary" @click="openRuleDialog(rule, index)">{{ $t('common.edit') }}</el-button>
+            <el-popconfirm :title="$t('webService.deleteRuleConfirm')" @confirm="deleteRule(rule)">
+              <template #reference><el-button link type="danger">{{ $t('common.delete') }}</el-button></template>
+            </el-popconfirm>
+          </div>
+        </article>
+      </div>
+      <el-empty v-else :description="$t('webService.emptySubRules')" :image-size="58">
+        <el-button type="primary" @click="openRuleDialog()">{{ $t('webService.addRule') }}</el-button>
+      </el-empty>
+    </section>
 
     <!-- 站点编辑对话框 -->
     <el-dialog
       v-model="siteDialog.visible"
       :title="siteDialog.isEdit ? $t('webService.editSite') : $t('webService.addSiteTitle')"
-      width="720px"
+      width="620px"
       destroy-on-close
     >
       <el-form ref="siteFormRef" :model="siteDialog.form" :rules="siteRules" label-width="100px">
@@ -84,40 +128,6 @@
           <span class="form-tip">{{ $t('webService.firewallTip') }}</span>
         </el-form-item>
       </el-form>
-
-      <div class="rules-header">
-        <span class="rules-title">{{ $t('webService.subRules') }}</span>
-        <el-button size="small" type="primary" plain @click="openRuleDialog()">{{ $t('webService.addRule') }}</el-button>
-      </div>
-      <el-table :data="siteDialog.rules" size="small" border>
-        <el-table-column label="#" width="46">
-          <template #default="{ $index }">{{ $index + 1 }}</template>
-        </el-table-column>
-        <el-table-column prop="name" :label="$t('webService.colRuleName')" min-width="90">
-          <template #default="{ row }">{{ row.name || '-' }}</template>
-        </el-table-column>
-        <el-table-column :label="$t('webService.colType')" width="90">
-          <template #default="{ row }">
-            <el-tag size="small">{{ ruleTypeText(row.type) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('webService.colMatch')" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.frontendHost || '*' }}{{ row.frontendPath || '/' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('webService.colTarget')" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ ruleTarget(row) }}</template>
-        </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="150">
-          <template #default="{ row, $index }">
-            <el-button link type="primary" :disabled="$index === 0" @click="moveRule($index, -1)">{{ $t('webService.moveUp') }}</el-button>
-            <el-button link type="primary" @click="openRuleDialog(row, $index)">{{ $t('common.edit') }}</el-button>
-            <el-button link type="danger" @click="siteDialog.rules.splice($index, 1)">{{ $t('common.delete') }}</el-button>
-          </template>
-        </el-table-column>
-        <template #empty><span class="rules-empty">{{ $t('webService.emptySubRules') }}</span></template>
-      </el-table>
 
       <template #footer>
         <el-button @click="siteDialog.visible = false">{{ $t('common.cancel') }}</el-button>
@@ -300,7 +310,7 @@
       </el-form>
       <template #footer>
         <el-button @click="ruleDialog.visible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="confirmRule">{{ $t('webService.confirmOk') }}</el-button>
+        <el-button type="primary" :loading="ruleDialog.saving" @click="confirmRule">{{ $t('webService.confirmOk') }}</el-button>
       </template>
     </el-dialog>
 
@@ -314,21 +324,31 @@
         <div v-for="(line, i) in logsDrawer.logs" :key="i" class="log-line">{{ line }}</div>
       </div>
     </el-drawer>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
 import { formatTime } from '../utils/format'
+import { calculateTrafficRates } from '../utils/traffic'
 
 const { t } = useI18n()
 
 const sites = ref([])
 const certs = ref([])
 const loading = ref(false)
+const selectedSiteId = ref('')
+const stats = ref({})
+const rates = ref({})
+const activeSite = computed(() => sites.value.find((site) => site.id === selectedSiteId.value) || null)
+const enabledRuleCount = computed(() => (activeSite.value?.rules || []).filter((rule) => rule.enabled).length)
+const emptyStats = () => ({ requests: 0, bytesIn: 0, bytesOut: 0, active: 0, status1xx: 0, status2xx: 0, status3xx: 0, status4xx: 0, status5xx: 0, rules: {} })
+const siteStats = computed(() => stats.value[selectedSiteId.value] || emptyStats())
+const siteRate = computed(() => rates.value[selectedSiteId.value] || { bytesIn: 0, bytesOut: 0 })
+const siteErrors = computed(() => (siteStats.value.status4xx || 0) + (siteStats.value.status5xx || 0))
 
 function siteStatusText(row) {
   if (!row.enabled) return t('webService.statusDisabled')
@@ -348,6 +368,20 @@ function ruleTarget(rule) {
   if (rule.type === 'redirect') return `${rule.redirectUrl || '-'} (${rule.redirectCode || 302})`
   return rule.rootDir || '-'
 }
+function fmtBytes(value = 0) {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(2)} MB`
+  return `${(value / 1024 ** 3).toFixed(2)} GB`
+}
+function fmtRate(value = 0) { return `${fmtBytes(Math.max(0, Math.round(value)))}/s` }
+function ruleStats(ruleID) { return siteStats.value.rules?.[ruleID] || emptyStats() }
+function ruleRate(ruleID) { return siteRate.value.rules?.[ruleID] || { bytesIn: 0, bytesOut: 0 } }
+function ruleErrors(ruleID) { const value = ruleStats(ruleID); return (value.status4xx || 0) + (value.status5xx || 0) }
+function securityLabel(rule) {
+  const count = [rule.basicAuth, rule.ipListMode, rule.uaListMode, rule.rateLimitRPS > 0, rule.maxRequestBodyMiB > 0, Object.keys(rule.headers || {}).length > 0].filter(Boolean).length
+  return count ? t('webService.protectionCount', { n: count }) : t('webService.noProtection')
+}
 
 // ---------- 站点对话框 ----------
 const siteFormRef = ref()
@@ -355,8 +389,7 @@ const siteDialog = reactive({
   visible: false,
   isEdit: false,
   saving: false,
-  form: { id: '', name: '', listen: '', tls: false, certId: '', forceHttps: false, autoFw: false, enabled: true },
-  rules: []
+  form: { id: '', name: '', listen: '', tls: false, certId: '', forceHttps: false, autoFw: false, enabled: true }
 })
 
 const siteRules = computed(() => ({
@@ -369,15 +402,7 @@ function openSiteDialog(row) {
   siteDialog.form = row
     ? { id: row.id, name: row.name, listen: row.listen, tls: row.tls, certId: row.certId || '', forceHttps: !!(row.forceHttps && row.certId), autoFw: !!row.autoFw, enabled: row.enabled }
     : { id: '', name: '', listen: '', tls: false, certId: '', forceHttps: false, autoFw: false, enabled: true }
-  siteDialog.rules = row ? JSON.parse(JSON.stringify(row.rules || [])) : []
   siteDialog.visible = true
-}
-
-function moveRule(index, delta) {
-  const target = index + delta
-  if (target < 0 || target >= siteDialog.rules.length) return
-  const arr = siteDialog.rules
-  ;[arr[index], arr[target]] = [arr[target], arr[index]]
 }
 
 async function saveSite() {
@@ -391,14 +416,15 @@ async function saveSite() {
     certId: f.tls ? f.certId : '',
     forceHttps: !!(f.tls && f.certId && f.forceHttps),
     autoFw: f.autoFw,
-    rules: siteDialog.rules
+    rules: siteDialog.isEdit ? (sites.value.find((site) => site.id === f.id)?.rules || []) : []
   }
   siteDialog.saving = true
   try {
     if (siteDialog.isEdit) {
       await request.put(`/api/sites/${f.id}`, body)
     } else {
-      await request.post('/api/sites', body)
+      const res = await request.post('/api/sites', body)
+      selectedSiteId.value = res.data?.id || ''
     }
     ElMessage.success(t('common.saveSuccess'))
     siteDialog.visible = false
@@ -445,6 +471,7 @@ const emptyRule = () => ({
 
 const ruleDialog = reactive({
   visible: false,
+  saving: false,
   index: -1,
   form: emptyRule(),
   headersList: [],
@@ -455,6 +482,7 @@ const backendTesting = ref(false)
 const backendTestResult = ref('')
 
 function openRuleDialog(row, index = -1) {
+  if (!activeSite.value) return
   ruleDialog.index = index
   ruleDialog.form = row
     ? {
@@ -527,8 +555,12 @@ function splitList(text) {
   return (text || '').split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-function confirmRule() {
+async function confirmRule() {
   const f = ruleDialog.form
+  if (!f.name.trim()) {
+    ElMessage.warning(t('webService.ruleNameRequired'))
+    return
+  }
   if (f.type === 'reverse' && !splitList(f.backendsText).length) {
     ElMessage.warning(t('webService.fillBackend'))
     return
@@ -580,12 +612,51 @@ function confirmRule() {
     uaListMode: f.uaListMode,
     uaList: f.uaListMode ? splitList(ruleDialog.uaListText) : []
   }
-  if (ruleDialog.index >= 0) {
-    siteDialog.rules[ruleDialog.index] = rule
-  } else {
-    siteDialog.rules.push(rule)
+  ruleDialog.saving = true
+  try {
+    if (ruleDialog.index >= 0) {
+      await request.put(`/api/sites/${activeSite.value.id}/rules/${rule.id}`, rule)
+    } else {
+      await request.post(`/api/sites/${activeSite.value.id}/rules`, rule)
+    }
+    ElMessage.success(t('common.saveSuccess'))
+    ruleDialog.visible = false
+    await load(false)
+  } finally {
+    ruleDialog.saving = false
   }
-  ruleDialog.visible = false
+}
+
+async function toggleRule(rule) {
+  try {
+    await request.post(`/api/sites/${activeSite.value.id}/rules/${rule.id}/toggle`)
+  } finally {
+    await load(false)
+  }
+}
+
+async function deleteRule(rule) {
+  await request.delete(`/api/sites/${activeSite.value.id}/rules/${rule.id}`)
+  ElMessage.success(t('common.deleted'))
+  await load(false)
+}
+
+const dragIndex = ref(-1)
+function startDrag(index) { dragIndex.value = index }
+async function dropRule(targetIndex) {
+  const sourceIndex = dragIndex.value
+  dragIndex.value = -1
+  if (sourceIndex < 0 || sourceIndex === targetIndex || !activeSite.value) return
+  const reordered = [...activeSite.value.rules]
+  const [moved] = reordered.splice(sourceIndex, 1)
+  reordered.splice(targetIndex, 0, moved)
+  activeSite.value.rules = reordered
+  try {
+    await request.put(`/api/sites/${activeSite.value.id}/rules/order`, { ruleIds: reordered.map((rule) => rule.id) })
+    ElMessage.success(t('webService.orderSaved'))
+  } catch {
+    await load(false)
+  }
 }
 
 // ---------- 日志抽屉 ----------
@@ -607,15 +678,18 @@ async function loadLogs() {
   }
 }
 
-async function load() {
-  loading.value = true
+async function load(showLoading = true) {
+  if (showLoading) loading.value = true
   try {
     const res = await request.get('/api/sites')
     sites.value = res.data || []
+    if (!sites.value.some((site) => site.id === selectedSiteId.value)) {
+      selectedSiteId.value = sites.value[0]?.id || ''
+    }
   } catch {
     // 拦截器已提示
   } finally {
-    loading.value = false
+    if (showLoading) loading.value = false
   }
 }
 
@@ -628,92 +702,42 @@ async function loadCerts() {
   }
 }
 
-onMounted(() => {
-  load()
-  loadCerts()
+let previousStats = null
+let previousStatsAt = 0
+async function loadStats() {
+  try {
+    const res = await request.get('/api/sites/stats')
+    const current = res.data || {}
+    const now = Date.now()
+    const elapsed = previousStatsAt ? (now - previousStatsAt) / 1000 : 0
+    const nextRates = calculateTrafficRates(current, previousStats || {}, elapsed)
+    stats.value = current
+    rates.value = nextRates
+    previousStats = current
+    previousStatsAt = now
+  } catch {
+    // 高频刷新失败时保留最后一次有效快照
+  }
+}
+
+let statsTimer
+onMounted(async () => {
+  await Promise.all([load(), loadCerts()])
+  await loadStats()
+  statsTimer = setInterval(loadStats, 3000)
 })
+onUnmounted(() => clearInterval(statsTimer))
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.error-text {
-  margin-left: 6px;
-  color: var(--el-color-danger);
-  font-size: 12px;
-  max-width: 120px;
-  display: inline-block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-.rules-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 8px 0 10px;
-}
-.rules-title {
-  font-weight: 600;
-  font-size: 14px;
-}
-.rules-empty {
-  color: var(--ap-muted);
-  font-size: 13px;
-}
-.form-tip {
-  margin-left: 10px;
-  color: var(--ap-muted);
-  font-size: 12px;
-}
-.headers-editor {
-  width: 100%;
-}
-.backend-editor { width: 100%; }
-.backend-test-row { display: flex; align-items: center; margin-top: 8px; }
-.number-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
-.number-grid :deep(.el-input-number) { width: 100%; }
-.rewrite-pair { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
-.collapse-tip { margin: -4px 0 12px 110px; color: var(--ap-muted); font-size: 12px; }
-@media (max-width: 599px) {
-  .number-grid { grid-template-columns: 1fr; }
-  .rewrite-pair { grid-template-columns: 1fr; }
-  .rewrite-pair > span { display: none; }
-  .collapse-tip { margin-left: 0; }
-  :deep(.el-form-item) { display: block; }
-  :deep(.el-form-item__label) {
-    width: 100% !important;
-    height: auto;
-    justify-content: flex-start;
-    margin-bottom: 6px;
-  }
-  :deep(.el-form-item__content) { margin-left: 0 !important; }
-}
-.header-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  align-items: center;
-}
-.security-collapse {
-  width: 100%;
-  margin-top: 4px;
-}
-.log-toolbar {
-  margin-bottom: 10px;
-}
-.log-list {
-  font-family: Menlo, Consolas, monospace;
-  font-size: 12px;
-}
-.log-line {
-  padding: 3px 0;
-  border-bottom: 1px solid #f0f0f0;
-  word-break: break-all;
-  color: var(--ap-text);
-}
+.web-service-page{display:grid;gap:16px;color:var(--ap-text)}
+.sites-panel,.rules-panel{border:1px solid #cfe4e1;border-radius:16px;background:linear-gradient(180deg,#fbfefd,#f7fbfa);box-shadow:0 10px 28px rgba(20,93,88,.07)}
+.sites-panel{padding:20px}.panel-heading,.site-toolbar,.site-identity,.toolbar-actions{display:flex;align-items:center}.panel-heading,.site-toolbar{justify-content:space-between;gap:16px}.panel-heading h1{margin:3px 0 0;font-size:22px}.eyebrow{color:#248b82;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.site-strip{display:flex;gap:10px;margin-top:18px;padding-bottom:3px;overflow-x:auto}.site-tab{display:flex;align-items:center;gap:10px;min-width:210px;padding:13px 14px;border:1px solid #d2e4e1;border-radius:12px;background:#fff;color:var(--ap-text);font:inherit;text-align:left;cursor:pointer;transition:.18s ease}.site-tab:hover{border-color:#72bbb3;transform:translateY(-1px)}.site-tab.active{border-color:#14998b;background:#effaf8;box-shadow:inset 0 -3px #14998b}.site-tab-copy{min-width:0;flex:1}.site-tab-copy b,.site-tab-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.site-tab-copy small{margin-top:3px;color:var(--ap-muted);font-size:11px}.rule-count{display:grid;place-items:center;min-width:25px;height:25px;border-radius:8px;background:#e5f3f1;color:#177d74;font-weight:700}
+.status-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:#95a7a6;box-shadow:0 0 0 3px rgba(149,167,166,.13)}.status-dot.listening{background:#20a97a;box-shadow:0 0 0 3px rgba(32,169,122,.13)}.status-dot.error{background:#dc5d63;box-shadow:0 0 0 3px rgba(220,93,99,.14)}.status-dot.large{width:11px;height:11px}
+.rules-panel{overflow:hidden}.site-toolbar{padding:18px 20px;border-bottom:1px solid #dbeae8}.site-identity{gap:10px;min-width:0}.site-identity h2{margin:0;font-size:18px}.site-identity div>span{display:block;margin-top:2px;color:var(--ap-muted);font-size:11px}.toolbar-actions{justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.site-summary{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid #dbeae8;overflow-x:auto}.site-summary>span{flex:0 0 auto;padding:7px 10px;border:1px solid #d9e8e6;border-radius:9px;background:#fff;color:#56706e;font-size:12px}.site-summary b{color:#254946}.site-summary .traffic-chip{margin-left:auto}.traffic-chip small,.rule-traffic small{margin-left:7px;color:#819593}.outgoing{color:#0a8d78!important}.danger{color:#d85059!important}
+.rule-list-heading{display:flex;justify-content:space-between;padding:16px 20px 10px}.rule-list-heading h3{margin:0;font-size:15px}.rule-list-heading p{margin:4px 0 0;color:var(--ap-muted);font-size:11px}.rule-list{padding:0 12px 14px;overflow-x:auto}.rule-row{display:grid;grid-template-columns:30px 130px 100px minmax(220px,1.5fr) minmax(250px,1fr) 90px 175px;align-items:center;gap:10px;min-width:1080px;min-height:62px;padding:8px 10px;border-bottom:1px solid #deebe9;background:#fff;transition:.15s ease}.rule-row:first-child{border-radius:11px 11px 0 0}.rule-row:last-child{border-bottom:0;border-radius:0 0 11px 11px}.rule-row:hover{background:#f4fbfa}.rule-row.disabled{opacity:.58}.rule-row.dragging{background:#e7f6f3;opacity:.7}.drag-handle{color:#8ba5a2;font-size:18px;letter-spacing:-4px;cursor:grab;user-select:none}.drag-handle:active{cursor:grabbing}.rule-name b,.rule-name small,.rule-route b,.rule-route small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rule-name small{margin-top:4px;color:#1b8178;font-size:11px}.rule-guard span{display:inline-block;padding:5px 8px;border-radius:7px;background:#eff6f5;color:#56716e;font-size:11px}.rule-route small{margin-top:5px;color:#1a887c}.rule-traffic{display:grid;grid-template-columns:1fr 1fr;gap:6px}.rule-traffic>span{display:flex;align-items:center;padding:7px 8px;border:1px solid #dbe8e6;border-radius:8px;color:#526c69;font-size:11px}.rule-traffic small{margin-left:auto}.rule-health,.rule-actions{display:flex;align-items:center;gap:10px}.rule-health span{color:#607977;font-size:12px}.rule-actions{justify-content:flex-end}.form-tip{margin-left:10px;color:var(--ap-muted);font-size:12px}.headers-editor,.backend-editor{width:100%}.backend-test-row{display:flex;align-items:center;margin-top:8px}.number-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}.number-grid :deep(.el-input-number){width:100%}.rewrite-pair{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;width:100%}.collapse-tip{margin:-4px 0 12px 110px;color:var(--ap-muted);font-size:12px}.header-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}.security-collapse{width:100%;margin-top:4px}.log-toolbar{margin-bottom:10px}.log-list{font-family:Menlo,Consolas,monospace;font-size:12px}.log-line{padding:3px 0;border-bottom:1px solid #f0f0f0;color:var(--ap-text);word-break:break-all}
+@media(max-width:900px){.site-toolbar{align-items:flex-start;flex-direction:column}.toolbar-actions{justify-content:flex-start}.site-summary .traffic-chip{margin-left:0}}
+@media(max-width:700px){.sites-panel{padding:15px}.panel-heading{align-items:flex-start}.panel-heading h1{font-size:19px}.site-tab{min-width:185px}.site-toolbar{padding:15px}.site-summary{padding:10px 14px}.rule-list{overflow:visible}.rule-row{grid-template-columns:22px minmax(0,1fr) auto;gap:9px;min-width:0;margin-bottom:9px;padding:13px;border:1px solid #dbe8e6;border-radius:11px!important}.rule-name{grid-column:2}.rule-guard{grid-column:3}.rule-route,.rule-traffic,.rule-health{grid-column:2/-1}.rule-actions{grid-column:2/-1;justify-content:flex-start;padding-top:4px}.number-grid,.rewrite-pair{grid-template-columns:1fr}.rewrite-pair>span{display:none}.collapse-tip{margin-left:0}:deep(.el-form-item){display:block}:deep(.el-form-item__label){width:100%!important;height:auto;justify-content:flex-start;margin-bottom:6px}:deep(.el-form-item__content){margin-left:0!important}}
 </style>

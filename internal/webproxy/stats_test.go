@@ -86,10 +86,51 @@ func TestSiteStatsCounting(t *testing.T) {
 	if st.BytesOut != wantOut {
 		t.Fatalf("出字节应为 %d, got %d", wantOut, st.BytesOut)
 	}
+	ruleStats, ok := st.Rules["r1"]
+	if !ok || ruleStats.Requests != 2 || ruleStats.Status2xx != 1 || ruleStats.Status5xx != 1 || ruleStats.BytesIn != int64(len(reqBody)) {
+		t.Fatalf("r1 子规则统计错误: %+v", ruleStats)
+	}
 
 	st2 := svc.AllSiteStats()["s2"]
 	if st2.Requests != 1 || st2.Status4xx != 1 || st2.BytesOut != int64(len(body404)) {
 		t.Fatalf("s2 统计错误: %+v", st2)
+	}
+	if len(st2.Rules) != 0 {
+		t.Fatalf("未匹配请求不应计入子规则: %+v", st2.Rules)
+	}
+}
+
+func TestRuleStatsExposeActiveRequests(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(entered)
+		<-release
+		fmt.Fprint(w, "ok")
+	}))
+	defer backend.Close()
+	cfg, svc := newTestService(t)
+	addSite(cfg, config.Site{ID: "s1", Name: "站点", Enabled: true, Listen: "127.0.0.1:0", Rules: []config.SubRule{{ID: "r1", Name: "反代", Type: "reverse", Enabled: true, FrontendPath: "/", Backends: []string{backend.URL}}}})
+	svc.Start()
+	defer svc.Stop()
+	done := make(chan struct{})
+	go func() {
+		resp, _ := httpClient().Get("http://" + svc.ListenAddr("s1") + "/")
+		if resp != nil {
+			resp.Body.Close()
+		}
+		close(done)
+	}()
+	<-entered
+	active := svc.AllSiteStats()["s1"]
+	if active.Active != 1 || active.Rules["r1"].Active != 1 {
+		t.Fatalf("活动请求统计错误: %+v", active)
+	}
+	close(release)
+	<-done
+	finished := svc.AllSiteStats()["s1"]
+	if finished.Active != 0 || finished.Rules["r1"].Active != 0 || finished.Rules["r1"].Requests != 1 {
+		t.Fatalf("请求结束后的统计错误: %+v", finished)
 	}
 }
 

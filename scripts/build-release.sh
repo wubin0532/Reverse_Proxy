@@ -17,6 +17,7 @@ if [ -n "$(find web/src -type f -newer internal/adminweb/dist/index.html -print 
 fi
 PKG_RELEASE=1
 SIGNING_KEY=${RELEASE_SIGNING_KEY:-}
+IPK_ONLY=${IPK_ONLY:-0}
 NODE_BIN=${NODE_BIN:-node}
 OUT="$(pwd)/release"
 WORK="$OUT/work"
@@ -285,10 +286,17 @@ for t in "${TARGETS[@]}"; do
   IFS='|' read -r suffix goarch opkgarch goarm gomips <<< "$t"
   build_binary "$suffix" "$goarch" "$goarm" "$gomips"
   make_ipk "$suffix" "$opkgarch"
-  make_run "$suffix" "$goarch"
+  if [ "$IPK_ONLY" != "1" ]; then
+    make_run "$suffix" "$goarch"
+  fi
 done
 
-(cd "$OUT" && for f in *.ipk *.run; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done > checksums.txt)
+(cd "$OUT" && {
+  for f in *.ipk; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done
+  if [ "$IPK_ONLY" != "1" ]; then
+    for f in *.run; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done
+  fi
+} > checksums.txt)
 rm -rf "$WORK"
 echo ""
 echo "全部完成，产物："

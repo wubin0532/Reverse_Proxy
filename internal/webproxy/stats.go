@@ -1,16 +1,18 @@
 package webproxy
 
 import (
+	"sync"
 	"sync/atomic"
+
+	"andey-proxy/internal/config"
 )
 
-// siteStats 站点级流量统计，全部字段用 atomic 保证并发安全。
-// 挂在 Service 上按站点 ID 聚合：热重载重建 handler 缓存不会丢失；
-// 不持久化，进程重启后清零。
-type siteStats struct {
+// trafficStats 保存一组并发安全的内存统计。统计不持久化，进程重启后清零。
+type trafficStats struct {
 	requests  atomic.Int64
-	bytesIn   atomic.Int64 // 请求体字节数（ContentLength，未知记 0）
-	bytesOut  atomic.Int64 // 响应写出字节数（statusWriter 统计）
+	bytesIn   atomic.Int64
+	bytesOut  atomic.Int64
+	active    atomic.Int64
 	status1xx atomic.Int64
 	status2xx atomic.Int64
 	status3xx atomic.Int64
@@ -18,8 +20,10 @@ type siteStats struct {
 	status5xx atomic.Int64
 }
 
-// add 累加一次请求的统计。
-func (st *siteStats) add(status int, bytesIn, bytesOut int64) {
+func (st *trafficStats) begin() { st.active.Add(1) }
+
+func (st *trafficStats) finish(status int, bytesIn, bytesOut int64) {
+	st.active.Add(-1)
 	st.requests.Add(1)
 	st.bytesIn.Add(bytesIn)
 	st.bytesOut.Add(bytesOut)
@@ -33,16 +37,16 @@ func (st *siteStats) add(status int, bytesIn, bytesOut int64) {
 	case status >= 400 && status < 500:
 		st.status4xx.Add(1)
 	default:
-		// 5xx 及其他异常状态码并入 5xx 桶
 		st.status5xx.Add(1)
 	}
 }
 
-// SiteStats 站点流量统计快照（对外只读视图）。
-type SiteStats struct {
+// StatsSnapshot 是站点或子规则统计的只读快照。
+type StatsSnapshot struct {
 	Requests  int64 `json:"requests"`
 	BytesIn   int64 `json:"bytesIn"`
 	BytesOut  int64 `json:"bytesOut"`
+	Active    int64 `json:"active"`
 	Status1xx int64 `json:"status1xx"`
 	Status2xx int64 `json:"status2xx"`
 	Status3xx int64 `json:"status3xx"`
@@ -50,32 +54,75 @@ type SiteStats struct {
 	Status5xx int64 `json:"status5xx"`
 }
 
-// snapshot 读取当前统计快照。
-func (st *siteStats) snapshot() SiteStats {
-	return SiteStats{
-		Requests:  st.requests.Load(),
-		BytesIn:   st.bytesIn.Load(),
-		BytesOut:  st.bytesOut.Load(),
-		Status1xx: st.status1xx.Load(),
-		Status2xx: st.status2xx.Load(),
-		Status3xx: st.status3xx.Load(),
-		Status4xx: st.status4xx.Load(),
-		Status5xx: st.status5xx.Load(),
+func (st *trafficStats) snapshot() StatsSnapshot {
+	return StatsSnapshot{
+		Requests: st.requests.Load(), BytesIn: st.bytesIn.Load(), BytesOut: st.bytesOut.Load(), Active: st.active.Load(),
+		Status1xx: st.status1xx.Load(), Status2xx: st.status2xx.Load(), Status3xx: st.status3xx.Load(),
+		Status4xx: st.status4xx.Load(), Status5xx: st.status5xx.Load(),
 	}
 }
 
-// statsFor 返回站点对应的统计桶（不存在则创建），供站点请求路径埋点使用。
+// SiteStats 包含站点总量和按规则 ID 分组的统计。
+type SiteStats struct {
+	StatsSnapshot
+	Rules map[string]StatsSnapshot `json:"rules"`
+}
+
+type siteStats struct {
+	total trafficStats
+	rules sync.Map // ruleID -> *trafficStats
+}
+
+func (st *siteStats) ruleFor(ruleID string) *trafficStats {
+	v, _ := st.rules.LoadOrStore(ruleID, &trafficStats{})
+	return v.(*trafficStats)
+}
+
+func (st *siteStats) beginSite() { st.total.begin() }
+
+func (st *siteStats) beginRule(ruleID string) {
+	if ruleID != "" {
+		st.ruleFor(ruleID).begin()
+	}
+}
+
+func (st *siteStats) finish(ruleID string, status int, bytesIn, bytesOut int64) {
+	st.total.finish(status, bytesIn, bytesOut)
+	if ruleID != "" {
+		st.ruleFor(ruleID).finish(status, bytesIn, bytesOut)
+	}
+}
+
+func (st *siteStats) snapshot() SiteStats {
+	out := SiteStats{StatsSnapshot: st.total.snapshot(), Rules: make(map[string]StatsSnapshot)}
+	st.rules.Range(func(key, value any) bool {
+		out.Rules[key.(string)] = value.(*trafficStats).snapshot()
+		return true
+	})
+	return out
+}
+
+func (st *siteStats) pruneRules(rules []config.SubRule) {
+	keep := make(map[string]struct{}, len(rules))
+	for _, rule := range rules {
+		keep[rule.ID] = struct{}{}
+	}
+	st.rules.Range(func(key, _ any) bool {
+		if _, ok := keep[key.(string)]; !ok {
+			st.rules.Delete(key)
+		}
+		return true
+	})
+}
+
 func (s *Service) statsFor(siteID string) *siteStats {
 	v, _ := s.stats.LoadOrStore(siteID, &siteStats{})
 	return v.(*siteStats)
 }
 
-// deleteStats 站点删除/禁用时清理其统计。
-func (s *Service) deleteStats(siteID string) {
-	s.stats.Delete(siteID)
-}
+func (s *Service) deleteStats(siteID string) { s.stats.Delete(siteID) }
 
-// AllSiteStats 返回全部站点统计快照（siteID → 统计）。无数据时返回空 map。
+// AllSiteStats 返回全部站点统计快照（siteID → 统计）。
 func (s *Service) AllSiteStats() map[string]SiteStats {
 	out := make(map[string]SiteStats)
 	s.stats.Range(func(key, value any) bool {

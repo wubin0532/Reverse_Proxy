@@ -1,6 +1,6 @@
-// Package notify 进程内事件总线与通用 Webhook 通知：
+// Package notify 提供进程内事件总线与可扩展的通知渠道：
 // 各模块通过包级 Publish 上报事件（证书/DDNS/监听异常等），
-// 总线分发给订阅者（如 Webhook 推送），并保留最近事件供 Dashboard 展示。
+// 总线分发给渠道管理器，并保留最近事件供通知中心展示。
 package notify
 
 import (
@@ -15,7 +15,7 @@ const (
 	LevelError = "error"
 )
 
-// 事件类型（按模块前缀归类，Webhook 订阅按前缀匹配）。
+// 事件类型（按模块前缀归类，通知订阅按前缀匹配）。
 const (
 	TypeCertObtainFailed  = "cert.obtain_failed"
 	TypeCertObtainSuccess = "cert.obtain_success"
@@ -34,21 +34,21 @@ const (
 
 // Event 一条通知事件。
 type Event struct {
-	Type    string    `json:"type"`           // 如 cert.obtain_failed / ddns.update_failed
+	Type    string    `json:"type"`             // 如 cert.obtain_failed / ddns.update_failed
 	Entity  string    `json:"entity,omitempty"` // 关联实体名称（证书名、任务名、站点名等）
-	Level   string    `json:"level"`          // info / warn / error
+	Level   string    `json:"level"`            // info / warn / error
 	Message string    `json:"message"`
 	Time    time.Time `json:"time"`
 }
 
 // Bus 进程内事件总线：非阻塞发布，单 goroutine 顺序分发给订阅者。
 type Bus struct {
-	mu     sync.RWMutex
-	subs   []func(Event)
-	ring   []Event // 最近事件环形缓冲（按时间升序，超出容量丢弃最旧）
-	queue  chan Event
-	stop   chan struct{}
-	once   sync.Once
+	mu    sync.RWMutex
+	subs  []func(Event)
+	ring  []Event // 最近事件环形缓冲（按时间升序，超出容量丢弃最旧）
+	queue chan Event
+	stop  chan struct{}
+	once  sync.Once
 
 	droppedMu sync.Mutex
 	dropped   int64 // 队列满被丢弃的事件数

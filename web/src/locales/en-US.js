@@ -51,6 +51,7 @@ export default {
     webService: 'Web Services',
     webServiceTitle: 'Web Services',
     forward: 'Port Forwarding',
+    notifications: 'Notification Center',
     logs: 'Log Center'
   },
   login: {
@@ -173,29 +174,6 @@ export default {
     recentErrors: 'Recent Errors',
     goLogs: 'Open Log Center',
     noErrors: 'No errors recently',
-    notifyTitle: 'Notifications',
-    notifySettings: 'Settings',
-    pushUrl: 'Webhook URL',
-    subscribedEvents: 'Subscribed Events',
-    allWarnError: 'All warnings/errors',
-    sendTest: 'Send Test',
-    recentEvents: 'Recent Events',
-    memoryBuffer: 'In-memory buffer · reset on restart',
-    noEvents: 'No events',
-    eventTypes: {
-      cert: 'Certificate',
-      ddns: 'DDNS',
-      site: 'Site',
-      forward: 'Forward'
-    },
-    notify: {
-      dialogTitle: 'Notification Settings',
-      alert: 'Events such as certificate renewal failures, DDNS update failures and listener errors are pushed as JSON POST to the Webhook URL (e.g. WeCom/DingTalk/self-hosted).',
-      webhookLabel: 'Webhook URL (leave empty to disable)',
-      subscribeLabel: 'Event types (none selected = all warning/error events)',
-      saved: 'Notification settings saved',
-      testSent: 'Test event sent. Check the Webhook receiver'
-    },
     update: {
       title: 'Manual Update via Package',
       noNetwork: 'Never goes online on its own',
@@ -293,6 +271,43 @@ export default {
     passwordLabel: 'Enter the current admin password',
     confirmClear: 'Clear All',
     cleared: 'Logs cleared. A new security audit record was written'
+  },
+  notifications: {
+    eyebrow: 'Message Delivery',
+    title: 'Notification Center',
+    subtitle: 'Send certificate, DDNS and network entry failures to the communication channels you use.',
+    configure: 'Configure Channel',
+    sendTest: 'Send Test Message',
+    deleteChannel: 'Delete Channel',
+    deleteConfirm: 'Delete the Telegram channel? The saved token, Chat ID and topic ID will be cleared.',
+    deleted: 'Telegram channel deleted',
+    saved: 'Notification settings saved',
+    testSent: 'Telegram test message sent',
+    telegram: {
+      description: 'Send notifications directly through the Telegram Bot API without an inbound webhook.',
+      dialogTitle: 'Configure Telegram',
+      guide: 'Create a bot with BotFather, send it a message, then obtain the Chat ID. The Bot Token is encrypted at rest and never returned to the page.',
+      botToken: 'Bot Token',
+      topic: 'Topic ID (optional)',
+      clearToken: 'Clear the saved Bot Token'
+    },
+    subscription: {
+      title: 'Event Subscription',
+      description: 'With no type selected, all warnings and errors are sent. Selecting types sends all levels from those modules.',
+      selectLabel: 'Subscribed Event Types',
+      allWarnError: 'All warnings/errors',
+      selected: '{n} type(s) selected'
+    },
+    events: {
+      title: 'Recent Events',
+      empty: 'No notification events'
+    },
+    eventTypes: {
+      cert: 'Certificate',
+      ddns: 'DDNS',
+      site: 'Site',
+      forward: 'Forward'
+    }
   },
   certs: {
     title: 'Certificates',
@@ -442,6 +457,7 @@ export default {
   },
   webService: {
     title: 'Web Service Sites',
+    siteManagement: 'Site Management',
     addSite: 'Add Site',
     colName: 'Name',
     colListen: 'Listen',
@@ -471,6 +487,16 @@ export default {
     firewall: 'Firewall',
     firewallTip: 'OpenWrt only: automatically allow this port on the WAN side',
     subRules: 'Sub-rules (matched in order)',
+    listenAt: 'Listen',
+    allRules: 'All Rules',
+    enabledRules: 'Enabled',
+    activeConnections: 'Active Requests',
+    errors: 'Errors',
+    dragTip: 'Drag the handle to change matching order',
+    protectionCount: '{n} protection(s)',
+    noProtection: 'No extra protection',
+    deleteRuleConfirm: 'Delete this sub-rule?',
+    orderSaved: 'Sub-rule order saved',
     addRule: 'Add Rule',
     colRuleName: 'Name',
     colType: 'Type',
@@ -541,6 +567,7 @@ export default {
     siteLogsTitle: 'Site Logs - {name}',
     noLogs: 'No logs',
     nameRequired: 'Please enter the site name',
+    ruleNameRequired: 'Please enter the rule name',
     listenRequired: 'Please enter the listen address',
     fillBackendFirst: 'Please enter a backend address first',
     backendOk: 'Connected · {ms} ms',

@@ -22,6 +22,8 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w, status: http.StatusOK, ss: h.ss}
 	ruleID := h.ss.siteSnapshot().ID
+	matchedRuleID := ""
+	h.ss.beginSiteStats()
 	defer func() {
 		path := r.URL.EscapedPath()
 		if path == "" {
@@ -42,7 +44,7 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if bytesIn < 0 {
 			bytesIn = 0
 		}
-		h.ss.addStats(sw.status, bytesIn, sw.bytes)
+		h.ss.finishStats(matchedRuleID, sw.status, bytesIn, sw.bytes)
 	}()
 
 	if ambiguousPath(r.URL.Path) {
@@ -56,6 +58,8 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ruleID = rule.ID
+	matchedRuleID = rule.ID
+	h.ss.beginRuleStats(rule.ID)
 	if allowed, retryAfter := h.ss.limiter.allow(rule, clientIP(r), time.Now()); !allowed {
 		w.Header().Set("Retry-After", fmt.Sprint(retryAfter))
 		http.Error(sw, "429 Too Many Requests", http.StatusTooManyRequests)

@@ -178,6 +178,7 @@ func (s *Service) Reload() error {
 		case !reflect.DeepEqual(current, ns):
 			// 非监听配置热更新，并重建规则缓存。
 			ss.updateSite(ns)
+			s.statsFor(id).pruneRules(ns.Rules)
 		}
 	}
 	for id, site := range want {
@@ -248,6 +249,7 @@ func (s *Service) startLocked(site config.Site) error {
 		staticHandler: make(map[string]http.Handler),
 		stats:         s.statsFor(site.ID),
 	}
+	ss.stats.pruneRules(site.Rules)
 	s.sites[site.ID] = ss
 
 	ln, err := net.Listen("tcp", site.Listen)
@@ -336,10 +338,22 @@ func (ss *siteServer) siteSnapshot() config.Site {
 	return ss.site
 }
 
-// addStats 记录一次请求的站点统计；测试直接构造的 siteServer 无统计桶时跳过。
-func (ss *siteServer) addStats(status int, bytesIn, bytesOut int64) {
+func (ss *siteServer) beginSiteStats() {
 	if ss.stats != nil {
-		ss.stats.add(status, bytesIn, bytesOut)
+		ss.stats.beginSite()
+	}
+}
+
+func (ss *siteServer) beginRuleStats(ruleID string) {
+	if ss.stats != nil {
+		ss.stats.beginRule(ruleID)
+	}
+}
+
+// finishStats 记录请求完成后的站点及匹配规则统计。
+func (ss *siteServer) finishStats(ruleID string, status int, bytesIn, bytesOut int64) {
+	if ss.stats != nil {
+		ss.stats.finish(ruleID, status, bytesIn, bytesOut)
 	}
 }
 

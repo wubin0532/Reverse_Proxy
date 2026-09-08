@@ -14,7 +14,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-andeyproxy
-PKG_VERSION:=0.2.2
+PKG_VERSION:=0.3.1
 PKG_RELEASE:=1
 
 PKG_LICENSE:=MIT

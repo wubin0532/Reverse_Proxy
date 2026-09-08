@@ -32,7 +32,7 @@ import (
 	"andey-proxy/internal/webproxy"
 )
 
-var version = "0.2.2"
+var version = "0.3.1"
 
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
@@ -136,11 +136,11 @@ func main() {
 	ddnsWorker := ddns.NewWorker(cfg)
 	updateMgr := upgrade.NewManager(version, cfg.Dir())
 
-	// 事件总线 + Webhook 推送：各模块通过 notify.Publish 上报事件
+	// 事件总线 + 通知渠道：各模块通过 notify.Publish 上报事件
 	notifyBus := notify.NewBus()
 	notify.SetDefault(notifyBus)
-	notifyWebhook := notify.NewWebhook(cfg)
-	notifyBus.Subscribe(notifyWebhook.Handle)
+	notifyManager := notify.NewManager(cfg)
+	notifyBus.Subscribe(notifyManager.Handle)
 
 	// 防火墙自动放行（OpenWrt）
 	fwMgr := firewall.NewManager()
@@ -172,7 +172,7 @@ func main() {
 	apiSrv.Mount(func(r chi.Router) { firewall.RegisterRoutes(r, fwMgr) })
 	apiSrv.Mount(func(r chi.Router) { upgrade.RegisterRoutes(r, updateMgr, cfg) })
 	apiSrv.Mount(func(r chi.Router) { logcenter.RegisterRoutes(r, logs, cfg) })
-	apiSrv.Mount(func(r chi.Router) { notify.RegisterRoutes(r, cfg, notifyBus, notifyWebhook) })
+	apiSrv.Mount(func(r chi.Router) { notify.RegisterRoutes(r, cfg, notifyBus, notifyManager) })
 	apiSrv.Mount(func(r chi.Router) {
 		dashboard.RegisterRoutes(r, cfg, ddnsWorker, webSvc, fwdSvc, fwMgr, logs, updateMgr, version, !*allowHTTP)
 	})

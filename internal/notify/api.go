@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,25 +12,24 @@ import (
 	"andey-proxy/internal/config"
 )
 
-// knownTypePrefixes 允许订阅的事件类型前缀（按模块归类）。
 var knownTypePrefixes = []string{"cert", "ddns", "site", "forward"}
 
 type handler struct {
 	cfg     *config.Config
 	bus     *Bus
-	webhook *Webhook
+	manager *Manager
 }
 
-// RegisterRoutes 在已认证的 chi.Group 中挂载通知相关路由。
-func RegisterRoutes(r chi.Router, cfg *config.Config, bus *Bus, webhook *Webhook) {
-	h := &handler{cfg: cfg, bus: bus, webhook: webhook}
-	r.Get("/api/notify/events", h.listEvents)
-	r.Get("/api/notify/settings", h.getSettings)
-	r.Put("/api/notify/settings", h.putSettings)
-	r.Post("/api/notify/test", h.testWebhook)
+// RegisterRoutes 在已认证的 chi.Group 中挂载通知中心接口。
+func RegisterRoutes(r chi.Router, cfg *config.Config, bus *Bus, manager *Manager) {
+	h := &handler{cfg: cfg, bus: bus, manager: manager}
+	r.Get("/api/notifications/events", h.listEvents)
+	r.Get("/api/notifications/settings", h.getSettings)
+	r.Put("/api/notifications/settings", h.putSettings)
+	r.Post("/api/notifications/test/{channel}", h.testChannel)
+	r.Delete("/api/notifications/channels/{channel}", h.deleteChannel)
 }
 
-// listEvents 返回最近事件（新的在前），limit 默认 20、上限 100。
 func (h *handler) listEvents(w http.ResponseWriter, r *http.Request) {
 	limit := 0
 	if s := r.URL.Query().Get("limit"); s != "" {
@@ -42,45 +42,89 @@ func (h *handler) listEvents(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) getSettings(w http.ResponseWriter, _ *http.Request) {
 	h.cfg.RLock()
-	hookURL := h.cfg.Settings.NotifyWebhookURL
-	types := append([]string(nil), h.cfg.Settings.NotifyTypes...)
+	settings := h.cfg.Settings.Notifications
+	settings.Types = append([]string{}, settings.Types...)
 	h.cfg.RUnlock()
-	// Webhook URL 本身不是凭据（userinfo 已被禁止），可明文返回。
-	api.OK(w, map[string]interface{}{"notifyWebhookURL": hookURL, "notifyTypes": types})
+	api.OK(w, settingsResponse(settings))
+}
+
+type telegramRequest struct {
+	Enabled         bool   `json:"enabled"`
+	BotToken        string `json:"botToken"`
+	ClearBotToken   bool   `json:"clearBotToken"`
+	ChatID          string `json:"chatId"`
+	MessageThreadID int64  `json:"messageThreadId"`
+}
+
+type settingsRequest struct {
+	Types    []string        `json:"types"`
+	Telegram telegramRequest `json:"telegram"`
 }
 
 func (h *handler) putSettings(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		NotifyWebhookURL string   `json:"notifyWebhookURL"`
-		NotifyTypes      []string `json:"notifyTypes"`
-	}
+	var body settingsRequest
 	if err := api.DecodeBody(r, &body); err != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
-	body.NotifyWebhookURL = strings.TrimSpace(body.NotifyWebhookURL)
-	if err := ValidateWebhookURL(body.NotifyWebhookURL); err != nil {
-		api.Fail(w, 400, err.Error())
-		return
-	}
-	for _, t := range body.NotifyTypes {
+	for _, t := range body.Types {
 		if !validType(t) {
 			api.Fail(w, 400, "未知的事件类型: "+t)
 			return
 		}
 	}
+	body.Telegram.BotToken = strings.TrimSpace(body.Telegram.BotToken)
+	body.Telegram.ChatID = strings.TrimSpace(body.Telegram.ChatID)
+	var saved config.NotificationSettings
+	var validationErr error
 	if err := h.cfg.Update(func(c *config.Config) error {
-		c.Settings.NotifyWebhookURL = body.NotifyWebhookURL
-		c.Settings.NotifyTypes = body.NotifyTypes
+		token := c.Settings.Notifications.Telegram.BotToken
+		if body.Telegram.ClearBotToken {
+			token = ""
+		} else if body.Telegram.BotToken != "" {
+			token = body.Telegram.BotToken
+		}
+		telegram := config.TelegramNotification{
+			Enabled:         body.Telegram.Enabled,
+			BotToken:        token,
+			ChatID:          body.Telegram.ChatID,
+			MessageThreadID: body.Telegram.MessageThreadID,
+		}
+		if err := ValidateTelegramConfig(telegram, true); err != nil {
+			validationErr = err
+			return err
+		}
+		saved = config.NotificationSettings{
+			Types:    append([]string(nil), body.Types...),
+			Telegram: telegram,
+		}
+		c.Settings.Notifications = saved
 		return nil
 	}); err != nil {
-		api.Fail(w, 500, "保存配置失败")
+		if validationErr != nil {
+			api.Fail(w, 400, validationErr.Error())
+		} else {
+			api.Fail(w, 500, "保存通知设置失败")
+		}
 		return
 	}
-	api.OK(w, map[string]interface{}{"notifyWebhookURL": body.NotifyWebhookURL, "notifyTypes": body.NotifyTypes})
+	api.OK(w, settingsResponse(saved))
 }
 
-// validType 事件类型须是已知模块前缀或已知完整类型。
+func settingsResponse(settings config.NotificationSettings) map[string]interface{} {
+	tg := settings.Telegram
+	return map[string]interface{}{
+		"types": append([]string{}, settings.Types...),
+		"telegram": map[string]interface{}{
+			"enabled":            tg.Enabled,
+			"configured":         tg.BotToken != "" && tg.ChatID != "",
+			"botTokenConfigured": tg.BotToken != "",
+			"chatId":             tg.ChatID,
+			"messageThreadId":    tg.MessageThreadID,
+		},
+	}
+}
+
 func validType(t string) bool {
 	for _, p := range knownTypePrefixes {
 		if t == p || strings.HasPrefix(t, p+".") {
@@ -90,11 +134,30 @@ func validType(t string) bool {
 	return false
 }
 
-// testWebhook 同步发送测试事件，返回发送结果。
-func (h *handler) testWebhook(w http.ResponseWriter, _ *http.Request) {
-	if err := h.webhook.Test(); err != nil {
+func (h *handler) testChannel(w http.ResponseWriter, r *http.Request) {
+	if err := h.manager.Test(chi.URLParam(r, "channel")); err != nil {
 		api.Fail(w, 502, "发送失败: "+err.Error())
 		return
 	}
-	api.OK(w, map[string]string{"result": "测试事件已发送"})
+	api.OK(w, map[string]string{"result": "测试消息已发送"})
+}
+
+func (h *handler) deleteChannel(w http.ResponseWriter, r *http.Request) {
+	channel := strings.ToLower(strings.TrimSpace(chi.URLParam(r, "channel")))
+	if channel != "telegram" {
+		api.Fail(w, http.StatusNotFound, "通知渠道不存在")
+		return
+	}
+	var saved config.NotificationSettings
+	if err := h.cfg.Update(func(c *config.Config) error {
+		c.Settings.Notifications.Telegram = config.TelegramNotification{}
+		saved = c.Settings.Notifications
+		saved.Types = append([]string(nil), saved.Types...)
+		return nil
+	}); err != nil {
+		api.Fail(w, http.StatusInternalServerError, "删除通知渠道失败")
+		return
+	}
+	log.Printf("[security] 已删除 Telegram 通知渠道配置")
+	api.OK(w, settingsResponse(saved))
 }

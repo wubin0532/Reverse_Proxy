@@ -51,6 +51,7 @@ export default {
     webService: 'Web 服务',
     webServiceTitle: 'Web服务',
     forward: '端口转发',
+    notifications: '通知中心',
     logs: '日志中心'
   },
   login: {
@@ -173,29 +174,6 @@ export default {
     recentErrors: '最近错误',
     goLogs: '进入日志中心',
     noErrors: '最近没有错误',
-    notifyTitle: '通知推送',
-    notifySettings: '设置',
-    pushUrl: '推送地址',
-    subscribedEvents: '订阅事件',
-    allWarnError: '全部警告/错误',
-    sendTest: '发送测试',
-    recentEvents: '最近事件',
-    memoryBuffer: '内存缓冲 · 重启清零',
-    noEvents: '暂无事件',
-    eventTypes: {
-      cert: '证书',
-      ddns: 'DDNS',
-      site: '站点',
-      forward: '转发'
-    },
-    notify: {
-      dialogTitle: '通知推送设置',
-      alert: '证书续签失败、DDNS 更新失败、监听异常等事件会 POST JSON 推送到 Webhook 地址（如企业微信/钉钉/自建服务）。',
-      webhookLabel: 'Webhook 地址（留空则禁用）',
-      subscribeLabel: '订阅事件类型（都不选 = 全部警告/错误事件）',
-      saved: '通知设置已保存',
-      testSent: '测试事件已发送，请检查 Webhook 接收端'
-    },
     update: {
       title: '上传包手动更新',
       noNetwork: '不会主动联网',
@@ -293,6 +271,43 @@ export default {
     passwordLabel: '请输入当前管理密码',
     confirmClear: '确认清空',
     cleared: '日志已清空，并写入新的安全审计记录'
+  },
+  notifications: {
+    eyebrow: '消息触达',
+    title: '通知中心',
+    subtitle: '将证书、动态域名和网络入口异常及时发送到你的常用通信渠道。',
+    configure: '配置渠道',
+    sendTest: '发送测试消息',
+    deleteChannel: '删除渠道',
+    deleteConfirm: '确定删除 Telegram 渠道？保存的 Token、Chat ID 和话题编号将被清空。',
+    deleted: 'Telegram 渠道已删除',
+    saved: '通知设置已保存',
+    testSent: 'Telegram 测试消息已发送',
+    telegram: {
+      description: '通过 Telegram Bot API 直接发送通知，无需配置入站 Webhook。',
+      dialogTitle: '配置 Telegram',
+      guide: '先在 BotFather 创建机器人，再向机器人发送一条消息并取得 Chat ID。Bot Token 加密保存且不会在页面中回显。',
+      botToken: 'Bot Token',
+      topic: '话题 ID（可选）',
+      clearToken: '清除已保存的 Bot Token'
+    },
+    subscription: {
+      title: '事件订阅',
+      description: '未选择类型时，只发送全部警告和错误；选择后将发送对应模块的所有级别事件。',
+      selectLabel: '订阅事件类型',
+      allWarnError: '全部警告/错误',
+      selected: '已选择 {n} 类'
+    },
+    events: {
+      title: '最近事件',
+      empty: '暂无通知事件'
+    },
+    eventTypes: {
+      cert: '证书',
+      ddns: 'DDNS',
+      site: '站点',
+      forward: '转发'
+    }
   },
   certs: {
     title: '证书管理',
@@ -442,6 +457,7 @@ export default {
   },
   webService: {
     title: 'Web 服务站点',
+    siteManagement: '站点管理',
     addSite: '新增站点',
     colName: '名称',
     colListen: '监听地址',
@@ -471,6 +487,16 @@ export default {
     firewall: '防火墙',
     firewallTip: '仅 OpenWrt 生效：自动在防火墙放行 WAN 侧该端口',
     subRules: '子规则（按顺序匹配）',
+    listenAt: '监听',
+    allRules: '所有规则',
+    enabledRules: '已启用',
+    activeConnections: '活动请求',
+    errors: '错误',
+    dragTip: '拖动左侧手柄调整匹配顺序',
+    protectionCount: '{n} 项防护',
+    noProtection: '无额外防护',
+    deleteRuleConfirm: '确定删除这条子规则？',
+    orderSaved: '子规则顺序已保存',
     addRule: '添加规则',
     colRuleName: '名称',
     colType: '类型',
@@ -541,6 +567,7 @@ export default {
     siteLogsTitle: '站点日志 - {name}',
     noLogs: '暂无日志',
     nameRequired: '请输入站点名称',
+    ruleNameRequired: '请输入规则名称',
     listenRequired: '请输入监听地址',
     fillBackendFirst: '请先填写后端地址',
     backendOk: '连接成功 · {ms} ms',

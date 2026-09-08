@@ -24,7 +24,7 @@
 - **管理后台**:Vue 3 + Element Plus,通过 `go:embed` 嵌入二进制,无需额外部署
 - **运维控制台**:健康概览、防火墙、手动更新和最近错误统一管理
 - **日志中心**:结构化查询、下载与审计，磁盘占用上限约 5 MiB
-- **通知推送**:通用 Webhook，支持证书 / DDNS / 站点 / 转发事件，Dashboard 中配置订阅类型与推送地址
+- **通知中心**:独立管理通知渠道与事件订阅，当前支持 Telegram Bot，可按证书 / DDNS / 站点 / 转发类型筛选
 - **配置备份**:Dashboard 导出/导入加密备份文件（口令派生密钥，可跨设备迁移）
 - **账户安全**:可选 Google Authenticator 双重验证、一次性恢复码和设备本机重置
 
@@ -92,6 +92,7 @@ opkg install luci-app-andeyproxy_*.ipk   # postinst 自动从备份恢复配置
 │   ├── api/             # 后台 REST API
 │   ├── auth/            # 登录认证
 │   ├── logcenter/       # 结构化日志、轮转、下载与审计
+│   ├── notify/          # 事件总线、通知渠道管理与 Telegram Bot 发送
 │   └── config/          # AES-256-GCM 加密配置与原子事务
 ├── web/                 # 前端源码(Vue 3 + Vite + Element Plus)
 ├── package/openwrt/     # OpenWrt ipk 打包

@@ -54,33 +54,6 @@
     </el-card>
 
     <el-card>
-      <template #header><div class="card-header"><span>{{ $t('dashboard.notifyTitle') }}</span><el-button text @click="openNotify">{{ $t('dashboard.notifySettings') }}</el-button></div></template>
-      <div class="info-list">
-        <div><span>Webhook</span><el-tag :type="notifySettings.url ? 'success' : 'info'">{{ notifySettings.url ? $t('common.tagEnabled') : $t('common.notConfigured') }}</el-tag></div>
-        <div v-if="notifySettings.url"><span>{{ $t('dashboard.pushUrl') }}</span><b class="truncate" :title="notifySettings.url">{{ notifySettings.url }}</b></div>
-        <div><span>{{ $t('dashboard.subscribedEvents') }}</span><b>{{ notifySettings.url ? (notifySettings.types.length ? notifySettings.types.map(typeLabel).join(joinSep) : $t('dashboard.allWarnError')) : '-' }}</b></div>
-      </div>
-      <div class="update-actions"><el-button type="primary" plain :disabled="!notifySettings.url" :loading="notifyTesting" @click="testNotify">{{ $t('dashboard.sendTest') }}</el-button></div>
-    </el-card>
-
-    <el-card>
-      <template #header><div class="card-header"><span>{{ $t('dashboard.recentEvents') }}</span><el-tag type="info" effect="plain">{{ $t('dashboard.memoryBuffer') }}</el-tag></div></template>
-      <div v-if="events.length" class="recent-errors"><div v-for="e in events" :key="e.time+e.type+e.message"><el-tag :type="levelTagType(e.level)" size="small">{{ typeLabel(e.type) }}</el-tag><span class="truncate" :title="e.message">{{ e.message }}</span><time>{{ formatTime(e.time) }}</time></div></div>
-      <el-empty v-else :description="$t('dashboard.noEvents')" :image-size="54" />
-    </el-card>
-
-    <el-dialog v-model="notifyOpen" :title="$t('dashboard.notify.dialogTitle')" width="480px">
-      <el-alert type="info" :title="$t('dashboard.notify.alert')" :closable="false" style="margin-bottom:12px" />
-      <el-form label-position="top">
-        <el-form-item :label="$t('dashboard.notify.webhookLabel')"><el-input v-model="notifyForm.url" placeholder="https://example.com/webhook" clearable /></el-form-item>
-        <el-form-item :label="$t('dashboard.notify.subscribeLabel')">
-          <el-checkbox-group v-model="notifyForm.types"><el-checkbox value="cert">{{ $t('dashboard.eventTypes.cert') }}</el-checkbox><el-checkbox value="ddns">{{ $t('dashboard.eventTypes.ddns') }}</el-checkbox><el-checkbox value="site">{{ $t('dashboard.eventTypes.site') }}</el-checkbox><el-checkbox value="forward">{{ $t('dashboard.eventTypes.forward') }}</el-checkbox></el-checkbox-group>
-        </el-form-item>
-      </el-form>
-      <template #footer><el-button @click="notifyOpen=false">{{ $t('common.cancel') }}</el-button><el-button type="primary" :loading="notifySaving" @click="saveNotify">{{ $t('common.save') }}</el-button></template>
-    </el-dialog>
-
-    <el-card>
       <template #header><div class="card-header"><span>{{ $t('dashboard.update.title') }}</span><el-tag type="success" effect="plain">{{ $t('dashboard.update.noNetwork') }}</el-tag></div></template>
       <el-alert type="info" :title="$t('dashboard.update.alert')" :closable="false" />
       <div class="update-grid">
@@ -117,26 +90,17 @@ import request from '../api'
 import { formatTime, formatBytes as fmtBytes } from '../utils/format'
 import HealthBadge from '../components/HealthBadge.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 const router=useRouter(), loading=ref(false), uploadFile=ref(null), inspecting=ref(false), inspection=ref(null), installOpen=ref(false), installPassword=ref(''), allowDowngrade=ref(false), installing=ref(false)
 const exportOpen=ref(false), exporting=ref(false), exportForm=reactive({password:'',backupPassword:'',confirm:''})
 const importOpen=ref(false), importing=ref(false), importFileName=ref(''), importForm=reactive({password:'',backupPassword:'',backup:''})
 const data=reactive({version:'',adminHttps:true,mustChangePassword:false,totpEnabled:false,stats:{},sites:[],issues:[],firewall:{openwrt:false,rules:[]},recentErrors:[],lastUpdate:{state:'idle'},lastUpdateEntries:[]}), sys=reactive({}), updateStatus=reactive({state:'idle'})
-const events=ref([]), notifyOpen=ref(false), notifySaving=ref(false), notifyTesting=ref(false)
-const notifySettings=reactive({url:'',types:[]}), notifyForm=reactive({url:'',types:[]})
-function typeLabel(v){const k=String(v).split('.')[0];return ['cert','ddns','site','forward'].includes(k)?t(`dashboard.eventTypes.${k}`):v}
-const joinSep=computed(()=>locale.value==='zh-CN'?'、':', ')
-function levelTagType(l){return l==='error'?'danger':l==='warn'?'warning':'info'}
-async function loadNotifySettings(){try{const res=await request.get('/api/notify/settings');notifySettings.url=res.data?.notifyWebhookURL||'';notifySettings.types=res.data?.notifyTypes||[]}catch{}}
-function openNotify(){notifyForm.url=notifySettings.url;notifyForm.types=[...notifySettings.types];notifyOpen.value=true}
-async function saveNotify(){notifySaving.value=true;try{const res=await request.put('/api/notify/settings',{notifyWebhookURL:notifyForm.url.trim(),notifyTypes:notifyForm.types});notifySettings.url=res.data.notifyWebhookURL||'';notifySettings.types=res.data.notifyTypes||[];notifyOpen.value=false;ElMessage.success(t('dashboard.notify.saved'))}finally{notifySaving.value=false}}
-async function testNotify(){notifyTesting.value=true;try{await request.post('/api/notify/test');ElMessage.success(t('dashboard.notify.testSent'))}finally{notifyTesting.value=false}}
 const cards=computed(()=>[[data.stats.ddns||0,t('dashboard.cardDdns'),t('dashboard.cardDdnsSub',{n:data.stats.ddnsEnabled||0}),'/ddns',Compass],[data.stats.certs||0,t('dashboard.cardCerts'),t('dashboard.cardCertsSub',{n:data.stats.certsOk||0}),'/certs',Lock],[data.stats.sites||0,t('dashboard.cardSites'),t('dashboard.cardSitesSub',{n:data.stats.sitesListening||0}),'/web-service',Monitor],[data.stats.forwards||0,t('dashboard.cardForwards'),t('dashboard.cardForwardsSub',{n:data.stats.forwardsEnabled||0}),'/forward',Connection]].map(([value,label,sub,path,icon])=>({value,label,sub,path,icon})))
 const statusText=computed(()=>{const m={inspecting:t('dashboard.update.status.inspecting'),inspected:t('dashboard.update.status.inspected'),installing:t('dashboard.update.status.installing'),restarting:t('dashboard.update.status.restarting'),done:t('dashboard.update.status.done'),failed:t('dashboard.update.status.failed')};return m[updateStatus.state]||updateStatus.state})
 const updateSummary=computed(()=>data.lastUpdateEntries?.[0]?.message||(({idle:t('dashboard.update.summary.idle'),inspecting:t('dashboard.update.summary.inspecting'),inspected:t('dashboard.update.summary.inspected'),installing:t('dashboard.update.summary.installing'),restarting:t('dashboard.update.summary.restarting'),done:t('dashboard.update.summary.done'),failed:t('dashboard.update.summary.failed')})[data.lastUpdate?.state]||data.lastUpdate?.state||t('dashboard.update.summary.idle')))
 let refreshTimer, statusTimer
-async function load(){loading.value=true;try{const [dash,info,ev]=await Promise.all([request.get('/api/dashboard'),request.get('/api/system/info'),request.get('/api/notify/events?limit=20')]);Object.assign(data,dash.data||{});Object.assign(sys,info.data||{});events.value=ev.data||[]}finally{loading.value=false}}
+async function load(){loading.value=true;try{const [dash,info]=await Promise.all([request.get('/api/dashboard'),request.get('/api/system/info')]);Object.assign(data,dash.data||{});Object.assign(sys,info.data||{})}finally{loading.value=false}}
 function onFile(file){uploadFile.value=file.raw;inspection.value=null}
 async function inspectPackage(){const form=new FormData();form.append('package',uploadFile.value);inspecting.value=true;try{inspection.value=(await request.post('/api/system/update/inspect',form,{timeout:120000})).data;ElMessage.success(t('dashboard.update.signOk'))}finally{inspecting.value=false}}
 async function cancelPackage(){await request.delete(`/api/system/update/${inspection.value.uploadId}`);inspection.value=null;uploadFile.value=null}
@@ -170,7 +134,7 @@ async function importBackup(){
   }catch{}finally{importing.value=false}
 }
 watch(()=>updateStatus.state,s=>{if(['installing','restarting'].includes(s)&&!statusTimer)startStatusPoll()})
-onMounted(()=>{load();loadNotifySettings();refreshTimer=setInterval(load,30000);pollStatus()});onUnmounted(()=>{clearInterval(refreshTimer);clearInterval(statusTimer)})
+onMounted(()=>{load();refreshTimer=setInterval(load,30000);pollStatus()});onUnmounted(()=>{clearInterval(refreshTimer);clearInterval(statusTimer)})
 </script>
 
 <style scoped>

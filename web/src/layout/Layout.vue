@@ -82,7 +82,7 @@
 import { computed, defineComponent, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElMenu, ElMenuItem, ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Compass, Connection, Document, Lock, Menu, Monitor, Odometer, Refresh } from '@element-plus/icons-vue'
+import { ArrowDown, Bell, Compass, Connection, Document, Lock, Menu, Monitor, Odometer, Refresh } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
 import { useAuthStore } from '../store/auth'
@@ -105,7 +105,7 @@ const securityRules = computed(() => ({
   confirmPassword: [{ validator: (_, value, done) => value === security.newPassword ? done() : done(new Error(t('layout.security.passwordMismatch'))), trigger: 'blur' }]
 }))
 const pageTitle = computed(() => route.meta.titleKey ? t(route.meta.titleKey) : '')
-const menuItems = [['/dashboard','nav.dashboard',Odometer],['/ddns','nav.ddns',Compass],['/certs','nav.certs',Lock],['/web-service','nav.webService',Monitor],['/forward','nav.forward',Connection],['/logs','nav.logs',Document]]
+const menuItems = [['/dashboard','nav.dashboard',Odometer],['/ddns','nav.ddns',Compass],['/certs','nav.certs',Lock],['/web-service','nav.webService',Monitor],['/forward','nav.forward',Connection],['/notifications','nav.notifications',Bell],['/logs','nav.logs',Document]]
 const NavMenu = defineComponent({ props: { collapsed: Boolean }, emits: ['navigate'], setup(props, { emit }) { return () => {
   return h('div', { class:'nav-wrap' }, [h('div',{class:'logo'},[h('span',{class:'logo-mark'},'A'),!props.collapsed&&h('span','andey-proxy')]),h('div',{class:'nav-label'},props.collapsed?'':t('nav.group')),h(ElMenu,{defaultActive:route.path,collapse:props.collapsed,router:true,onSelect:()=>emit('navigate')},()=>menuItems.map(([path,label,icon])=>h(ElMenuItem,{index:path},{default:()=>[h(ElIcon,null,()=>h(icon)),h('span',t(label))]})))])
 } } })

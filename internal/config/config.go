@@ -131,16 +131,30 @@ type ForwardRule struct {
 
 // Settings 全局设置。
 type Settings struct {
-	AdminUser          string   `json:"adminUser"`
-	AdminPassHash      string   `json:"adminPassHash"` // bcrypt
-	AdminPort          int      `json:"adminPort"`
-	MustChangePassword bool     `json:"mustChangePassword,omitempty"`
-	TOTPEnabled        bool     `json:"totpEnabled,omitempty"`
-	TOTPSecret         string   `json:"totpSecret,omitempty"`
-	TOTPRecoveryHashes []string `json:"totpRecoveryHashes,omitempty"`
-	TOTPLastCounter    int64    `json:"totpLastCounter,omitempty"` // 最近一次验证成功的 TOTP 计数器，防重放
-	NotifyWebhookURL   string   `json:"notifyWebhookURL,omitempty"` // 通用 Webhook 推送地址，空=禁用
-	NotifyTypes        []string `json:"notifyTypes,omitempty"`      // 订阅的事件类型（前缀匹配），空=全部 warn/error 级别
+	AdminUser          string               `json:"adminUser"`
+	AdminPassHash      string               `json:"adminPassHash"` // bcrypt
+	AdminPort          int                  `json:"adminPort"`
+	MustChangePassword bool                 `json:"mustChangePassword,omitempty"`
+	TOTPEnabled        bool                 `json:"totpEnabled,omitempty"`
+	TOTPSecret         string               `json:"totpSecret,omitempty"`
+	TOTPRecoveryHashes []string             `json:"totpRecoveryHashes,omitempty"`
+	TOTPLastCounter    int64                `json:"totpLastCounter,omitempty"` // 最近一次验证成功的 TOTP 计数器，防重放
+	Notifications      NotificationSettings `json:"notifications,omitempty"`
+}
+
+// NotificationSettings 保存通知中心的全局订阅范围与各渠道配置。
+// 整份配置由 Config 加密落盘；渠道密钥不得通过读取 API 返回。
+type NotificationSettings struct {
+	Types    []string             `json:"types,omitempty"` // 事件类型前缀；空=全部 warn/error 级别
+	Telegram TelegramNotification `json:"telegram,omitempty"`
+}
+
+// TelegramNotification 是 Telegram Bot API 的发送配置。
+type TelegramNotification struct {
+	Enabled         bool   `json:"enabled,omitempty"`
+	BotToken        string `json:"botToken,omitempty"`
+	ChatID          string `json:"chatId,omitempty"`
+	MessageThreadID int64  `json:"messageThreadId,omitempty"`
 }
 
 // Config 根配置。

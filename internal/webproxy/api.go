@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -23,22 +24,34 @@ import (
 
 // apiHandler 站点管理 API。
 type apiHandler struct {
-	cfg *config.Config
-	svc *Service
+	cfg        *config.Config
+	svc        *Service
+	mutationMu sync.Mutex
 }
 
 var errSiteNotFound = errors.New("站点不存在")
+var errRuleNotFound = errors.New("子规则不存在")
 
 // RegisterRoutes 挂载 Web 服务相关路由（由主控在鉴权分组内调用）。
 func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 	h := &apiHandler{cfg: cfg, svc: svc}
 	r.Get("/api/sites", h.list)
+	r.Get("/api/sites/stats", h.stats)
 	r.Post("/api/sites", h.create)
 	r.Put("/api/sites/{id}", h.update)
 	r.Delete("/api/sites/{id}", h.delete)
 	r.Post("/api/sites/{id}/toggle", h.toggle)
+	r.Post("/api/sites/{id}/rules", h.createRule)
+	r.Put("/api/sites/{id}/rules/order", h.reorderRules)
+	r.Put("/api/sites/{id}/rules/{ruleId}", h.updateRule)
+	r.Delete("/api/sites/{id}/rules/{ruleId}", h.deleteRule)
+	r.Post("/api/sites/{id}/rules/{ruleId}/toggle", h.toggleRule)
 	r.Get("/api/sites/{id}/logs", h.logs)
 	r.Post("/api/sites/backend-test", h.testBackend)
+}
+
+func (h *apiHandler) stats(w http.ResponseWriter, _ *http.Request) {
+	api.OK(w, h.svc.AllSiteStats())
 }
 
 type backendTestResponse struct {
@@ -354,6 +367,212 @@ func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("[security] 切换 Web 站点，ID: %s，启用: %t", id, enabled)
 	api.OK(w, map[string]bool{"enabled": enabled})
+}
+
+func (h *apiHandler) createRule(w http.ResponseWriter, r *http.Request) {
+	var rule config.SubRule
+	if err := api.DecodeBody(r, &rule); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	rule.ID = ids.New()
+	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+		site.Rules = append(site.Rules, rule)
+		return nil
+	})
+	if !ok {
+		return
+	}
+	log.Printf("[security] 新增 Web 子规则，站点 ID: %s，规则 ID: %s", site.ID, rule.ID)
+	api.OK(w, redactedRule(site, rule.ID))
+}
+
+func (h *apiHandler) updateRule(w http.ResponseWriter, r *http.Request) {
+	var rule config.SubRule
+	if err := api.DecodeBody(r, &rule); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	ruleID := chi.URLParam(r, "ruleId")
+	rule.ID = ruleID
+	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+		for i := range site.Rules {
+			if site.Rules[i].ID == ruleID {
+				site.Rules[i] = rule
+				return nil
+			}
+		}
+		return errRuleNotFound
+	})
+	if !ok {
+		return
+	}
+	log.Printf("[security] 修改 Web 子规则，站点 ID: %s，规则 ID: %s", site.ID, ruleID)
+	api.OK(w, redactedRule(site, ruleID))
+}
+
+func (h *apiHandler) deleteRule(w http.ResponseWriter, r *http.Request) {
+	ruleID := chi.URLParam(r, "ruleId")
+	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+		for i := range site.Rules {
+			if site.Rules[i].ID == ruleID {
+				site.Rules = append(site.Rules[:i], site.Rules[i+1:]...)
+				return nil
+			}
+		}
+		return errRuleNotFound
+	})
+	if !ok {
+		return
+	}
+	log.Printf("[security] 删除 Web 子规则，站点 ID: %s，规则 ID: %s", site.ID, ruleID)
+	api.OK(w, nil)
+}
+
+func (h *apiHandler) toggleRule(w http.ResponseWriter, r *http.Request) {
+	ruleID := chi.URLParam(r, "ruleId")
+	enabled := false
+	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+		for i := range site.Rules {
+			if site.Rules[i].ID == ruleID {
+				site.Rules[i].Enabled = !site.Rules[i].Enabled
+				enabled = site.Rules[i].Enabled
+				return nil
+			}
+		}
+		return errRuleNotFound
+	})
+	if !ok {
+		return
+	}
+	log.Printf("[security] 切换 Web 子规则，站点 ID: %s，规则 ID: %s，启用: %t", site.ID, ruleID, enabled)
+	api.OK(w, map[string]bool{"enabled": enabled})
+}
+
+func (h *apiHandler) reorderRules(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RuleIDs []string `json:"ruleIds"`
+	}
+	if err := api.DecodeBody(r, &body); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+		if len(body.RuleIDs) != len(site.Rules) {
+			return errors.New("排序必须包含该站点的全部子规则")
+		}
+		byID := make(map[string]config.SubRule, len(site.Rules))
+		for _, rule := range site.Rules {
+			byID[rule.ID] = rule
+		}
+		reordered := make([]config.SubRule, 0, len(site.Rules))
+		for _, id := range body.RuleIDs {
+			rule, exists := byID[id]
+			if !exists {
+				return errors.New("排序包含未知或重复的子规则")
+			}
+			reordered = append(reordered, rule)
+			delete(byID, id)
+		}
+		site.Rules = reordered
+		return nil
+	})
+	if !ok {
+		return
+	}
+	log.Printf("[security] 调整 Web 子规则顺序，站点 ID: %s", site.ID)
+	api.OK(w, map[string][]string{"ruleIds": body.RuleIDs})
+}
+
+// mutateRules 对一个站点的子规则执行原子变更，并在热加载失败时恢复原配置。
+func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate func(*config.Site) error) (*config.Site, bool) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
+	h.cfg.RLock()
+	var previous config.Site
+	found := false
+	for _, site := range h.cfg.Sites {
+		if site.ID == siteID {
+			previous = cloneSite(site)
+			found = true
+			break
+		}
+	}
+	h.cfg.RUnlock()
+	if !found {
+		api.Fail(w, 404, errSiteNotFound.Error())
+		return nil, false
+	}
+
+	next := cloneSite(previous)
+	if err := mutate(&next); err != nil {
+		if errors.Is(err, errRuleNotFound) {
+			api.Fail(w, 404, err.Error())
+		} else {
+			api.Fail(w, 400, err.Error())
+		}
+		return nil, false
+	}
+	ensureRuleIDs(&next)
+	if err := h.validateSite(&next, true); err != nil {
+		api.Fail(w, 400, err.Error())
+		return nil, false
+	}
+	mergeRuleSecrets(&next, previous)
+	if err := h.validateSite(&next, false); err != nil {
+		api.Fail(w, 400, err.Error())
+		return nil, false
+	}
+
+	err := h.cfg.Update(func(c *config.Config) error {
+		for i := range c.Sites {
+			if c.Sites[i].ID == siteID {
+				c.Sites[i] = next
+				return nil
+			}
+		}
+		return errSiteNotFound
+	})
+	if err != nil {
+		if errors.Is(err, errSiteNotFound) {
+			api.Fail(w, 404, err.Error())
+		} else {
+			api.Fail(w, 500, "保存配置失败")
+		}
+		return nil, false
+	}
+	if reloadErr := h.svc.Reload(); reloadErr != nil {
+		rollbackErr := h.cfg.Update(func(c *config.Config) error {
+			for i := range c.Sites {
+				if c.Sites[i].ID == siteID {
+					c.Sites[i] = previous
+					return nil
+				}
+			}
+			return errSiteNotFound
+		})
+		_ = h.svc.Reload()
+		if rollbackErr != nil {
+			api.Fail(w, 500, "站点启动失败且恢复旧配置失败")
+		} else {
+			api.Fail(w, 409, "站点启动失败，已恢复旧配置: "+reloadErr.Error())
+		}
+		return nil, false
+	}
+	h.svc.statsFor(siteID).pruneRules(next.Rules)
+	return &next, true
+}
+
+func redactedRule(site *config.Site, ruleID string) config.SubRule {
+	redacted := []config.Site{cloneSite(*site)}
+	redactSites(redacted)
+	for _, rule := range redacted[0].Rules {
+		if rule.ID == ruleID {
+			return rule
+		}
+	}
+	return config.SubRule{}
 }
 
 func (h *apiHandler) logs(w http.ResponseWriter, r *http.Request) {
