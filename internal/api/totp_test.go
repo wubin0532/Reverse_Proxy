@@ -179,7 +179,8 @@ func TestTOTPRejectsHTTPExpiredReplayAndExcessAttempts(t *testing.T) {
 	}
 
 	challenge = loginPassword(t, handler, "192.0.2.42").Data.ChallengeID
-	for i := 0; i < 5; i++ {
+	// 名额在登录与 TOTP 两步间共享：密码登录已占 1 次，错误动态码再占 4 次后即触发限速。
+	for i := 0; i < 4; i++ {
 		wrong := apiRequest(handler, http.MethodPost, "/api/login/totp", `{"challengeId":"`+challenge+`","code":"000000"}`, "https://router.local", "192.0.2.42:1000", nil)
 		if wrong.Code != http.StatusForbidden {
 			t.Fatalf("wrong attempt %d status = %d", i, wrong.Code)

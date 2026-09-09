@@ -473,6 +473,12 @@ func decryptIfNeeded(data, key []byte) ([]byte, bool, error) {
 	if err != nil {
 		return nil, true, err
 	}
+	if len(nonce) != gcm.NonceSize() {
+		return nil, true, fmt.Errorf("配置 nonce 长度无效：期望 %d 字节，实际 %d 字节", gcm.NonceSize(), len(nonce))
+	}
+	if len(ciphertext) < gcm.Overhead() {
+		return nil, true, errors.New("配置密文长度无效：小于 GCM 认证标签长度")
+	}
 	plain, err := gcm.Open(nil, nonce, ciphertext, []byte("andey-proxy-config-v1"))
 	if err != nil {
 		return nil, true, errors.New("配置解密失败：密钥错误或文件已被篡改")

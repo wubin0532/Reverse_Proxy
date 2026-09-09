@@ -141,6 +141,13 @@ opkg install luci-app-andeyproxy_*.ipk   # postinst 自动从备份恢复配置
 
 推送到 `main` 或打 `v*` 标签时,GitHub Actions 从 `go.mod` 读取 Go 版本，运行前端测试与构建、`go vet ./...`、`go test -race ./...`、依赖漏洞扫描并构建全部 5 种架构的二进制。标签构建还会生成五架构签名 `.run` 与 OpenWrt `.ipk` 产物(见 [Actions](https://github.com/wubin0532/Reverse_Proxy/actions))。
 
+## 安全部署建议
+
+- 管理后台建议使用专用主机名/端口，避免与对外业务站点共用域名，降低被扫描与跨站攻击面。
+- 生产环境请使用 `-listen` 将管理后台绑定到内网地址，不要直接暴露到公网；默认监听全部网卡时启动日志会给出警告。
+- OpenWrt LuCI 界面的只读 ACL 仅授予状态查询与 `/etc/andey-proxy/initial-password` 读取权限：初始密码读取仅供首次登录，管理员首次改密后该文件自动删除；如需禁止只读账号查看，可在 `luci-app-andeyproxy.json` 中删除该授权行。
+- 仓库 `release/` 目录中的旧版包签名自检未通过，属于安全审计前的存量产物，请勿分发或安装；请等待重新签名的正式版本发布。
+
 ## License
 
 [MIT](LICENSE)

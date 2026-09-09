@@ -36,6 +36,28 @@ func CheckPassword(hash, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
 }
 
+// verifySem 全局密码校验并发预算：bcrypt 是刻意的慢计算，
+// 不能让登录与密码确认成为无限的 CPU 消耗入口。
+var verifySem = make(chan struct{}, 4)
+
+// AcquireVerifySlot 在至多 wait 时间内获取一个密码校验并发名额；
+// 成功返回释放函数（调用方必须调用），超时返回 false，调用方应拒绝请求。
+func AcquireVerifySlot(wait time.Duration) (func(), bool) {
+	select {
+	case verifySem <- struct{}{}:
+		return func() { <-verifySem }, true
+	default:
+	}
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case verifySem <- struct{}{}:
+		return func() { <-verifySem }, true
+	case <-t.C:
+		return nil, false
+	}
+}
+
 // tokenEntry 会话条目：滑动过期时间 + 签发时间（绝对有效期基准）。
 type tokenEntry struct {
 	expires   time.Time

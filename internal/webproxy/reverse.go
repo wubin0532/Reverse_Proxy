@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/forward"
 	"andey-proxy/internal/logcenter"
@@ -150,6 +151,7 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 			for _, k := range []string{"Forwarded", "X-Forwarded-Host", "X-Real-IP", "X-Forwarded-For", "X-Forwarded-Proto", "X-Real-Proto", "X-Forwarded-Port", "X-Forwarded-Prefix"} {
 				pr.Out.Header.Del(k)
 			}
+			stripCookieHeader(pr.Out.Header, api.TokenCookie)
 			if autoHeaders {
 				pr.SetXForwarded()
 				ip, _, err := net.SplitHostPort(pr.In.RemoteAddr)
@@ -186,11 +188,10 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 		proxy.Transport = &healthTransport{base: transport, entry: entry}
 		// 普通响应批量刷新；ReverseProxy 会对 SSE 和未知长度流自动立即刷新。
 		proxy.FlushInterval = 100 * time.Millisecond
-		if rule.RewriteLocation || rule.CookieDomainFrom != "" || rule.CookiePathFrom != "" {
-			proxy.ModifyResponse = func(res *http.Response) error {
-				rewriteProxyResponse(res, target, rule)
-				return nil
-			}
+		// 无条件安装响应改写：即使未配置任何改写规则，也需过滤后端种植的管理同名 Cookie。
+		proxy.ModifyResponse = func(res *http.Response) error {
+			rewriteProxyResponse(res, target, rule)
+			return nil
 		}
 		ruleName := rule.Name
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -376,15 +377,30 @@ func rewriteProxyResponse(res *http.Response, target *url.URL, rule config.SubRu
 			}
 		}
 	}
-	if rule.CookieDomainFrom == "" && rule.CookiePathFrom == "" {
-		return
-	}
 	cookies := res.Cookies()
 	if len(cookies) == 0 {
 		return
 	}
+	// 仅在需要改写 Cookie 属性或存在管理同名 Cookie 时才重建响应头，
+	// 其余情况保持后端原始 Set-Cookie 逐字节不变。
+	rebuild := rule.CookieDomainFrom != "" || rule.CookiePathFrom != ""
+	if !rebuild {
+		for _, cookie := range cookies {
+			if cookie.Name == api.TokenCookie {
+				rebuild = true
+				break
+			}
+		}
+	}
+	if !rebuild {
+		return
+	}
 	res.Header.Del("Set-Cookie")
 	for _, cookie := range cookies {
+		// 丢弃后端种植的管理会话同名 Cookie，防止会话被代理后端劫持或覆盖。
+		if cookie.Name == api.TokenCookie {
+			continue
+		}
 		if rule.CookieDomainFrom != "" && strings.EqualFold(strings.TrimPrefix(cookie.Domain, "."), strings.TrimPrefix(rule.CookieDomainFrom, ".")) {
 			cookie.Domain = rule.CookieDomainTo
 		}
@@ -392,5 +408,35 @@ func rewriteProxyResponse(res *http.Response, target *url.URL, rule config.SubRu
 			cookie.Path = rule.CookiePathTo
 		}
 		res.Header.Add("Set-Cookie", cookie.String())
+	}
+}
+
+// stripCookieHeader 从待转发请求头中精确删除名为 name 的 Cookie 条目；
+// 删除后为空则移除整个 Cookie 头，防止管理会话 Cookie 泄露给代理后端。
+func stripCookieHeader(header http.Header, name string) {
+	values := header.Values("Cookie")
+	if len(values) == 0 {
+		return
+	}
+	header.Del("Cookie")
+	var kept []string
+	for _, v := range values {
+		for _, part := range strings.Split(v, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			cookieName := part
+			if i := strings.IndexByte(part, '='); i >= 0 {
+				cookieName = strings.TrimSpace(part[:i])
+			}
+			if cookieName == name {
+				continue
+			}
+			kept = append(kept, part)
+		}
+	}
+	if len(kept) > 0 {
+		header.Set("Cookie", strings.Join(kept, "; "))
 	}
 }

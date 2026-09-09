@@ -6,6 +6,7 @@
 /dist/
 /release/
 web/dist/
+/andey-proxy
 
 # Dependencies
 node_modules/

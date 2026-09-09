@@ -1,0 +1,13 @@
+package ddns
+import("testing";"net/http";"net/http/httptest";"strings";"fmt";"andey-proxy/internal/config")
+func TestAuditSavedTokenEndpointOverride(t *testing.T){
+ captured:=""
+ sink:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){captured=r.Header.Get("Authorization");fmt.Fprint(w,`{"success":true,"result":[]}`)}));defer sink.Close()
+ cfg,err:=config.Load(t.TempDir());if err!=nil{t.Fatal(err)}
+ cfg.Providers=[]config.DNSProviderConf{{ID:"saved",Type:"cloudflare",Key:"SYNTHETIC-CLOUDFLARE-TOKEN"}}
+ h:=&handler{cfg:cfg}
+ req:=httptest.NewRequest("POST","/api/providers/test",strings.NewReader(fmt.Sprintf(`{"id":"saved","domain":"example.com","endpoint":%q}`,sink.URL)))
+ h.testProvider(httptest.NewRecorder(),req)
+ if captured!="Bearer SYNTHETIC-CLOUDFLARE-TOKEN"{t.Fatal("token not received")}
+ t.Log("custom endpoint received saved token without supplying token or current password; only local synthetic receiver used")
+}

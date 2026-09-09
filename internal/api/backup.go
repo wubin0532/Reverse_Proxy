@@ -101,15 +101,21 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 
 // confirmAdminPassword 已认证接口的管理密码二次确认（带限速）。
 func (s *Server) confirmAdminPassword(w http.ResponseWriter, r *http.Request, password string) bool {
-	if PasswordConfirmLimited("backup", r.RemoteAddr) {
+	if !AdmitPasswordConfirm("backup", r.RemoteAddr) {
 		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
 		return false
 	}
 	s.cfg.RLock()
 	hash := s.cfg.Settings.AdminPassHash
 	s.cfg.RUnlock()
-	if hash == "" || !auth.CheckPassword(hash, password) {
-		RecordPasswordConfirmFailure("backup", r.RemoteAddr)
+	release, ok := auth.AcquireVerifySlot(3 * time.Second)
+	if !ok {
+		Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
+		return false
+	}
+	valid := hash != "" && auth.CheckPassword(hash, password)
+	release()
+	if !valid {
 		Fail(w, 403, "管理密码错误")
 		return false
 	}

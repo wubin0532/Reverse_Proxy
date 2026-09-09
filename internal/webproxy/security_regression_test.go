@@ -9,10 +9,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
 )
 
@@ -381,5 +383,76 @@ func TestSniffRecoversTemporaryAcceptError(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("listener did not retry Accept")
+	}
+}
+
+func TestSecurityRegressionAdminCookieNotForwarded(t *testing.T) {
+	var gotCookie string
+	b := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotCookie = r.Header.Get("Cookie")
+		http.SetCookie(w, &http.Cookie{Name: api.TokenCookie, Value: "forged", Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: "app_session", Value: "ok", Path: "/"})
+		fmt.Fprint(w, "ok")
+	}))
+	defer b.Close()
+	h := securityTestReverseHandler(t, config.SubRule{Backends: []string{b.URL}})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "http://public.example/", nil)
+	req.Header.Set("Cookie", api.TokenCookie+"=leaked; app_session=abc; theme=dark")
+	h.ServeHTTP(w, req)
+	if strings.Contains(gotCookie, api.TokenCookie) {
+		t.Fatalf("管理 Cookie 被转发给后端: %q", gotCookie)
+	}
+	if !strings.Contains(gotCookie, "app_session=abc") || !strings.Contains(gotCookie, "theme=dark") {
+		t.Fatalf("业务 Cookie 未保留: %q", gotCookie)
+	}
+	setCookies := w.Header().Values("Set-Cookie")
+	for _, sc := range setCookies {
+		if strings.HasPrefix(sc, api.TokenCookie+"=") {
+			t.Fatalf("后端种植的管理同名 Cookie 未被过滤: %q", sc)
+		}
+	}
+	found := false
+	for _, sc := range setCookies {
+		if strings.HasPrefix(sc, "app_session=") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("业务 Set-Cookie 丢失: %v", setCookies)
+	}
+}
+
+func TestSecurityRegressionAdminCookieOnlyDropsHeader(t *testing.T) {
+	var gotCookie string
+	b := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotCookie = r.Header.Get("Cookie")
+		fmt.Fprint(w, "ok")
+	}))
+	defer b.Close()
+	h := securityTestReverseHandler(t, config.SubRule{Backends: []string{b.URL}})
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "http://public.example/", nil)
+	req.Header.Set("Cookie", api.TokenCookie+"=leaked")
+	h.ServeHTTP(w, req)
+	if gotCookie != "" {
+		t.Fatalf("仅含管理 Cookie 时 Cookie 头应整体移除，后端收到: %q", gotCookie)
+	}
+}
+
+func TestStripCookieHeader(t *testing.T) {
+	for _, tc := range []struct{ in, name, want string }{
+		{"a=1; andey-proxy_token=x; b=2", "andey-proxy_token", "a=1; b=2"},
+		{"andey-proxy_token=x", "andey-proxy_token", ""},
+		{" andey-proxy_token = x ;a=1", "andey-proxy_token", "a=1"},
+		{"andey-proxy_token2=x; a=1", "andey-proxy_token", "andey-proxy_token2=x; a=1"},
+		{"a=1", "andey-proxy_token", "a=1"},
+	} {
+		h := http.Header{}
+		h.Set("Cookie", tc.in)
+		stripCookieHeader(h, tc.name)
+		if got := h.Get("Cookie"); got != tc.want {
+			t.Errorf("stripCookieHeader(%q, %q) = %q, want %q", tc.in, tc.name, got, tc.want)
+		}
 	}
 }

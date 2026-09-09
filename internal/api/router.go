@@ -28,6 +28,8 @@ type Server struct {
 	mounters           []func(chi.Router)
 	secure             bool
 	loginLimiter       *failureLimiter
+	inFlight           chan struct{} // 在途请求预算
+	bodyReadTimeout    time.Duration // 普通 API 请求体读取期限
 	twoFactorMu        sync.Mutex
 	backupMu           sync.Mutex // one backup import/export at a time (scrypt memory)
 	loginChallenges    map[string]*loginChallenge
@@ -47,6 +49,7 @@ func NewServer(cfg *config.Config, secure ...bool) *Server {
 		cfg: cfg, tokens: auth.NewTokenStore(), secure: isSecure,
 		loginLimiter: newFailureLimiter(), loginChallenges: make(map[string]*loginChallenge),
 		totpSetups: make(map[string]*totpSetup),
+		inFlight:   make(chan struct{}, 64), bodyReadTimeout: 30 * time.Second,
 	}
 	// 恢复上次验证成功的 TOTP 计数器，防止进程重启后同一动态码在窗口内被重用。
 	cfg.RLock()
@@ -76,6 +79,7 @@ func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(s.securityHeaders)
 	r.Use(s.verifyOrigin)
+	r.Use(s.requestBudget)
 
 	r.Post("/api/login", s.handleLogin)
 	r.Post("/api/login/totp", s.handleTOTPLogin)
@@ -132,6 +136,31 @@ func (s *Server) verifyOrigin(next http.Handler) http.Handler {
 	})
 }
 
+// requestBudget 限制管理 API 的在途请求数，并为带请求体的请求设置读取期限，
+// 防止未登录的慢请求长期占用连接与 goroutine。WriteTimeout 只管写方向，
+// 无法终止阻塞中的请求体读取，因此用连接读期限兜底。
+// 更新包上传走单独的更长期限，允许慢链路传入 100MiB 安装包。
+func (s *Server) requestBudget(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case s.inFlight <- struct{}{}:
+			defer func() { <-s.inFlight }()
+		default:
+			Fail(w, http.StatusServiceUnavailable, "服务繁忙，请稍后再试")
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			deadline := s.bodyReadTimeout
+			if r.URL.Path == "/api/system/update/inspect" {
+				deadline = 10 * time.Minute
+			}
+			// httptest 等场景下 ResponseWriter 不支持读期限，忽略错误。
+			_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(deadline))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(TokenCookie)
@@ -139,8 +168,29 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 			Fail(w, 401, "未登录或登录已过期")
 			return
 		}
+		// 首次强制改密期间，会话只能访问个人状态、改密与退出接口。
+		s.cfg.RLock()
+		mustChange := s.cfg.Settings.MustChangePassword
+		s.cfg.RUnlock()
+		if mustChange && !allowedBeforePasswordChange(r) {
+			Fail(w, 403, "首次登录必须先修改初始密码")
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// allowedBeforePasswordChange 报告首次强制改密期间放行的接口（精确匹配方法与路径）。
+func allowedBeforePasswordChange(r *http.Request) bool {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/me":
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/api/settings/password":
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/api/logout":
+		return true
+	}
+	return false
 }
 
 // dummyLoginHash 用户名不匹配时用于执行等时 bcrypt 校验的占位哈希，
@@ -155,7 +205,8 @@ var dummyLoginHash = func() string {
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	ip := directIP(r.RemoteAddr)
-	if s.loginLimited(ip) {
+	// 尝试名额在读取请求体之前原子预占，并发请求不能一起穿过检查。
+	if !s.admitLogin(ip) {
 		Fail(w, http.StatusTooManyRequests, "登录失败次数过多，请稍后再试")
 		return
 	}
@@ -168,7 +219,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(body.Username) > 64 || len(body.Password) > 72 {
-		s.recordLoginFailure(ip)
 		Fail(w, 403, "账号或密码错误")
 		return
 	}
@@ -178,6 +228,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	totpEnabled := s.cfg.Settings.TOTPEnabled
 	s.cfg.RUnlock()
 
+	release, ok := auth.AcquireVerifySlot(3 * time.Second)
+	if !ok {
+		Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
+		return
+	}
 	valid := false
 	if hash != "" && subtle.ConstantTimeCompare([]byte(body.Username), []byte(user)) == 1 {
 		valid = auth.CheckPassword(hash, body.Password)
@@ -186,8 +241,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// 保持两条路径耗时一致，结果丢弃。
 		_ = auth.CheckPassword(dummyLoginHash, body.Password)
 	}
+	release()
 	if !valid {
-		s.recordLoginFailure(ip)
 		log.Printf("[security] 登录失败，客户端 IP: %s", ip)
 		Fail(w, 403, "账号或密码错误")
 		return
@@ -271,12 +326,18 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if hash != "" {
-		if PasswordConfirmLimited("password", r.RemoteAddr) {
+		if !AdmitPasswordConfirm("password", r.RemoteAddr) {
 			Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
 			return
 		}
-		if !auth.CheckPassword(hash, body.OldPassword) {
-			RecordPasswordConfirmFailure("password", r.RemoteAddr)
+		release, ok := auth.AcquireVerifySlot(3 * time.Second)
+		if !ok {
+			Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
+			return
+		}
+		valid := auth.CheckPassword(hash, body.OldPassword)
+		release()
+		if !valid {
 			Fail(w, 403, "原密码错误")
 			return
 		}
@@ -313,11 +374,8 @@ func directIP(remote string) string {
 	return remote
 }
 
-func (s *Server) loginLimited(ip string) bool {
-	return s.loginLimiter.limited(ip)
-}
-func (s *Server) recordLoginFailure(ip string) {
-	s.loginLimiter.record(ip)
+func (s *Server) admitLogin(ip string) bool {
+	return s.loginLimiter.admit(ip)
 }
 func (s *Server) clearLoginFailures(ip string) {
 	s.loginLimiter.clear(ip)

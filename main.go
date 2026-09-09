@@ -94,6 +94,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Google Authenticator 已关闭；请重新启动 andey-proxy")
 		return
 	}
+	// 供 LuCI 只读界面读取版本（替代原 fs.exec -v 方案，只读账号无需 exec 授权）
+	if err := os.WriteFile(filepath.Join(abs, "version"), []byte(version+"\n"), 0o644); err != nil {
+		log.Printf("写入版本文件失败: %v", err)
+	}
 	if cfg.Settings.AdminPassHash == "" {
 		initialPassword, err := auth.RandomPassword()
 		if err != nil {
@@ -184,9 +188,10 @@ func main() {
 	if *listen != "" {
 		addr = net.JoinHostPort(*listen, strconv.Itoa(*port))
 	}
-	// 不设 ReadTimeout：它会覆盖整个请求体读取，慢链路上传 100MiB 更新包必然超时；
+	// 不设 ReadTimeout：它会覆盖整个请求体读取，慢链路上传 100MiB 更新包必然超时。
 	// 请求体大小由路由级 MaxBytesReader 控制（普通 API 1MiB，更新包上传 100MiB），
-	// ReadHeaderTimeout 保留以防慢速 header 攻击。
+	// 请求体读取期限与在途请求数由 API 路由的 requestBudget 中间件控制
+	// （普通 API 30s，更新包上传 10min），ReadHeaderTimeout 保留以防慢速 header 攻击。
 	httpSrv := &http.Server{Addr: addr, Handler: managementHeaders(mux, !*allowHTTP), ReadHeaderTimeout: 10 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 1 << 20}
 	if !*allowHTTP {
 		httpSrv.TLSConfig = webSvc.AdminTLSConfig()

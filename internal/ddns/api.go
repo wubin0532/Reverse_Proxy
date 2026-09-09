@@ -286,6 +286,12 @@ func (h *handler) validateProvider(p *config.DNSProviderConf) (int, string) {
 	return 0, ""
 }
 
+// endpointChanged 判断请求指定的端点是否与已存配置不同；请求未指定端点视为未变更。
+// 已存与请求均为空同样视为未变更。
+func endpointChanged(requested, saved string) bool {
+	return requested != "" && requested != saved
+}
+
 func validateHTTPURL(raw string, allowSafeQuery bool) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -369,11 +375,18 @@ func (h *handler) updateProvider(w http.ResponseWriter, r *http.Request) {
 		if idx < 0 {
 			return errProviderNotFound
 		}
-		if p.Key == "" {
-			p.Key = c.Providers[idx].Key
-		}
-		if p.Secret == "" && !body.ClearSecret {
-			p.Secret = c.Providers[idx].Secret
+		// 端点变更后禁止回填已保存的凭据，防止凭据被发往未授权的端点。
+		if endpointChanged(p.Endpoint, c.Providers[idx].Endpoint) {
+			if p.Key == "" {
+				return fmt.Errorf("validation:%d:%s", 400, "更换端点后需重新输入凭据，不能使用已保存的凭据")
+			}
+		} else {
+			if p.Key == "" {
+				p.Key = c.Providers[idx].Key
+			}
+			if p.Secret == "" && !body.ClearSecret {
+				p.Secret = c.Providers[idx].Secret
+			}
 		}
 		if p.Endpoint == "" && !body.ClearEndpoint {
 			p.Endpoint = c.Providers[idx].Endpoint
@@ -549,11 +562,20 @@ func (h *handler) testProvider(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			providerConf.Type = saved.Type
-			if providerConf.Key == "" {
-				providerConf.Key = saved.Key
-			}
-			if providerConf.Secret == "" {
-				providerConf.Secret = saved.Secret
+			// 端点变更后禁止回填已保存的凭据，防止凭据被发往未授权的端点。
+			if endpointChanged(providerConf.Endpoint, saved.Endpoint) {
+				if providerConf.Key == "" {
+					h.cfg.RUnlock()
+					api.Fail(w, 400, "更换端点后需重新输入凭据，不能使用已保存的凭据")
+					return
+				}
+			} else {
+				if providerConf.Key == "" {
+					providerConf.Key = saved.Key
+				}
+				if providerConf.Secret == "" {
+					providerConf.Secret = saved.Secret
+				}
 			}
 			if providerConf.Endpoint == "" {
 				providerConf.Endpoint = saved.Endpoint

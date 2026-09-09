@@ -1,0 +1,90 @@
+Fetching vulnerabilities from the database...
+
+Checking the code against the vulnerabilities...
+
+The package pattern matched the following 20 root packages:
+  andey-proxy/internal/auth
+  andey-proxy/internal/backup
+  andey-proxy/internal/config
+  andey-proxy/internal/api
+  andey-proxy/internal/ids
+  andey-proxy/internal/logcenter
+  andey-proxy/internal/notify
+  andey-proxy/internal/acme
+  andey-proxy/internal/adminweb
+  andey-proxy/internal/configlock
+  andey-proxy/internal/ddns
+  andey-proxy/internal/firewall
+  andey-proxy/internal/guard
+  andey-proxy/internal/netutil
+  andey-proxy/internal/forward
+  andey-proxy/internal/upgrade
+  andey-proxy/internal/webproxy
+  andey-proxy/internal/dashboard
+  andey-proxy
+  andey-proxy/web/node_modules/flatted/golang/pkg/flatted
+Govulncheck scanned the following 27 modules and the go1.26.6 standard library:
+  andey-proxy
+  github.com/alibabacloud-go/alibabacloud-gateway-spi@v0.0.5
+  github.com/alibabacloud-go/darabonba-openapi/v2@v2.1.16
+  github.com/alibabacloud-go/debug@v1.0.1
+  github.com/alibabacloud-go/tea@v1.4.0
+  github.com/alibabacloud-go/tea-utils/v2@v2.0.9
+  github.com/aliyun/credentials-go@v1.4.7
+  github.com/boombuler/barcode@v1.0.1
+  github.com/cenkalti/backoff/v5@v5.0.3
+  github.com/clbanning/mxj/v2@v2.7.0
+  github.com/go-acme/alidns-20150109/v4@v4.7.0
+  github.com/go-acme/lego/v4@v4.35.2
+  github.com/go-chi/chi/v5@v5.3.2
+  github.com/go-jose/go-jose/v4@v4.1.4
+  github.com/json-iterator/go@v1.1.13-0.20220915233716-71ac16282d12
+  github.com/miekg/dns@v1.1.72
+  github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd
+  github.com/modern-go/reflect2@v1.0.3-0.20250322232337-35a7c28c31ee
+  github.com/nrdcg/dnspod-go@v0.4.0
+  github.com/pquerna/otp@v1.5.0
+  github.com/tjfoc/gmsm@v1.4.1
+  golang.org/x/crypto@v0.56.0
+  golang.org/x/mod@v0.38.0
+  golang.org/x/net@v0.57.0
+  golang.org/x/sys@v0.47.0
+  golang.org/x/text@v0.41.0
+  gopkg.in/ini.v1@v1.67.1
+
+=== Symbol Results ===
+
+No vulnerabilities found.
+
+=== Package Results ===
+
+No other vulnerabilities found.
+
+=== Module Results ===
+
+Vulnerability #1: GO-2026-6180
+    Ignore unrelated, unauthenticated hashes in Lookup in golang.org/x/mod/sumdb
+  More info: https://pkg.go.dev/vuln/GO-2026-6180
+  Module: golang.org/x/mod
+    Found in: golang.org/x/mod@v0.38.0
+    Fixed in: golang.org/x/mod@v0.40.0
+
+Vulnerability #2: GO-2026-6179
+    Fix transparency log tile verification bypass in golang.org/x/mod/sumdb/tlog
+  More info: https://pkg.go.dev/vuln/GO-2026-6179
+  Module: golang.org/x/mod
+    Found in: golang.org/x/mod@v0.38.0
+    Fixed in: golang.org/x/mod@v0.40.0
+
+Vulnerability #3: GO-2026-5932
+    The golang.org/x/crypto/openpgp package is unmaintained, unsafe by design,
+    and has known security issues
+  More info: https://pkg.go.dev/vuln/GO-2026-5932
+  Module: golang.org/x/crypto
+    Found in: golang.org/x/crypto@v0.56.0
+    Fixed in: N/A
+
+Your code is affected by 0 vulnerabilities.
+This scan also found 0 vulnerabilities in packages you import and 3
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.

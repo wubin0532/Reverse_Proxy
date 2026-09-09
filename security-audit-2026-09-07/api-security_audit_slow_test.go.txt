@@ -1,0 +1,12 @@
+package api
+import("testing";"net/http";"net/http/httptest";"net";"fmt";"time")
+func TestAuditSlowBodyOutlivesWriteTimeout(t *testing.T){
+ entered:=make(chan struct{});done:=make(chan struct{})
+ srv:=httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){close(entered);var v interface{};_ = DecodeBody(r,&v);close(done)}))
+ srv.Config.ReadHeaderTimeout=time.Second;srv.Config.WriteTimeout=50*time.Millisecond;srv.Config.IdleTimeout=50*time.Millisecond;srv.Start();defer srv.Close()
+ c,err:=net.Dial("tcp",srv.Listener.Addr().String());if err!=nil{t.Fatal(err)};defer c.Close()
+ fmt.Fprint(c,"POST /api/login HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100\r\n\r\n{")
+ <-entered
+ select {case <-done:t.Fatal("body unexpectedly completed");case <-time.After(200*time.Millisecond):t.Log("body reader still blocked after 4x WriteTimeout/IdleTimeout")}
+ c.Close();<-done
+}

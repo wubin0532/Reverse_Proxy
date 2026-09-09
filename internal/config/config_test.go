@@ -2,6 +2,8 @@ package config
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -166,5 +168,37 @@ func TestConcurrentUpdatesDoNotLoseChanges(t *testing.T) {
 func TestLoadRejectsFilesystemRoot(t *testing.T) {
 	if _, err := Load(string(os.PathSeparator)); err == nil {
 		t.Fatal("filesystem root must not be accepted as a config directory")
+	}
+}
+
+func TestDecryptRejectsMalformedNonceAndCiphertext(t *testing.T) {
+	key := bytes.Repeat([]byte{7}, 32)
+	sealed, err := encryptConfig([]byte(`{"settings":{}}`), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env encryptedEnvelope
+	if err := json.Unmarshal(sealed, &env); err != nil {
+		t.Fatal(err)
+	}
+
+	short := env
+	short.Nonce = base64.StdEncoding.EncodeToString([]byte{1})
+	data, err := json.Marshal(short)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := decryptIfNeeded(data, key); err == nil {
+		t.Fatal("短 nonce 必须返回错误而非 panic")
+	}
+
+	truncated := env
+	truncated.Ciphertext = base64.StdEncoding.EncodeToString([]byte{1, 2, 3})
+	data, err = json.Marshal(truncated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := decryptIfNeeded(data, key); err == nil {
+		t.Fatal("过短密文必须返回错误而非 panic")
 	}
 }

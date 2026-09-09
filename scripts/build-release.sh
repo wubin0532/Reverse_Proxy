@@ -17,6 +17,7 @@ if [ -n "$(find web/src -type f -newer internal/adminweb/dist/index.html -print 
 fi
 PKG_RELEASE=1
 SIGNING_KEY=${RELEASE_SIGNING_KEY:-}
+SIGNING_PUBKEY=${RELEASE_SIGNING_PUBLIC_KEY:-}
 IPK_ONLY=${IPK_ONLY:-0}
 NODE_BIN=${NODE_BIN:-node}
 OUT="$(pwd)/release"
@@ -146,6 +147,7 @@ EOF
 rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
 [ "$1" = "upgrade" ] && exit 0
 rm -rf /etc/andey-proxy
+rm -f /etc/andey-proxy.key
 rm -f /etc/config/andey-proxy-opkg
 exit 0
 EOF
@@ -191,9 +193,10 @@ if command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/$BIN_NAME.se
   systemctl daemon-reload 2>/dev/null || true
 fi
 
-# 删除二进制、配置文件、运行数据（config.json、ACME 证书、日志缓存）
+# 删除二进制、配置文件、运行数据（config.json、ACME 证书、日志缓存）与相邻密钥文件
 rm -f /usr/bin/$BIN_NAME
 rm -rf /etc/andey-proxy
+rm -f /etc/andey-proxy.key
 rm -f /etc/config/andey-proxy
 
 echo "andey-Proxy 已完全卸载（配置与缓存已清空）"
@@ -274,6 +277,20 @@ INSTEOF
     "$VERSION" "$goarch" "$size" "$digest" > "$root/payload/manifest.json"
   "$NODE_BIN" -e 'const fs=require("fs"),c=require("crypto");const [m,k,o]=process.argv.slice(1);fs.writeFileSync(o,c.sign(null,fs.readFileSync(m),fs.readFileSync(k)).toString("base64"))' \
     "$root/payload/manifest.json" "$SIGNING_KEY" "$root/payload/manifest.sig"
+  if [ -n "$SIGNING_PUBKEY" ]; then
+    if [ ! -f "$SIGNING_PUBKEY" ]; then
+      echo "错误：RELEASE_SIGNING_PUBLIC_KEY 指向的公钥文件不存在: $SIGNING_PUBKEY" >&2
+      exit 1
+    fi
+    if ! "$NODE_BIN" -e 'const fs=require("fs"),c=require("crypto");const [m,s,k]=process.argv.slice(1);if(!c.verify(null,fs.readFileSync(m),fs.readFileSync(k),Buffer.from(fs.readFileSync(s,"utf8").trim(),"base64")))process.exit(1)' \
+      "$root/payload/manifest.json" "$root/payload/manifest.sig" "$SIGNING_PUBKEY"; then
+      echo "错误：manifest.sig 自验签失败，签名私钥与 RELEASE_SIGNING_PUBLIC_KEY 不匹配" >&2
+      exit 1
+    fi
+    echo "==> 签名自验通过（manifest.sig 与公钥匹配）"
+  else
+    echo "警告：未设置 RELEASE_SIGNING_PUBLIC_KEY，跳过签名自验，建议设置以确认密钥匹配" >&2
+  fi
 
   local out="$OUT/andey-proxy_${VERSION}_linux_${suffix}.run"
   (cd "$root/payload" && COPYFILE_DISABLE=1 tar --format=ustar -czf "$root/payload.tar.gz" .)

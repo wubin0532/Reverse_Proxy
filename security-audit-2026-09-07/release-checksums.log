@@ -1,0 +1,10 @@
+luci-app-andeyproxy_0.2.2-1_aarch64_cortex-a53.ipk: True
+luci-app-andeyproxy_0.2.2-1_arm_cortex-a7_vfpv4.ipk: True
+luci-app-andeyproxy_0.2.2-1_mips_24kc.ipk: True
+luci-app-andeyproxy_0.2.2-1_mipsel_24kc.ipk: True
+luci-app-andeyproxy_0.2.2-1_x86_64.ipk: True
+andey-proxy_0.2.2_linux_arm64.run: True
+andey-proxy_0.2.2_linux_armv7.run: True
+andey-proxy_0.2.2_linux_mips.run: True
+andey-proxy_0.2.2_linux_mipsle.run: True
+andey-proxy_0.2.2_linux_x86_64.run: True

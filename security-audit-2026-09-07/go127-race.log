@@ -1,0 +1,20 @@
+?   	andey-proxy	[no test files]
+ok  	andey-proxy/internal/acme	3.866s
+ok  	andey-proxy/internal/adminweb	2.033s
+ok  	andey-proxy/internal/api	28.883s
+ok  	andey-proxy/internal/auth	1.651s
+ok  	andey-proxy/internal/backup	6.423s
+ok  	andey-proxy/internal/config	4.680s
+ok  	andey-proxy/internal/configlock	3.254s
+?   	andey-proxy/internal/dashboard	[no test files]
+ok  	andey-proxy/internal/ddns	5.534s
+ok  	andey-proxy/internal/firewall	4.596s
+ok  	andey-proxy/internal/forward	7.793s
+ok  	andey-proxy/internal/guard	3.997s
+?   	andey-proxy/internal/ids	[no test files]
+ok  	andey-proxy/internal/logcenter	4.585s
+?   	andey-proxy/internal/netutil	[no test files]
+ok  	andey-proxy/internal/notify	3.772s
+ok  	andey-proxy/internal/upgrade	3.574s
+ok  	andey-proxy/internal/webproxy	5.874s
+?   	andey-proxy/web/node_modules/flatted/golang/pkg/flatted	[no test files]

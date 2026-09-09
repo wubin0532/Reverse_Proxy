@@ -76,7 +76,8 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ip := directIP(r.RemoteAddr)
-	if s.loginLimited(ip) {
+	// 尝试名额在读取请求体之前原子预占，并发请求不能一起穿过检查。
+	if !s.admitLogin(ip) {
 		Fail(w, http.StatusTooManyRequests, "登录失败次数过多，请稍后再试")
 		return
 	}
@@ -85,7 +86,6 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 		Code        string `json:"code"`
 	}
 	if DecodeBody(r, &body) != nil || len(body.ChallengeID) != 64 || len(body.Code) > 32 {
-		s.recordLoginFailure(ip)
 		Fail(w, 403, "双重验证码无效或已过期")
 		return
 	}
@@ -94,13 +94,11 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 	if challenge == nil || !challenge.Expires.After(time.Now()) || challenge.Attempts >= 5 {
 		delete(s.loginChallenges, body.ChallengeID)
 		s.twoFactorMu.Unlock()
-		s.recordLoginFailure(ip)
 		Fail(w, 403, "双重验证码无效或已过期")
 		return
 	}
 	if challenge.IP != ip {
 		s.twoFactorMu.Unlock()
-		s.recordLoginFailure(ip)
 		Fail(w, 403, "双重验证码无效或已过期")
 		return
 	}
@@ -111,7 +109,6 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	s.twoFactorMu.Unlock()
 	if !ok {
-		s.recordLoginFailure(ip)
 		log.Printf("[security] 双重验证登录失败，客户端 IP: %s", ip)
 		Fail(w, 403, "双重验证码无效或已过期")
 		return
@@ -196,12 +193,16 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 403, "当前密码错误")
 		return
 	}
-	if PasswordConfirmLimited("totp", r.RemoteAddr) {
+	if !AdmitPasswordConfirm("totp", r.RemoteAddr) {
 		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
 		return
 	}
-	if !s.checkCurrentPassword(body.Password) {
-		RecordPasswordConfirmFailure("totp", r.RemoteAddr)
+	valid, busy := s.checkCurrentPassword(body.Password)
+	if busy {
+		Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
+		return
+	}
+	if !valid {
 		Fail(w, 403, "当前密码错误")
 		return
 	}
@@ -371,12 +372,16 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 		Fail(w, 403, "当前密码或双重验证码错误")
 		return
 	}
-	if PasswordConfirmLimited("totp", r.RemoteAddr) {
+	if !AdmitPasswordConfirm("totp", r.RemoteAddr) {
 		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
 		return
 	}
-	if !s.checkCurrentPassword(body.Password) {
-		RecordPasswordConfirmFailure("totp", r.RemoteAddr)
+	valid, busy := s.checkCurrentPassword(body.Password)
+	if busy {
+		Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
+		return
+	}
+	if !valid {
 		Fail(w, 403, "当前密码或双重验证码错误")
 		return
 	}
@@ -426,11 +431,21 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 	}
 }
 
-func (s *Server) checkCurrentPassword(password string) bool {
+// checkCurrentPassword 在全局并发预算内校验当前管理密码。
+// busy 为 true 表示校验预算耗尽，本次未执行校验，调用方应拒绝请求。
+func (s *Server) checkCurrentPassword(password string) (valid, busy bool) {
 	s.cfg.RLock()
 	hash := s.cfg.Settings.AdminPassHash
 	s.cfg.RUnlock()
-	return hash != "" && len(password) <= 72 && auth.CheckPassword(hash, password)
+	if hash == "" || len(password) > 72 {
+		return false, false
+	}
+	release, ok := auth.AcquireVerifySlot(3 * time.Second)
+	if !ok {
+		return false, true
+	}
+	defer release()
+	return auth.CheckPassword(hash, password), false
 }
 
 func (s *Server) revokeAllSessions(w http.ResponseWriter) {

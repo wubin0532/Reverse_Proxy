@@ -97,11 +97,11 @@ return view.extend({
 			archEl.textContent = _('无法获取');
 		});
 
-		fs.exec('/usr/bin/andey-proxy', [ '-v' ]).then(function(res) {
-			var out = (res.stdout || '').trim();
-			versionEl.textContent = res.code === 0 && out ? out : _('未知');
+		fs.read(confdir + '/version').then(function(content) {
+			var ver = (content || '').trim();
+			versionEl.textContent = ver || _('未知');
 		}).catch(function() {
-			versionEl.textContent = _('无法获取');
+			versionEl.textContent = _('未知');
 		});
 
 		fs.read(confdir + '/initial-password').then(function(content) {
@@ -198,9 +198,9 @@ return view.extend({
 		o.default = '/etc/andey-proxy';
 		o.rmempty = false;
 		o.validate = function(sectionId, value) {
-			var unsafe = [ '/', '/etc', '/usr', '/var', '/tmp', '/root', '/home' ];
-			if (!value || value.charAt(0) !== '/' || unsafe.indexOf(value.replace(/\/+$/, '') || '/') !== -1)
-				return _('请输入专用的绝对目录，不能使用系统根目录或顶级系统目录');
+			var v = (value || '').replace(/\/+$/, '');
+			if (v.indexOf('/etc/') !== 0 || v.indexOf('..') !== -1)
+				return _('配置目录必须是 /etc/ 下的专用子目录，且不能包含 ..');
 			return true;
 		};
 
