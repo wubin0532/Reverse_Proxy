@@ -16,3 +16,5 @@ node_modules/
 .env
 .learnings/
 .playwright-cli/
+REVIEW.md
+SECURITY_AUDIT_2026-09-07.md
