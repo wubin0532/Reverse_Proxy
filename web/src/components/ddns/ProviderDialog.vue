@@ -12,16 +12,6 @@
           <el-option :label="$t('ddns.providerTypes.aliyun') + ' (aliyun)'" value="aliyun" />
           <el-option label="Cloudflare" value="cloudflare" />
           <el-option label="DNSPod (dnspod)" value="dnspod" />
-          <el-option :label="$t('ddns.providerTypes.tencentcloud') + ' (tencentcloud)'" value="tencentcloud" />
-          <el-option :label="$t('ddns.providerTypes.huaweicloud') + ' (huaweicloud)'" value="huaweicloud" />
-          <el-option
-            :label="$t('ddns.providerTypes.godaddy') + ' (godaddy) · ' + $t('ddns.acmeOnly')"
-            value="godaddy"
-          />
-          <el-option
-            :label="$t('ddns.providerTypes.route53') + ' (route53) · ' + $t('ddns.acmeOnly')"
-            value="route53"
-          />
         </el-select>
       </el-form-item>
       <el-form-item :label="$t('ddns.remark')" prop="remark">
@@ -71,33 +61,17 @@ const { t } = useI18n()
 
 const KEY_LABELS = {
   aliyun: 'AccessKey ID',
-  cloudflare: 'API Token',
-  tencentcloud: 'SecretId',
-  huaweicloud: 'Access Key ID',
-  godaddy: 'API Key',
-  route53: 'Access Key ID'
+  cloudflare: 'API Token'
 }
 const SECRET_LABELS = {
-  dnspod: 'Token',
-  tencentcloud: 'SecretKey',
-  huaweicloud: 'Secret Access Key',
-  godaddy: 'API Secret',
-  route53: 'Secret Access Key'
+  dnspod: 'Token'
 }
 const KEY_PLACEHOLDERS = {
   cloudflare: 'cfTokenPlaceholder',
-  dnspod: 'dnspodTokenIdPlaceholder',
-  tencentcloud: 'tencentSecretIdPlaceholder',
-  huaweicloud: 'huaweiAkPlaceholder',
-  godaddy: 'godaddyKeyPlaceholder',
-  route53: 'route53AkPlaceholder'
+  dnspod: 'dnspodTokenIdPlaceholder'
 }
 const SECRET_PLACEHOLDERS = {
-  dnspod: 'dnspodTokenPlaceholder',
-  tencentcloud: 'tencentSecretKeyPlaceholder',
-  huaweicloud: 'huaweiSkPlaceholder',
-  godaddy: 'godaddySecretPlaceholder',
-  route53: 'route53SkPlaceholder'
+  dnspod: 'dnspodTokenPlaceholder'
 }
 
 const emptyForm = () => ({ id: '', type: 'aliyun', remark: '', key: '', secret: '', endpoint: '' })

@@ -266,9 +266,9 @@ func (h *handler) validateProvider(p *config.DNSProviderConf) (int, string) {
 	p.Type = strings.ToLower(strings.TrimSpace(p.Type))
 	p.Remark = strings.TrimSpace(p.Remark)
 	switch p.Type {
-	case "aliyun", "cloudflare", "dnspod", "tencentcloud", "huaweicloud", "godaddy", "route53":
+	case "aliyun", "cloudflare", "dnspod":
 	default:
-		return 400, "服务商类型必须是 aliyun / cloudflare / dnspod / tencentcloud / huaweicloud / godaddy / route53"
+		return 400, "服务商类型必须是 aliyun / cloudflare / dnspod"
 	}
 	if p.Key == "" {
 		return 400, "Key 不能为空"

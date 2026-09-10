@@ -128,7 +128,7 @@
             :placeholder="$t('ddns.providerCredPlaceholder')"
           >
             <el-option
-              v-for="p in ddnsProviders"
+              v-for="p in providers"
               :key="p.id"
               :label="(p.remark || p.id) + '（' + providerTypeName(p.type) + '）'"
               :value="p.id"
@@ -194,7 +194,7 @@ const tasks = ref([])
 const loadingProviders = ref(false)
 const loadingTasks = ref(false)
 
-const PROVIDER_TYPES = ['aliyun', 'cloudflare', 'dnspod', 'tencentcloud', 'huaweicloud', 'godaddy', 'route53']
+const PROVIDER_TYPES = ['aliyun', 'cloudflare', 'dnspod']
 
 function providerTypeName(type) {
   return PROVIDER_TYPES.includes(type) ? t(`ddns.providerTypes.${type}`) : type
@@ -203,8 +203,6 @@ function providerNameOf(id) {
   const p = providers.value.find((x) => x.id === id)
   return p ? p.remark || providerTypeName(p.type) : id || '-'
 }
-// godaddy / route53 仅供 ACME 证书申请，DDNS 任务不可选
-const ddnsProviders = computed(() => providers.value.filter((p) => !['godaddy', 'route53'].includes(p.type)))
 
 // ---------- 凭据 ----------
 const providerDialogRef = ref()

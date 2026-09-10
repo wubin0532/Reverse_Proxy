@@ -26,10 +26,6 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
 	"github.com/go-acme/lego/v4/providers/dns/dnspod"
-	"github.com/go-acme/lego/v4/providers/dns/godaddy"
-	"github.com/go-acme/lego/v4/providers/dns/huaweicloud"
-	"github.com/go-acme/lego/v4/providers/dns/route53"
-	"github.com/go-acme/lego/v4/providers/dns/tencentcloud"
 	"github.com/go-acme/lego/v4/registration"
 
 	"andey-proxy/internal/config"
@@ -153,29 +149,6 @@ func newDNSProvider(p config.DNSProviderConf) (challenge.Provider, error) {
 		c := dnspod.NewDefaultConfig()
 		c.LoginToken = p.Key + "," + p.Secret
 		return dnspod.NewDNSProviderConfig(c)
-	case "tencentcloud":
-		c := tencentcloud.NewDefaultConfig()
-		c.SecretID = p.Key
-		c.SecretKey = p.Secret
-		return tencentcloud.NewDNSProviderConfig(c)
-	case "huaweicloud":
-		c := huaweicloud.NewDefaultConfig()
-		c.AccessKeyID = p.Key
-		c.SecretAccessKey = p.Secret
-		// DNS 是全局服务，任一区域端点均可管理公共域名，固定默认区域
-		c.Region = "cn-north-4"
-		return huaweicloud.NewDNSProviderConfig(c)
-	case "godaddy":
-		c := godaddy.NewDefaultConfig()
-		c.APIKey = p.Key
-		c.APISecret = p.Secret
-		return godaddy.NewDNSProviderConfig(c)
-	case "route53":
-		c := route53.NewDefaultConfig()
-		c.AccessKeyID = p.Key
-		c.SecretAccessKey = p.Secret
-		c.Region = "us-east-1" // Route53 是全局服务，SDK 仅要求非空区域
-		return route53.NewDNSProviderConfig(c)
 	}
 	return nil, fmt.Errorf("不支持的服务商类型: %s", p.Type)
 }

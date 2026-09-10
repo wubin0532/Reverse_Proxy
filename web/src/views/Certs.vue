@@ -133,7 +133,7 @@ const providers = ref([])
 const loading = ref(false)
 const certPoller = useIntervalFn(load, 5000)
 
-const PROVIDER_TYPES = ['aliyun', 'cloudflare', 'dnspod', 'tencentcloud', 'huaweicloud', 'godaddy', 'route53']
+const PROVIDER_TYPES = ['aliyun', 'cloudflare', 'dnspod']
 function providerTypeName(type) {
   return PROVIDER_TYPES.includes(type) ? t(`ddns.providerTypes.${type}`) : type
 }

@@ -194,8 +194,7 @@ func TestGetCertificateReloadOnMtime(t *testing.T) {
 }
 
 func TestNewDNSProviderTypes(t *testing.T) {
-	// huaweicloud 构造时会联网查询项目 ID，无法在离线测试中校验
-	for _, typ := range []string{"aliyun", "cloudflare", "dnspod", "tencentcloud", "godaddy", "route53"} {
+	for _, typ := range []string{"aliyun", "cloudflare", "dnspod"} {
 		if _, err := newDNSProvider(config.DNSProviderConf{Type: typ, Key: "k", Secret: "s"}); err != nil {
 			t.Errorf("类型 %s 构造失败: %v", typ, err)
 		}
