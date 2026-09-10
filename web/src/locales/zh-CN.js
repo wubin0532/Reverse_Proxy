@@ -43,6 +43,11 @@ export default {
   router: {
     needChangePassword: '请先修改一次性初始密码'
   },
+  validate: {
+    listenFormat: '监听地址格式无效，示例：:8080 或 0.0.0.0:443',
+    targetFormat: '目标地址格式无效，应为 主机:端口（如 192.168.1.10:3389），多个用英文逗号分隔',
+    ipOrCidr: '包含无效的 IP 或 CIDR：{value}'
+  },
   nav: {
     group: '网络管理',
     dashboard: '运维控制台',
@@ -52,7 +57,8 @@ export default {
     webServiceTitle: 'Web服务',
     forward: '端口转发',
     notifications: '通知中心',
-    logs: '日志中心'
+    logs: '日志中心',
+    settings: '系统设置'
   },
   login: {
     subtitle: '安全管理反向代理与网络入口',
@@ -166,6 +172,8 @@ export default {
     noFirewallRules: '暂无自动放行规则',
     trafficTitle: '站点流量统计',
     memoryStats: '内存统计 · 重启清零',
+    chartTitle: '流量趋势',
+    chartSitePlaceholder: '选择站点',
     requests: '请求',
     trafficIn: '入',
     trafficOut: '出',
@@ -218,7 +226,8 @@ export default {
     backup: {
       title: '配置备份',
       crossDevice: '跨设备迁移',
-      alert: '配置以设备绑定密钥加密存储，无法直接复制到其他路由器。导出会用你设置的备份口令重新加密，可在任意设备导入恢复。',
+      alert:
+        '配置以设备绑定密钥加密存储，无法直接复制到其他路由器。导出会用你设置的备份口令重新加密，可在任意设备导入恢复。',
       export: '导出备份',
       import: '导入恢复',
       exportTitle: '导出配置备份',
@@ -245,6 +254,9 @@ export default {
   logs: {
     title: '结构化日志',
     subtitle: '当前文件 1 MiB，保留 4 个轮转文件，总上限约 5 MiB',
+    typeAll: '全部类型',
+    typeAccess: '访问日志',
+    typeSystem: '系统日志',
     resume: '继续刷新',
     pause: '暂停刷新',
     downloadFiltered: '下载筛选结果',
@@ -337,7 +349,8 @@ export default {
     email: '邮箱',
     emailPlaceholder: "ACME 账号邮箱，如 admin{'@'}example.com",
     caDir: 'CA 目录地址',
-    caDirPlaceholder: '留空使用 Let\'s Encrypt 生产环境；测试可填 https://acme-staging-v02.api.letsencrypt.org/directory',
+    caDirPlaceholder:
+      "留空使用 Let's Encrypt 生产环境；测试可填 https://acme-staging-v02.api.letsencrypt.org/directory",
     renewDays: '续签天数',
     renewTip: '到期前多少天自动续签，默认 30',
     nameRequired: '请输入证书名称',
@@ -380,8 +393,13 @@ export default {
     providerTypes: {
       aliyun: '阿里云',
       cloudflare: 'Cloudflare',
-      dnspod: 'DNSPod'
+      dnspod: 'DNSPod',
+      tencentcloud: '腾讯云 DNSPod',
+      huaweicloud: '华为云',
+      godaddy: 'GoDaddy',
+      route53: 'AWS Route53'
     },
+    acmeOnly: '仅证书申请',
     editProvider: '编辑凭据',
     addProviderTitle: '新增凭据',
     remark: '备注',
@@ -391,6 +409,14 @@ export default {
     aliyunKeyIdPlaceholder: '阿里云 AccessKey ID',
     dnspodTokenPlaceholder: 'DNSPod Token',
     aliyunSecretPlaceholder: '阿里云 AccessKey Secret',
+    tencentSecretIdPlaceholder: '腾讯云 SecretId',
+    tencentSecretKeyPlaceholder: '腾讯云 SecretKey',
+    huaweiAkPlaceholder: '华为云 Access Key ID',
+    huaweiSkPlaceholder: '华为云 Secret Access Key',
+    godaddyKeyPlaceholder: 'GoDaddy API Key',
+    godaddySecretPlaceholder: 'GoDaddy API Secret',
+    route53AkPlaceholder: 'AWS Access Key ID',
+    route53SkPlaceholder: 'AWS Secret Access Key',
     customEndpoint: '自定义端点',
     endpointPlaceholder: '可选；生产环境建议保持默认',
     testDomain: '测试域名',
@@ -547,7 +573,7 @@ export default {
     cookiePathFromPlaceholder: '原路径，如 /app',
     cookiePathToPlaceholder: '新路径，空为删除',
     redirectTarget: '目标地址',
-    redirectUrlPlaceholder: '如 https://example.com{\'{path}\'}，支持 {\'{path}\'} {\'{query}\'} 占位符',
+    redirectUrlPlaceholder: "如 https://example.com{'{path}'}，支持 {'{path}'} {'{query}'} 占位符",
     statusCode: '状态码',
     redirect301: '301 永久重定向',
     redirect302: '302 临时重定向',
@@ -576,6 +602,39 @@ export default {
     backendFailed: '连接失败',
     fillBackend: '请填写后端地址',
     fillTarget: '请填写目标地址',
-    fillRootDir: '请填写文件目录'
+    fillRootDir: '请填写文件目录',
+    trafficChart: '流量趋势',
+    healthTitle: '健康检查',
+    healthEnable: '主动健康检查',
+    healthEnableTip: '关闭时仅按请求失败被动摘除后端',
+    healthType: '探测方式',
+    healthPath: '探测路径',
+    healthInterval: '探测间隔（秒）',
+    healthTimeout: '探测超时（秒）',
+    healthRise: '恢复阈值（次）',
+    healthFall: '摘除阈值（次）',
+    healthTip: '间隔 2-300 秒；超时 1-60 秒且不超过间隔；阈值 1-10 次。',
+    healthPathError: '探测路径必须以 / 开头',
+    healthTimeoutError: '探测超时不能超过探测间隔',
+    healthActive: '主动探测中',
+    healthPassive: '被动检测'
+  },
+  chart: {
+    empty: '该时间范围内暂无流量',
+    requestsPerMin: '请求/分钟',
+    bytesIn: '入站流量',
+    bytesOut: '出站流量'
+  },
+  settings: {
+    title: '系统设置',
+    subtitle: '版本与系统信息、防火墙放行、账户安全入口',
+    quickActions: '快捷入口',
+    uptime: '运行时长',
+    uptimeHours: '{h} 小时 {m} 分钟',
+    uptimeDays: '{d} 天 {h} 小时',
+    accountSecurityDesc: '修改管理账号与密码，绑定或关闭 Google Authenticator 双重验证。',
+    openAccountSecurity: '打开账户安全',
+    notificationsDesc: '配置 Telegram 通知渠道与事件订阅。',
+    goNotifications: '前往通知中心'
   }
 }

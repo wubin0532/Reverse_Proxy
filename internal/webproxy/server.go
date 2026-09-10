@@ -46,6 +46,9 @@ type Service struct {
 	// 热重载重建 handler 缓存不丢失，站点删除/禁用时清理，进程重启清零。
 	stats sync.Map
 
+	// health 反向代理后端主动健康检查配置（按规则 ID 持久化的边车文件）。
+	health *healthStore
+
 	certMu    sync.Mutex
 	certFiles map[string]*certFileCache
 
@@ -72,6 +75,10 @@ type siteServer struct {
 	revHandler    map[string]http.Handler // reverse 规则处理器缓存（含轮询状态）
 	revErr        map[string]error
 	staticHandler map[string]http.Handler // redirect/fileserver 规则处理器缓存（无内部状态）
+	health        *healthStore            // Service 级健康检查配置库（测试直接构造时可为 nil）
+
+	chainOnce sync.Once
+	chain     http.Handler // 站点请求处理链（见 dispatch.go dispatchChain）
 
 	// hijacked 登记被 Hijack 的连接（WebSocket 反代升级等）：
 	// http.Server.Shutdown 不跟踪此类连接，站点停止时需统一关闭。
@@ -93,6 +100,7 @@ func NewService(cfg *config.Config, certGetter CertGetter) *Service {
 		certGetter: certGetter,
 		sites:      make(map[string]*siteServer),
 		certFiles:  make(map[string]*certFileCache),
+		health:     newHealthStore(cfg.Dir()),
 	}
 }
 
@@ -247,6 +255,7 @@ func (s *Service) startLocked(site config.Site) error {
 		revHandler:    make(map[string]http.Handler),
 		revErr:        make(map[string]error),
 		staticHandler: make(map[string]http.Handler),
+		health:        s.health,
 		stats:         s.statsFor(site.ID),
 	}
 	ss.stats.pruneRules(site.Rules)
@@ -407,7 +416,7 @@ func (ss *siteServer) updateSite(site config.Site) {
 	ss.ruleIndex = nextRules
 	ss.handlerMu.Unlock()
 	for _, h := range retired {
-		h.closeIdleConnections()
+		h.shutdown()
 	}
 }
 
@@ -441,9 +450,17 @@ func (ss *siteServer) closeIdleConnections() {
 	ss.handlerMu.Unlock()
 	for _, handler := range handlers {
 		if reverse, ok := handler.(*reverseHandler); ok {
-			reverse.closeIdleConnections()
+			reverse.shutdown()
 		}
 	}
+}
+
+// healthConfFor 取规则的健康检查配置；无配置库（测试实例）时返回零值（关闭）。
+func (ss *siteServer) healthConfFor(ruleID string) HealthCheckConf {
+	if ss.health == nil {
+		return HealthCheckConf{}
+	}
+	return ss.health.confFor(ruleID)
 }
 
 func (ss *siteServer) setErr(err error) {
@@ -492,6 +509,101 @@ func (s *Service) ListenAddr(siteID string) string {
 		return ""
 	}
 	return ss.ln.Addr().String()
+}
+
+// HealthConf 返回规则的健康检查配置（应用默认值后）。
+func (s *Service) HealthConf(ruleID string) HealthCheckConf {
+	return s.health.confFor(ruleID)
+}
+
+// SetRuleHealth 保存规则健康检查配置并应用到正在运行的处理器；
+// 处理器尚未构建（规则尚无流量）时下次构建自动生效。
+func (s *Service) SetRuleHealth(siteID string, rule config.SubRule, conf HealthCheckConf) error {
+	if err := s.health.set(rule.ID, conf); err != nil {
+		return err
+	}
+	s.applyRuleHealth(siteID, rule, conf)
+	return nil
+}
+
+// DeleteRuleHealth 删除规则健康检查配置并关闭正在运行的探测。
+func (s *Service) DeleteRuleHealth(siteID string, rule config.SubRule) error {
+	if err := s.health.delete(rule.ID); err != nil {
+		return err
+	}
+	s.applyRuleHealth(siteID, rule, HealthCheckConf{})
+	return nil
+}
+
+func (s *Service) applyRuleHealth(siteID string, rule config.SubRule, conf HealthCheckConf) {
+	s.mu.Lock()
+	ss := s.sites[siteID]
+	s.mu.Unlock()
+	if ss == nil {
+		return
+	}
+	ss.handlerMu.Lock()
+	rh, ok := ss.revHandler[rule.ID].(*reverseHandler)
+	ss.handlerMu.Unlock()
+	if ok {
+		rh.configureHealth(conf, rule)
+	}
+}
+
+// RuleBackendHealth 返回单规则各后端实时健康状态；规则处理器未构建时返回空。
+func (s *Service) RuleBackendHealth(siteID, ruleID string) []BackendHealth {
+	s.mu.Lock()
+	ss := s.sites[siteID]
+	s.mu.Unlock()
+	if ss == nil {
+		return nil
+	}
+	ss.handlerMu.Lock()
+	defer ss.handlerMu.Unlock()
+	if rh, ok := ss.revHandler[ruleID].(*reverseHandler); ok {
+		return rh.backendHealth()
+	}
+	return nil
+}
+
+// AllBackendHealth 返回全部站点各 reverse 规则的后端健康快照（siteID → ruleID → 列表），
+// 用于站点统计接口附带展示。仅包含已构建处理器（至少处理过一次请求）的规则。
+func (s *Service) AllBackendHealth() map[string]map[string][]BackendHealth {
+	s.mu.Lock()
+	sites := make(map[string]*siteServer, len(s.sites))
+	for id, ss := range s.sites {
+		sites[id] = ss
+	}
+	s.mu.Unlock()
+	out := make(map[string]map[string][]BackendHealth)
+	for siteID, ss := range sites {
+		ss.handlerMu.Lock()
+		for ruleID, handler := range ss.revHandler {
+			if rh, ok := handler.(*reverseHandler); ok {
+				if out[siteID] == nil {
+					out[siteID] = make(map[string][]BackendHealth)
+				}
+				out[siteID][ruleID] = rh.backendHealth()
+			}
+		}
+		ss.handlerMu.Unlock()
+	}
+	return out
+}
+
+// PruneHealth 清理已删除规则的健康检查配置（规则/站点删除后调用）。
+func (s *Service) PruneHealth() {
+	s.cfg.RLock()
+	keep := make(map[string]bool)
+	for _, site := range s.cfg.Sites {
+		for _, rule := range site.Rules {
+			keep[rule.ID] = true
+		}
+	}
+	s.cfg.RUnlock()
+	if err := s.health.prune(keep); err != nil {
+		log.Printf("[webproxy] 清理健康检查配置失败: %v", err)
+	}
 }
 
 // tlsConfig 构建站点 TLS 配置，GetCertificate 回退链：

@@ -86,6 +86,31 @@ make_ipk() {
             "$root/data/www/luci-static/resources/view/andeyproxy/settings.js" \
             "$root/data/www/luci-static/resources/view/andeyproxy/panel.js"
 
+  # LuCI 翻译：po -> lmo 编译进 ipk（.lmo 是 LuCI 专有格式，msgfmt 的 .mo 不可用）。
+  # 文件名遵循 luci.mk 的 LC_ALIAS 约定（zh_Hans -> zh-cn），
+  # 运行时 LuCI 会加载 /usr/lib/lua/luci/i18n/*.<系统语言>.lmo 中的全部翻译。
+  local po2lmo_cmd
+  if command -v po2lmo >/dev/null 2>&1; then
+    po2lmo_cmd=(po2lmo)
+  elif command -v python3 >/dev/null 2>&1; then
+    po2lmo_cmd=(python3 package/openwrt/po/po2lmo.py)
+  else
+    echo "错误：编译 LuCI 翻译需要 po2lmo 或 python3" >&2
+    exit 1
+  fi
+  local po lang i18ndir="$root/data/usr/lib/lua/luci/i18n"
+  mkdir -p "$i18ndir"
+  for po in package/openwrt/po/*/andeyproxy.po; do
+    [ -f "$po" ] || continue
+    lang=$(basename "$(dirname "$po")")
+    case "$lang" in
+      zh_Hans) lang=zh-cn ;;
+      zh_Hant) lang=zh-tw ;;
+    esac
+    "${po2lmo_cmd[@]}" "$po" "$i18ndir/andeyproxy.$lang.lmo"
+    chmod 644 "$i18ndir/andeyproxy.$lang.lmo"
+  done
+
   local size
   size=$(du -sk "$root/data" | cut -f1)
   cat > "$root/control/control" <<EOF

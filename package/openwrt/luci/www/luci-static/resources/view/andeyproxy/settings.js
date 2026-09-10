@@ -59,8 +59,8 @@ return view.extend({
 					break;
 				}
 		var enabled = !!info.enabled;
-		this.statusSpan.textContent = (running ? _('运行中') : _('未运行'))
-			+ ' / ' + (enabled ? _('已启用') : _('未启用'));
+		this.statusSpan.textContent = (running ? _('Running') : _('Stopped'))
+			+ ' / ' + (enabled ? _('Enabled') : _('Disabled'));
 		this.statusSpan.style.color = running ? '#2ea043' : '#c93c37';
 	},
 
@@ -80,11 +80,11 @@ return view.extend({
 		var enabled = uci.get('andey-proxy', 'main', 'enabled') === '1';
 		var url = panelURL();
 
-		this.statusSpan = E('span', {}, _('查询中…'));
+		this.statusSpan = E('span', {}, _('Querying…'));
 
-		var archEl = E('span', {}, _('查询中…'));
-		var versionEl = E('span', {}, _('查询中…'));
-		var passwordEl = E('span', {}, _('查询中…'));
+		var archEl = E('span', {}, _('Querying…'));
+		var versionEl = E('span', {}, _('Querying…'));
+		var passwordEl = E('span', {}, _('Querying…'));
 
 		callBoard().then(function(board) {
 			var parts = [];
@@ -92,32 +92,32 @@ return view.extend({
 				parts.push(board.system);
 			if (board.release && board.release.target)
 				parts.push(board.release.target);
-			archEl.textContent = parts.join(' / ') || _('未知');
+			archEl.textContent = parts.join(' / ') || _('Unknown');
 		}).catch(function() {
-			archEl.textContent = _('无法获取');
+			archEl.textContent = _('Unavailable');
 		});
 
 		fs.read(confdir + '/version').then(function(content) {
 			var ver = (content || '').trim();
-			versionEl.textContent = ver || _('未知');
+			versionEl.textContent = ver || _('Unknown');
 		}).catch(function() {
-			versionEl.textContent = _('未知');
+			versionEl.textContent = _('Unknown');
 		});
 
 		fs.read(confdir + '/initial-password').then(function(content) {
 			var pwd = (content || '').trim();
 			if (!pwd) {
-				passwordEl.textContent = _('尚未生成');
+				passwordEl.textContent = _('Not generated yet');
 				return;
 			}
 			passwordEl.textContent = '';
 			passwordEl.appendChild(E('div', {}, [
 				E('code', { 'style': 'font-size:1.1em;background:#fff3cd;padding:.2em .6em;border:1px solid #e0c36c;border-radius:3px' }, pwd),
 				E('div', { 'style': 'color:#c93c37;margin-top:.3em' },
-					_('这是首次启动生成的初始密码（管理员 admin），登录后请立即修改；修改后此处不再显示。'))
+					_('This is the initial password generated on first start (admin user "admin"); change it immediately after login. It will no longer be shown here once changed.'))
 			]));
 		}).catch(function() {
-			passwordEl.textContent = _('已修改初始密码或尚未生成');
+			passwordEl.textContent = _('Initial password changed or not generated yet');
 		});
 
 		poll.add(L.bind(this.refreshStatus, this), 5);
@@ -131,45 +131,45 @@ return view.extend({
 		};
 
 		return E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('运行状态')),
-			row(_('面板地址'), E('a', {
+			E('h3', {}, _('Runtime status')),
+			row(_('Panel URL'), E('a', {
 				'href': url,
 				'target': '_blank',
 				'rel': 'noopener noreferrer'
 			}, url)),
-			row(_('服务状态'), E('span', {}, [
+			row(_('Service status'), E('span', {}, [
 				this.statusSpan,
 				' ',
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
 					'click': function() {
 						return callInitAction('andey-proxy', 'start').then(function() {
-							ui.addNotification(null, E('p', _('andey-Proxy 已启动')), 'info');
+							ui.addNotification(null, E('p', _('andey-Proxy started')), 'info');
 							return self.refreshStatus();
 						});
 					}
-				}, _('启动')),
+				}, _('Start')),
 				' ',
 				E('button', {
 					'class': 'cbi-button cbi-button-negative',
 					'click': function() {
 						return callInitAction('andey-proxy', 'stop').then(function() {
-							ui.addNotification(null, E('p', _('andey-Proxy 已停止')), 'info');
+							ui.addNotification(null, E('p', _('andey-Proxy stopped')), 'info');
 							return self.refreshStatus();
 						});
 					}
-				}, _('停止')),
+				}, _('Stop')),
 				enabled ? '' : E('span', { 'style': 'color:#c93c37;margin-left:.6em' },
-					_('未勾选“启用”，请先保存并应用后再启动'))
+					_('"Enabled" is not checked; save and apply first, then start the service.'))
 			])),
-			row(_('CPU 架构'), archEl),
-			row(_('版本'), versionEl),
-			row(_('配置文件'), E('span', {}, [
+			row(_('CPU architecture'), archEl),
+			row(_('Version'), versionEl),
+			row(_('Config files'), E('span', {}, [
 				E('code', {}, '/etc/config/andey-proxy'),
 				' / ',
 				E('code', {}, confdir + '/config.json')
 			])),
-			row(_('初始密码'), passwordEl)
+			row(_('Initial password'), passwordEl)
 		]);
 	},
 
@@ -177,30 +177,30 @@ return view.extend({
 		var m, s, o;
 
 		m = new form.Map('andey-proxy', 'andey-Proxy',
-			'DDNS / 反向代理 / ACME 证书 / 端口转发一体工具。详细配置请使用左侧“管理面板”。');
+			_('All-in-one tool for DDNS / reverse proxy / ACME certificates / port forwarding. For detailed configuration use the "Admin Panel" page.'));
 
-		s = m.section(form.NamedSection, 'main', 'andey-proxy', _('基本设置'));
+		s = m.section(form.NamedSection, 'main', 'andey-proxy', _('Basic settings'));
 		s.addremove = false;
 
-		o = s.option(form.Flag, 'enabled', _('启用'), _('保存并应用后自动重启服务'));
+		o = s.option(form.Flag, 'enabled', _('Enable'), _('The service restarts automatically after save & apply.'));
 		o.rmempty = false;
 
-		o = s.option(form.Flag, 'admin_http', _('允许明文 HTTP'), _('默认关闭。仅用于无法连接 HTTPS 的旧设备，启用后会持续显示安全警告。'));
+		o = s.option(form.Flag, 'admin_http', _('Allow plain HTTP'), _('Disabled by default. Only for legacy devices that cannot use HTTPS; a security warning is shown while enabled.'));
 		o.default = '0';
 		o.rmempty = false;
 
-		o = s.option(form.Value, 'port', _('后台端口'));
+		o = s.option(form.Value, 'port', _('Admin port'));
 		o.datatype = 'port';
 		o.default = '16606';
 		o.rmempty = false;
 
-		o = s.option(form.Value, 'confdir', _('配置目录'), _('存放配置、证书等运行数据'));
+		o = s.option(form.Value, 'confdir', _('Config directory'), _('Stores configuration, certificates and other runtime data.'));
 		o.default = '/etc/andey-proxy';
 		o.rmempty = false;
 		o.validate = function(sectionId, value) {
 			var v = (value || '').replace(/\/+$/, '');
 			if (v.indexOf('/etc/') !== 0 || v.indexOf('..') !== -1)
-				return _('配置目录必须是 /etc/ 下的专用子目录，且不能包含 ..');
+				return _('The config directory must be a dedicated subdirectory under /etc/ and must not contain ..');
 			return true;
 		};
 
@@ -219,7 +219,7 @@ return view.extend({
 				return callInitAction('andey-proxy', 'restart');
 			})
 			.then(function() {
-				ui.addNotification(null, E('p', _('andey-Proxy 服务已重启')), 'info');
+				ui.addNotification(null, E('p', _('andey-Proxy service restarted')), 'info');
 				return self.refreshStatus();
 			});
 	}

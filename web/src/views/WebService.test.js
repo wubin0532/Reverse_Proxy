@@ -4,12 +4,33 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../locales'
 import WebService from './WebService.vue'
 
-const requestMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() }))
+const requestMock = vi.hoisted(() => {
+  // jsdom 缺少 uPlot 依赖的浏览器 API，须在模块加载前补齐
+  if (!window.matchMedia) {
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  }
+  if (!window.ResizeObserver) {
+    window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  }
+  return { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() }
+})
 vi.mock('../api', () => ({ default: requestMock }))
 
 const sites = [
   { id: 's1', name: '主站', listen: ':443', tls: true, enabled: true, status: 'listening', rules: [] },
-  { id: 's2', name: '内网站', listen: ':8080', tls: false, enabled: true, status: 'listening', rules: [{ id: 'r1', name: '代理', type: 'reverse', enabled: true, backends: ['http://127.0.0.1'] }] }
+  {
+    id: 's2',
+    name: '内网站',
+    listen: ':8080',
+    tls: false,
+    enabled: true,
+    status: 'listening',
+    rules: [{ id: 'r1', name: '代理', type: 'reverse', enabled: true, backends: ['http://127.0.0.1'] }]
+  }
 ]
 
 function setupRequests(siteRows = sites) {

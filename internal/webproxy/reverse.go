@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,18 +22,33 @@ import (
 )
 
 // reverseHandler 反向代理处理器：多后端轮询，连接类失败达阈值的后端进入冷却期被跳过。
+// 可选主动健康检查（见 healthcheck.go）：启用后探测结果为摘除/恢复的唯一依据。
 type reverseHandler struct {
+	ruleID   string
 	ruleName string
 	proxies  []*proxyEntry
 	counter  atomic.Uint64
 	logs     *forward.RingLog
+
+	healthMu    sync.Mutex
+	healthConf  HealthCheckConf
+	activeCheck atomic.Bool // 主动健康检查是否启用
+	stopProbe   chan struct{}
 }
 
 type proxyEntry struct {
 	proxy     *httputil.ReverseProxy
 	transport *http.Transport
+	target    *url.URL
+	backend   string // 脱敏后端地址（日志/事件/API 展示用）
+	handler   *reverseHandler
 	failures  atomic.Int32 // 连续连接类失败计数
 	coolUntil atomic.Int64 // 冷却截止时间（UnixNano），0 = 未冷却
+
+	up            atomic.Bool  // 主动检查视图：false = 摘除，仅探测成功可恢复
+	lastErr       atomic.Value // string，最近一次探测/被动失败原因
+	lastCheckUnix atomic.Int64 // 最近探测时间（Unix 秒）
+	latencyNanos  atomic.Int64 // 最近探测延迟
 }
 
 // 后端故障摘除：连续 2 次连接类失败后冷却 30 秒。
@@ -41,10 +57,14 @@ const (
 	backendCooldown      = 30 * time.Second
 )
 
-// noteFailure 记录一次连接类失败，达到阈值后进入冷却期。
+// noteFailure 记录一次连接类失败，达到阈值后进入冷却期；
+// 启用主动健康检查时同时立即摘除该后端（恢复须等探测成功）。
 func (e *proxyEntry) noteFailure() {
 	if e.failures.Add(1) >= backendFailThreshold {
 		e.coolUntil.Store(time.Now().Add(backendCooldown).UnixNano())
+		if h := e.handler; h != nil && h.activeCheck.Load() {
+			h.markDown(e, "连续连接失败")
+		}
 	}
 }
 
@@ -113,6 +133,9 @@ func (ss *siteServer) reverseHandlerFor(rule *config.SubRule) (http.Handler, err
 		ss.revErr[rule.ID] = err
 		return nil, err
 	}
+	if rh, ok := h.(*reverseHandler); ok {
+		rh.configureHealth(ss.healthConfFor(rule.ID), *rule)
+	}
 	ss.revHandler[rule.ID] = h
 	return h, nil
 }
@@ -124,14 +147,15 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 	if len(rule.Backends) == 0 {
 		return nil, fmt.Errorf("reverse 规则未配置后端地址")
 	}
-	h := &reverseHandler{ruleName: rule.Name, logs: logs}
+	h := &reverseHandler{ruleID: rule.ID, ruleName: rule.Name, logs: logs}
 	for _, b := range rule.Backends {
 		target, err := url.Parse(b)
 		if err != nil || target.Scheme == "" || target.Host == "" {
 			logs.Add(fmt.Sprintf("规则[%s] 后端地址无效", rule.Name))
 			continue
 		}
-		entry := &proxyEntry{}
+		entry := &proxyEntry{target: target, backend: backendURLForLog(target), handler: h}
+		entry.up.Store(true)
 		proxy := &httputil.ReverseProxy{}
 		preserveHost := rule.PreserveHost
 		autoHeaders := rule.ProxyHeadersEnabled()
@@ -248,15 +272,19 @@ func (h *reverseHandler) onProxyError(entry *proxyEntry, target *url.URL, ruleID
 	http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 }
 
-// pick 选一个未进入冷却期的后端（从轮询位置起向后找）；exclude 为重试时
-// 排除刚失败的节点。全部在冷却期时回退为轮询全部节点。
+// pick 选一个可用后端（从轮询位置起向后找）；exclude 为重试时排除刚失败的节点。
+// 开启主动检查时跳过被摘除的后端；未开启时跳过冷却期后端。全部不可用时回退为轮询全部节点。
 func (h *reverseHandler) pick(exclude *proxyEntry) *proxyEntry {
 	n := len(h.proxies)
 	start := int((h.counter.Add(1) - 1) % uint64(n))
 	now := time.Now().UnixNano()
+	active := h.activeCheck.Load()
 	for k := 0; k < n; k++ {
 		e := h.proxies[(start+k)%n]
-		if e != exclude && e.coolUntil.Load() <= now {
+		if e == exclude || (active && !e.up.Load()) {
+			continue
+		}
+		if e.coolUntil.Load() <= now {
 			return e
 		}
 	}

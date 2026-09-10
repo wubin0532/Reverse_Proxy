@@ -40,11 +40,13 @@ type Service struct {
 
 	mu       sync.Mutex
 	lmu      sync.Mutex // 保护 logs，与 mu 分离避免 startRuleLocked 持锁时死锁
+	amu      sync.Mutex // 保护 aggs
 	wg       sync.WaitGroup
 	tcpSlots chan struct{}
 	udpSlots chan struct{}
 	running  map[string]*ruleRunner // ruleID -> 运行项
 	logs     map[string]*RingLog
+	aggs     map[string]*connAgg // ruleID -> 连接日志聚合器
 }
 
 type ruleRunner struct {
@@ -54,7 +56,7 @@ type ruleRunner struct {
 }
 
 func NewService(cfg *config.Config) *Service {
-	return &Service{tcpSlots: make(chan struct{}, maxTCPConnections), udpSlots: make(chan struct{}, maxUDPSessions), cfg: cfg, running: make(map[string]*ruleRunner), logs: make(map[string]*RingLog)}
+	return &Service{tcpSlots: make(chan struct{}, maxTCPConnections), udpSlots: make(chan struct{}, maxUDPSessions), cfg: cfg, running: make(map[string]*ruleRunner), logs: make(map[string]*RingLog), aggs: make(map[string]*connAgg)}
 }
 
 // Start 启动所有已启用规则（监听失败仅记日志，状态由 RuleStatus 反映）。
@@ -87,6 +89,8 @@ func (s *Service) Stop() {
 		<-ch
 	}
 	s.wg.Wait()
+	// 停止前落盘未汇总的连接统计窗口
+	s.flushConnSummaries()
 	// 服务整体停止：清空 forward 来源的自动放行规则
 	if s.FW != nil {
 		s.FW.SetDesiredFrom(firewall.SourceForward, nil)
@@ -316,22 +320,23 @@ func (s *Service) handleTCPConn(ctx context.Context, rule config.ForwardRule, sr
 	defer src.Close()
 	srcIP, _, _ := net.SplitHostPort(src.RemoteAddr().String())
 	if !matcher.Allow(srcIP) {
-		s.logf(rule.ID, "拒绝来自 %s 的连接（黑白名单）", srcIP)
+		s.noteReject(rule, srcIP)
 		return
 	}
 	target := pickTarget(rule.Targets)
 	dst, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", target)
 	if err != nil {
-		s.logf(rule.ID, "连接目标 %s 失败: %v", target, err)
+		s.noteDialFail(rule, target, err)
 		return
 	}
 	defer dst.Close()
-	s.logf(rule.ID, "%s -> %s 已建立", src.RemoteAddr(), target)
+	s.noteConn(rule, srcIP, target, false)
 
 	timeout := idleTimeout(rule)
 	done := make(chan struct{}, 2)
 	go func() {
-		io.Copy(dst, &idleConn{Conn: src, timeout: timeout})
+		n, _ := io.Copy(dst, &idleConn{Conn: src, timeout: timeout})
+		s.noteBytes(rule.ID, n, 0)
 		// 客户端半关闭（shutdown WR）时向目标传递 EOF，让对端读完请求后完整回写
 		if tc, ok := dst.(*net.TCPConn); ok {
 			tc.CloseWrite()
@@ -339,7 +344,8 @@ func (s *Service) handleTCPConn(ctx context.Context, rule config.ForwardRule, sr
 		done <- struct{}{}
 	}()
 	go func() {
-		io.Copy(src, &idleConn{Conn: dst, timeout: timeout})
+		n, _ := io.Copy(src, &idleConn{Conn: dst, timeout: timeout})
+		s.noteBytes(rule.ID, 0, n)
 		if tc, ok := src.(*net.TCPConn); ok {
 			tc.CloseWrite()
 		}
@@ -413,6 +419,7 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule, ln *net
 			continue
 		}
 		if !matcher.Allow(srcAddr.IP.String()) {
+			s.noteReject(rule, srcAddr.IP.String())
 			continue
 		}
 		key := srcAddr.String()
@@ -453,36 +460,39 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule, ln *net
 			if err != nil {
 				<-s.udpSlots
 				mu.Unlock()
+				s.noteDialFail(rule, target, err)
 				continue
 			}
 			dst, err := net.DialUDP("udp", nil, taddr)
 			if err != nil {
 				<-s.udpSlots
 				mu.Unlock()
-				s.logf(rule.ID, "UDP 连接目标 %s 失败: %v", target, err)
+				s.noteDialFail(rule, target, err)
 				continue
 			}
 			sess = &udpSession{dst: dst, done: make(chan struct{})}
 			sess.lastSeen.Store(time.Now().UnixNano())
 			sessions[key] = sess
-			s.logf(rule.ID, "UDP 会话 %s -> %s 已建立", key, target)
+			s.noteConn(rule, srcAddr.IP.String(), target, true)
 			s.wg.Add(1)
 			go func() {
 				defer s.wg.Done()
 				defer func() { <-s.udpSlots }()
-				s.udpReplyLoop(ctx, ln, srcAddr, sess)
+				s.udpReplyLoop(ctx, rule.ID, ln, srcAddr, sess)
 			}()
 		}
 		sess.lastSeen.Store(time.Now().UnixNano())
 		mu.Unlock()
-		sess.dst.Write(buf[:n])
+		if m, err := sess.dst.Write(buf[:n]); err == nil {
+			s.noteBytes(rule.ID, int64(m), 0)
+		}
 	}
 }
 
 // udpReplyLoop 从目标端读回包并回写客户端。
 // 读超时不直接退出：客户端仍活跃则续期继续等回包，否则退出并 close(done)，
 // 主循环下次命中该会话时会检测 done 并重建。done 仅由此 goroutine 关闭，不会重复 close。
-func (s *Service) udpReplyLoop(ctx context.Context, ln *net.UDPConn, srcAddr *net.UDPAddr, sess *udpSession) {
+func (s *Service) udpReplyLoop(ctx context.Context, ruleID string, ln *net.UDPConn, srcAddr *net.UDPAddr, sess *udpSession) {
 	defer close(sess.done)
 	defer sess.dst.Close()
 	rbuf := make([]byte, 64*1024)
@@ -497,7 +507,9 @@ func (s *Service) udpReplyLoop(ctx context.Context, ln *net.UDPConn, srcAddr *ne
 			}
 			return
 		}
-		ln.WriteToUDP(rbuf[:n], srcAddr)
+		if _, err := ln.WriteToUDP(rbuf[:n], srcAddr); err == nil {
+			s.noteBytes(ruleID, 0, int64(n))
+		}
 	}
 }
 

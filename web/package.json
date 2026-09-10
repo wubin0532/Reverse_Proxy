@@ -1,19 +1,22 @@
 {
   "name": "andey-proxy-web",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "format": "prettier --write \"src/**/*.{js,vue,css}\" vite.config.js",
+    "format:check": "prettier --check \"src/**/*.{js,vue,css}\" vite.config.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.7.9",
     "element-plus": "^2.9.3",
     "pinia": "^2.3.1",
+    "uplot": "^1.6.32",
     "vue": "^3.5.13",
     "vue-i18n": "^9.14.5",
     "vue-router": "^4.5.0"
@@ -23,6 +26,8 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.5.0",
     "jsdom": "^29.1.1",
+    "prettier": "^3.9.6",
+    "unplugin-vue-components": "^32.1.0",
     "vite": "^6.3.5",
     "vitest": "^5.0.0"
   }

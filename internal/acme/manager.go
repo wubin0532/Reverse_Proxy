@@ -26,6 +26,10 @@ import (
 	"github.com/go-acme/lego/v4/providers/dns/alidns"
 	"github.com/go-acme/lego/v4/providers/dns/cloudflare"
 	"github.com/go-acme/lego/v4/providers/dns/dnspod"
+	"github.com/go-acme/lego/v4/providers/dns/godaddy"
+	"github.com/go-acme/lego/v4/providers/dns/huaweicloud"
+	"github.com/go-acme/lego/v4/providers/dns/route53"
+	"github.com/go-acme/lego/v4/providers/dns/tencentcloud"
 	"github.com/go-acme/lego/v4/registration"
 
 	"andey-proxy/internal/config"
@@ -73,6 +77,12 @@ type Manager struct {
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+
+	// reloadMu 保护 reloadRunning/reloadPending/stopped，串行化并去抖 Reload 调用。
+	reloadMu      sync.Mutex
+	reloadRunning bool
+	reloadPending bool
+	stopped       bool // Stop 已发起，禁止再起 Reload goroutine（保证 wg.Add 先于 wg.Wait）
 }
 
 // NewManager 创建证书管理器。
@@ -143,6 +153,29 @@ func newDNSProvider(p config.DNSProviderConf) (challenge.Provider, error) {
 		c := dnspod.NewDefaultConfig()
 		c.LoginToken = p.Key + "," + p.Secret
 		return dnspod.NewDNSProviderConfig(c)
+	case "tencentcloud":
+		c := tencentcloud.NewDefaultConfig()
+		c.SecretID = p.Key
+		c.SecretKey = p.Secret
+		return tencentcloud.NewDNSProviderConfig(c)
+	case "huaweicloud":
+		c := huaweicloud.NewDefaultConfig()
+		c.AccessKeyID = p.Key
+		c.SecretAccessKey = p.Secret
+		// DNS 是全局服务，任一区域端点均可管理公共域名，固定默认区域
+		c.Region = "cn-north-4"
+		return huaweicloud.NewDNSProviderConfig(c)
+	case "godaddy":
+		c := godaddy.NewDefaultConfig()
+		c.APIKey = p.Key
+		c.APISecret = p.Secret
+		return godaddy.NewDNSProviderConfig(c)
+	case "route53":
+		c := route53.NewDefaultConfig()
+		c.AccessKeyID = p.Key
+		c.SecretAccessKey = p.Secret
+		c.Region = "us-east-1" // Route53 是全局服务，SDK 仅要求非空区域
+		return route53.NewDNSProviderConfig(c)
 	}
 	return nil, fmt.Errorf("不支持的服务商类型: %s", p.Type)
 }
@@ -269,11 +302,11 @@ func renewDaysOf(c *config.CertConf) int {
 }
 
 // needRenew 判断是否需要续签：NotAfter 缺失、解析失败或距到期 <= RenewDays。
-func needRenew(c *config.CertConf, now time.Time) bool {
-	if c.NotAfter == "" {
+func needRenew(c *config.CertConf, st config.CertState, now time.Time) bool {
+	if st.NotAfter == "" {
 		return true
 	}
-	notAfter, err := time.Parse(time.RFC3339, c.NotAfter)
+	notAfter, err := time.Parse(time.RFC3339, st.NotAfter)
 	if err != nil {
 		return true
 	}
@@ -312,26 +345,25 @@ func (m *Manager) invalidate(certID string) {
 	m.mu.Unlock()
 }
 
-// setResult 申请结束后回写 CertConf 的证书路径、到期时间与错误信息。
+// setResult 申请结束后回写运行状态库的证书路径、到期时间与错误信息，
+// 并立即落盘（申请是低频高成本事件，不等去抖窗口）。
 func (m *Manager) setResult(certID, notAfter, lastErr string) {
-	err := m.cfg.Update(func(cfg *config.Config) error {
-		for i := range cfg.Certs {
-			if cfg.Certs[i].ID != certID {
-				continue
-			}
-			c := &cfg.Certs[i]
-			if lastErr == "" {
-				c.CertFile = filepath.Join("certs", certID+".crt")
-				c.KeyFile = filepath.Join("certs", certID+".key")
-				c.NotAfter = notAfter
-			}
-			c.LastError = lastErr
-			return nil
+	if _, ok := m.findCert(certID); !ok {
+		return // 申请期间证书已被删除，不留孤儿状态
+	}
+	st := m.cfg.State()
+	st.Update(func(s *config.State) {
+		cs := s.Certs[certID]
+		if lastErr == "" {
+			cs.CertFile = filepath.Join("certs", certID+".crt")
+			cs.KeyFile = filepath.Join("certs", certID+".key")
+			cs.NotAfter = notAfter
 		}
-		return fmt.Errorf("证书不存在: %s", certID)
+		cs.LastError = lastErr
+		s.Certs[certID] = cs
 	})
-	if err != nil {
-		log.Printf("[acme] 保存配置失败: %v", err)
+	if err := st.Flush(); err != nil {
+		log.Printf("[acme] 保存运行状态失败: %v", err)
 	}
 }
 
@@ -560,9 +592,71 @@ func (m *Manager) Start() {
 	}()
 }
 
+// Reload 立即按当前配置重新协调：清理已删除/禁用证书的缓存，
+// 申请缺失或临期的证书。可并发调用：进行中的协调会合并后续调用，
+// 结束后至多再跑一次，不会并发重叠。
+func (m *Manager) Reload() {
+	m.reloadMu.Lock()
+	if m.stopped {
+		m.reloadMu.Unlock()
+		return
+	}
+	if m.reloadRunning {
+		m.reloadPending = true
+		m.reloadMu.Unlock()
+		return
+	}
+	m.reloadRunning = true
+	m.wg.Add(1) // 在 reloadMu 内 Add，与 Stop 的 Wait 形成顺序，避免竞态
+	m.reloadMu.Unlock()
+	go func() {
+		defer m.wg.Done()
+		for {
+			m.reconcile()
+			m.reloadMu.Lock()
+			if !m.reloadPending || m.ctx.Err() != nil {
+				m.reloadRunning = false
+				m.reloadPending = false
+				m.reloadMu.Unlock()
+				return
+			}
+			m.reloadPending = false
+			m.reloadMu.Unlock()
+		}
+	}()
+}
+
+// reconcile 一次完整协调：先剪除失效缓存，再扫描申请。
+func (m *Manager) reconcile() {
+	m.pruneCache()
+	m.scan()
+}
+
+// pruneCache 丢弃已删除或已禁用证书的缓存。
+func (m *Manager) pruneCache() {
+	m.cfg.RLock()
+	active := make(map[string]bool, len(m.cfg.Certs))
+	for _, c := range m.cfg.Certs {
+		if c.Enabled {
+			active[c.ID] = true
+		}
+	}
+	m.cfg.RUnlock()
+	m.mu.Lock()
+	for id := range m.cache {
+		if !active[id] {
+			delete(m.cache, id)
+		}
+	}
+	m.mu.Unlock()
+}
+
 // Stop 停止后台续签循环并等待退出；先取消进行中的申请，可重复调用。
 func (m *Manager) Stop() {
 	m.stopOnce.Do(func() {
+		m.reloadMu.Lock()
+		m.stopped = true
+		m.reloadMu.Unlock()
 		m.cancel()
 		close(m.stopCh)
 		m.wg.Wait()
@@ -589,7 +683,7 @@ func (m *Manager) scan() {
 		_, certErr := os.Stat(certFile)
 		_, keyErr := os.Stat(keyFile)
 		missing := certErr != nil || keyErr != nil
-		if !missing && !needRenew(c, now) {
+		if !missing && !needRenew(c, m.cfg.State().Cert(c.ID), now) {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(m.ctx, 10*time.Minute)

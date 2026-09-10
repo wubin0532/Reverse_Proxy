@@ -15,14 +15,39 @@ const routes = [
     component: () => import('../layout/Layout.vue'),
     redirect: '/dashboard',
     children: [
-      { path: 'dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue'), meta: { titleKey: 'nav.dashboard' } },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('../views/Dashboard.vue'),
+        meta: { titleKey: 'nav.dashboard' }
+      },
       { path: 'ddns', name: 'DDNS', component: () => import('../views/DDNS.vue'), meta: { titleKey: 'nav.ddns' } },
       { path: 'certs', name: 'Certs', component: () => import('../views/Certs.vue'), meta: { titleKey: 'nav.certs' } },
-      { path: 'web-service', name: 'WebService', component: () => import('../views/WebService.vue'), meta: { titleKey: 'nav.webServiceTitle' } },
-      { path: 'forward', name: 'Forward', component: () => import('../views/Forward.vue'), meta: { titleKey: 'nav.forward' } },
-      { path: 'notifications', name: 'Notifications', component: () => import('../views/Notifications.vue'), meta: { titleKey: 'nav.notifications' } },
+      {
+        path: 'web-service',
+        name: 'WebService',
+        component: () => import('../views/WebService.vue'),
+        meta: { titleKey: 'nav.webServiceTitle' }
+      },
+      {
+        path: 'forward',
+        name: 'Forward',
+        component: () => import('../views/Forward.vue'),
+        meta: { titleKey: 'nav.forward' }
+      },
+      {
+        path: 'notifications',
+        name: 'Notifications',
+        component: () => import('../views/Notifications.vue'),
+        meta: { titleKey: 'nav.notifications' }
+      },
       { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue'), meta: { titleKey: 'nav.logs' } },
-      { path: 'settings', redirect: '/dashboard' }
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('../views/Settings.vue'),
+        meta: { titleKey: 'nav.settings' }
+      }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
@@ -30,10 +55,10 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(),
-	routes,
-	scrollBehavior() {
-		return { top: 0, left: 0 }
-	}
+  routes,
+  scrollBehavior() {
+    return { top: 0, left: 0 }
+  }
 })
 
 router.beforeEach(async (to) => {

@@ -41,10 +41,11 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, w
 			}
 		}
 		for _, cert := range certs {
-			if cert.LastError != "" {
-				issues = append(issues, map[string]string{"module": "证书", "id": cert.ID, "message": cert.LastError, "path": "/certs"})
+			st := cfg.State().Cert(cert.ID)
+			if st.LastError != "" {
+				issues = append(issues, map[string]string{"module": "证书", "id": cert.ID, "message": st.LastError, "path": "/certs"})
 			}
-			if expires, err := time.Parse(time.RFC3339, cert.NotAfter); err == nil && expires.After(time.Now()) {
+			if expires, err := time.Parse(time.RFC3339, st.NotAfter); err == nil && expires.After(time.Now()) {
 				stats["certsOk"]++
 			}
 		}

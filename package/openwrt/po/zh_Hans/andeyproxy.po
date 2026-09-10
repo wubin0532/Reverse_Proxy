@@ -1,0 +1,168 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-andeyproxy\n"
+"POT-Creation-Date: 2026-09-10\n"
+"PO-Revision-Date: 2026-09-10\n"
+"Last-Translator: andey\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Running"
+msgstr "运行中"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Stopped"
+msgstr "未运行"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Enabled"
+msgstr "已启用"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Disabled"
+msgstr "未启用"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Querying…"
+msgstr "查询中…"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Unknown"
+msgstr "未知"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Unavailable"
+msgstr "无法获取"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Not generated yet"
+msgstr "尚未生成"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "This is the initial password generated on first start (admin user \"admin\"); change it immediately after login. It will no longer be shown here once changed."
+msgstr "这是首次启动生成的初始密码（管理员 admin），登录后请立即修改；修改后此处不再显示。"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Initial password changed or not generated yet"
+msgstr "已修改初始密码或尚未生成"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Runtime status"
+msgstr "运行状态"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Panel URL"
+msgstr "面板地址"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Service status"
+msgstr "服务状态"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "andey-Proxy started"
+msgstr "andey-Proxy 已启动"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Start"
+msgstr "启动"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "andey-Proxy stopped"
+msgstr "andey-Proxy 已停止"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Stop"
+msgstr "停止"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "\"Enabled\" is not checked; save and apply first, then start the service."
+msgstr "未勾选“启用”，请先保存并应用后再启动"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "CPU architecture"
+msgstr "CPU 架构"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Version"
+msgstr "版本"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Config files"
+msgstr "配置文件"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Initial password"
+msgstr "初始密码"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "All-in-one tool for DDNS / reverse proxy / ACME certificates / port forwarding. For detailed configuration use the \"Admin Panel\" page."
+msgstr "DDNS / 反向代理 / ACME 证书 / 端口转发一体工具。详细配置请使用左侧“管理面板”。"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Basic settings"
+msgstr "基本设置"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Enable"
+msgstr "启用"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "The service restarts automatically after save & apply."
+msgstr "保存并应用后自动重启服务"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Allow plain HTTP"
+msgstr "允许明文 HTTP"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Disabled by default. Only for legacy devices that cannot use HTTPS; a security warning is shown while enabled."
+msgstr "默认关闭。仅用于无法连接 HTTPS 的旧设备，启用后会持续显示安全警告。"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Admin port"
+msgstr "后台端口"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Config directory"
+msgstr "配置目录"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Stores configuration, certificates and other runtime data."
+msgstr "存放配置、证书等运行数据"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "The config directory must be a dedicated subdirectory under /etc/ and must not contain .."
+msgstr "配置目录必须是 /etc/ 下的专用子目录，且不能包含 .."
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "andey-Proxy service restarted"
+msgstr "andey-Proxy 服务已重启"
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "Admin panel URL:"
+msgstr "管理面板地址："
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "Open admin panel in new window"
+msgstr "新窗口打开管理面板"
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "The admin panel uses HTTPS by default. The initial password is randomly generated and shown only once in the startup log."
+msgstr "管理面板默认使用 HTTPS，首次密码随机生成并仅在启动日志显示一次"
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "To prevent the admin session from being hijacked by embedding, the panel only opens in a new HTTPS window."
+msgstr "为防止管理会话被嵌入劫持，面板只在 HTTPS 新窗口中打开。"
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "Google Authenticator can be bound under \"Account Security\" at the top right of the panel. If both the authenticator and the recovery codes are lost, stop the service first, then run on the device terminal:"
+msgstr "Google Authenticator 可在面板右上角“账户安全”中绑定。若验证器和恢复码均丢失，请先停止服务，再在设备终端执行："
+
+#: usr/share/luci/menu.d/luci-app-andeyproxy.json
+msgid "Admin Panel"
+msgstr "管理面板"

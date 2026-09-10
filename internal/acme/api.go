@@ -44,22 +44,40 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, m *Manager) {
 	r.Get("/api/certs/{id}/download", h.downloadCert)
 }
 
-// certView 列表视图：附带运行状态。
+// certView 证书视图：用户配置 + 运行状态（state.json）合成，保持 API 响应结构不变。
 type certView struct {
 	config.CertConf
+	CertFile  string `json:"certFile"`
+	KeyFile   string `json:"keyFile"`
+	NotAfter  string `json:"notAfter"`
+	LastError string `json:"lastError,omitempty"`
 	Status    string `json:"status"`    // pending / ok / expiring / expired / error
 	Obtaining bool   `json:"obtaining"` // 是否正在申请中
 }
 
-// statusOf 根据配置计算证书状态。
-func statusOf(c *config.CertConf, now time.Time) string {
-	if c.NotAfter == "" {
-		if c.LastError != "" {
+// viewOf 由配置与运行状态合成证书视图。
+func (h *handler) viewOf(c config.CertConf, now time.Time) certView {
+	st := h.cfg.State().Cert(c.ID)
+	return certView{
+		CertConf:  c,
+		CertFile:  st.CertFile,
+		KeyFile:   st.KeyFile,
+		NotAfter:  st.NotAfter,
+		LastError: st.LastError,
+		Status:    statusOf(&c, st, now),
+		Obtaining: h.m.Obtaining(c.ID),
+	}
+}
+
+// statusOf 根据配置与运行状态计算证书状态。
+func statusOf(c *config.CertConf, st config.CertState, now time.Time) string {
+	if st.NotAfter == "" {
+		if st.LastError != "" {
 			return "error"
 		}
 		return "pending"
 	}
-	notAfter, err := time.Parse(time.RFC3339, c.NotAfter)
+	notAfter, err := time.Parse(time.RFC3339, st.NotAfter)
 	if err != nil {
 		return "error"
 	}
@@ -80,12 +98,7 @@ func (h *handler) listCerts(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	views := make([]certView, 0, len(certs))
 	for i := range certs {
-		c := &certs[i]
-		views = append(views, certView{
-			CertConf:  *c,
-			Status:    statusOf(c, now),
-			Obtaining: h.m.Obtaining(c.ID),
-		})
+		views = append(views, h.viewOf(certs[i], now))
 	}
 	api.OK(w, views)
 }
@@ -160,7 +173,6 @@ func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.ID = ""
-	c.CertFile, c.KeyFile, c.NotAfter, c.LastError = "", "", "", ""
 	if code, msg := h.validateCert(&c); code != 0 {
 		api.Fail(w, code, msg)
 		return
@@ -173,8 +185,9 @@ func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, 500, "保存配置失败")
 		return
 	}
+	h.m.Reload()
 	log.Printf("[security] 新增证书配置，ID: %s", c.ID)
-	api.OK(w, c)
+	api.OK(w, h.viewOf(c, time.Now()))
 }
 
 func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
@@ -189,18 +202,14 @@ func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, code, msg)
 		return
 	}
+	domainsChanged := false
 	err := h.cfg.Update(func(cfg *config.Config) error {
 		for i := range cfg.Certs {
 			if cfg.Certs[i].ID != id {
 				continue
 			}
-			old := cfg.Certs[i]
-			// 保留原有证书文件与状态；域名变化时作废，等待重新申请
-			c.CertFile, c.KeyFile = old.CertFile, old.KeyFile
-			c.NotAfter, c.LastError = old.NotAfter, old.LastError
-			if !sameDomains(old.Domains, c.Domains) {
-				c.CertFile, c.KeyFile, c.NotAfter, c.LastError = "", "", "", ""
-			}
+			// 运行状态按证书 ID 存于状态库，配置更新天然保留；域名变化时作废，等待重新申请
+			domainsChanged = !sameDomains(cfg.Certs[i].Domains, c.Domains)
 			cfg.Certs[i] = c
 			return nil
 		}
@@ -214,9 +223,13 @@ func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, 500, "保存配置失败")
 		return
 	}
+	if domainsChanged {
+		h.cfg.State().Update(func(s *config.State) { delete(s.Certs, id) })
+	}
 	h.m.invalidate(id)
+	h.m.Reload()
 	log.Printf("[security] 修改证书配置，ID: %s", id)
-	api.OK(w, c)
+	api.OK(w, h.viewOf(c, time.Now()))
 }
 
 func sameDomains(a, b []string) bool {
@@ -264,6 +277,7 @@ func (h *handler) deleteCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.m.RemoveFiles(&removed)
+	h.cfg.State().Update(func(s *config.State) { delete(s.Certs, id) })
 	log.Printf("[security] 删除证书配置，ID: %s", id)
 	api.OK(w, nil)
 }
@@ -292,6 +306,7 @@ func (h *handler) toggleCert(w http.ResponseWriter, r *http.Request) {
 	if !enabled {
 		h.m.invalidate(id)
 	}
+	h.m.Reload()
 	log.Printf("[security] 切换证书配置，ID: %s，启用: %t", id, enabled)
 	api.OK(w, map[string]bool{"enabled": enabled})
 }
@@ -310,7 +325,7 @@ func (h *handler) obtainCert(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		ctx, cancel := context.WithTimeout(h.m.ctx, 10*time.Minute) // 派生自 Manager 生命周期，Stop 时取消
 		defer cancel()
-		h.m.Obtain(ctx, id) // 结果回写到 LastError / NotAfter，前端轮询即可
+		h.m.Obtain(ctx, id) // 结果回写到运行状态库（LastError / NotAfter），前端轮询即可
 	}()
 	api.OK(w, map[string]bool{"obtaining": true})
 }

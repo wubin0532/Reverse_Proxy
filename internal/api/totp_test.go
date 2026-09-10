@@ -201,6 +201,49 @@ func TestTOTPRejectsHTTPExpiredReplayAndExcessAttempts(t *testing.T) {
 	}
 }
 
+// R8 回归：TOTP 防重放计数器落 state.json，进程重启（重新加载配置目录）后
+// 同一动态码仍被拒绝。
+func TestTOTPCounterPersistsAcrossRestart(t *testing.T) {
+	s, handler := testServer(t)
+	key, err := auth.GenerateTOTP("admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, hashes, err := auth.GenerateRecoveryCodes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.Update(func(c *config.Config) error {
+		c.Settings.TOTPEnabled = true
+		c.Settings.TOTPSecret = key.Secret()
+		c.Settings.TOTPRecoveryHashes = hashes
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	code, err := totp.GenerateCode(key.Secret(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	challenge := loginPassword(t, handler, "192.0.2.60").Data.ChallengeID
+	_ = loginFactor(t, handler, "192.0.2.60", challenge, code)
+	if got := s.cfg.State().TOTPCounter(); got <= 0 {
+		t.Fatalf("登录成功后计数器未记录: %d", got)
+	}
+
+	// 模拟重启：从同一目录重新加载配置（状态库从 state.json 恢复），重建 Server。
+	cfg2, err := config.Load(s.cfg.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler2 := NewServer(cfg2, true).Router()
+	challenge2 := loginPassword(t, handler2, "192.0.2.61").Data.ChallengeID
+	replay := apiRequest(handler2, http.MethodPost, "/api/login/totp", `{"challengeId":"`+challenge2+`","code":"`+code+`"}`, "https://router.local", "192.0.2.61:1000", nil)
+	if replay.Code != http.StatusForbidden {
+		t.Fatalf("重启后重放同一动态码应被拒绝，得到 %d", replay.Code)
+	}
+}
+
 func TestPasswordChangeRevokesPendingTOTPChallenge(t *testing.T) {
 	s, _ := testServer(t)
 	key, err := auth.GenerateTOTP("admin")

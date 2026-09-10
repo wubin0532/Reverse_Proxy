@@ -49,7 +49,8 @@ type DDNSTask struct {
 	TTL        int      `json:"ttl"`        // DNS 记录 TTL，0=默认
 }
 
-// CertConf 一张 ACME 证书。
+// CertConf 一张 ACME 证书。申请结果（证书路径、到期时间、最近错误）属运行状态，
+// 存于 StateStore（state.json），不落加密配置。
 type CertConf struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
@@ -59,10 +60,6 @@ type CertConf struct {
 	Email      string   `json:"email"`
 	CADirURL   string   `json:"caDirUrl"`  // 空=Let's Encrypt 生产
 	RenewDays  int      `json:"renewDays"` // 到期前多少天续签，默认 30
-	CertFile   string   `json:"certFile"`  // 相对配置目录
-	KeyFile    string   `json:"keyFile"`
-	NotAfter   string   `json:"notAfter"` // 最近证书到期时间 RFC3339
-	LastError  string   `json:"lastError,omitempty"`
 }
 
 // SubRule Web 服务子规则。
@@ -138,7 +135,6 @@ type Settings struct {
 	TOTPEnabled        bool                 `json:"totpEnabled,omitempty"`
 	TOTPSecret         string               `json:"totpSecret,omitempty"`
 	TOTPRecoveryHashes []string             `json:"totpRecoveryHashes,omitempty"`
-	TOTPLastCounter    int64                `json:"totpLastCounter,omitempty"` // 最近一次验证成功的 TOTP 计数器，防重放
 	Notifications      NotificationSettings `json:"notifications,omitempty"`
 }
 
@@ -172,6 +168,7 @@ type Config struct {
 	keyPath   string
 	key       []byte
 	persisted []byte
+	state     *StateStore
 }
 
 // Load 从目录加载配置，不存在则创建默认配置。
@@ -185,7 +182,7 @@ func Load(dir string) (*Config, error) {
 	_ = os.Chmod(dir, 0o700)
 	fp := filepath.Join(dir, "config.json")
 	keyPath := dir + ".key"
-	c := &Config{filePath: fp, keyPath: keyPath}
+	c := &Config{filePath: fp, keyPath: keyPath, state: LoadState(dir)}
 	data, err := os.ReadFile(fp)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -230,6 +227,9 @@ func Load(dir string) (*Config, error) {
 			c.DDNS[i].Interface = "auto"
 		}
 	}
+	// 旧版本把证书申请结果与 TOTP 防重放计数器落在加密配置里；迁入运行状态库
+	// （只填充状态库缺失的条目），随后规范化重写即以剥离运行字段后的结构体重写配置。
+	_ = c.state.seedRuntimeState(plain)
 	_ = os.Chmod(fp, 0o600)
 	c.filePath = fp
 	c.keyPath = keyPath
@@ -341,6 +341,9 @@ func (c *Config) rollbackLocked(snapshot []byte) {
 // Dir 返回配置目录。
 func (c *Config) Dir() string { return filepath.Dir(c.filePath) }
 
+// State 返回运行状态库（证书申请结果、TOTP 防重放计数器等），随 Load 创建。
+func (c *Config) State() *StateStore { return c.state }
+
 // PlainJSON 返回配置的明文 JSON（导出备份用）。明文绝不写日志。
 func (c *Config) PlainJSON() ([]byte, error) {
 	c.mu.RLock()
@@ -363,7 +366,7 @@ func (c *Config) Restore(plain []byte) error {
 			return fmt.Errorf("备份当前配置失败: %w", err)
 		}
 	}
-	return c.Update(func(cur *Config) error {
+	if err := c.Update(func(cur *Config) error {
 		cur.Settings = incoming.Settings
 		cur.Providers = incoming.Providers
 		cur.DDNS = incoming.DDNS
@@ -371,7 +374,13 @@ func (c *Config) Restore(plain []byte) error {
 		cur.Sites = incoming.Sites
 		cur.Forwards = incoming.Forwards
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// 旧版备份可能携带运行状态（证书申请结果、TOTP 计数器）：迁入状态库，
+	// 不覆盖设备上已有状态，也不再写回加密配置——备份只含用户配置。
+	_ = c.state.seedRuntimeState(plain)
+	return nil
 }
 
 // RLock / RUnlock / Lock / Unlock 供各模块在读写配置字段时加锁。

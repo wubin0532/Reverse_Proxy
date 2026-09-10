@@ -1,0 +1,1 @@
+import{k as o,r as s}from"./vue-CqwxUHbc.js";function i(a,u){const e=s(!1);let t=null;function r(){t||(t=setInterval(a,u),e.value=!0)}function n(){clearInterval(t),t=null,e.value=!1}function l(){n(),r()}return o(n),{active:e,start:r,stop:n,restart:l}}export{i as u};

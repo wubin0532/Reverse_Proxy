@@ -1,6 +1,7 @@
 package forward
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +20,10 @@ func NewRingLog(capacity int) *RingLog {
 }
 
 func (r *RingLog) Add(msg string) {
+	// 环形日志按行展示，内嵌换行会破坏一行一条的结构，转义为可见的 \n。
+	msg = strings.ReplaceAll(msg, "\r\n", "\n")
+	msg = strings.ReplaceAll(msg, "\r", "")
+	msg = strings.ReplaceAll(msg, "\n", `\n`)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entries = append(r.entries, time.Now().Format("2006-01-02 15:04:05")+" "+logcenter.Redact(msg))

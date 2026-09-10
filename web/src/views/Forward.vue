@@ -22,15 +22,21 @@
           <el-switch :model-value="row.enabled" @change="toggleRule(row)" />
         </template>
       </el-table-column>
-      <el-table-column :label="$t('forward.colActions')" width="220" fixed="right">
+      <el-table-column
+        :label="$t('forward.colActions')"
+        :width="isMobile ? 140 : 220"
+        :fixed="isMobile ? false : 'right'"
+      >
         <template #default="{ row }">
-          <el-button link type="primary" @click="openLogs(row)">{{ $t('common.logs') }}</el-button>
-          <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
-          <el-popconfirm :title="$t('forward.deleteConfirm')" @confirm="deleteRule(row)">
-            <template #reference>
-              <el-button link type="danger">{{ $t('common.delete') }}</el-button>
-            </template>
-          </el-popconfirm>
+          <div class="action-cell">
+            <el-button link type="primary" @click="openLogs(row)">{{ $t('common.logs') }}</el-button>
+            <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
+            <el-popconfirm :title="$t('forward.deleteConfirm')" @confirm="deleteRule(row)">
+              <template #reference>
+                <el-button link type="danger">{{ $t('common.delete') }}</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
         </template>
       </el-table-column>
       <template #empty><el-empty :description="$t('forward.empty')" :image-size="60" /></template>
@@ -57,10 +63,7 @@
           <el-input v-model="dialog.form.listen" :placeholder="$t('forward.listenPlaceholder')" />
         </el-form-item>
         <el-form-item :label="$t('forward.targets')" prop="targetsText">
-          <el-input
-            v-model="dialog.form.targetsText"
-            :placeholder="$t('forward.targetsPlaceholder')"
-          />
+          <el-input v-model="dialog.form.targetsText" :placeholder="$t('forward.targetsPlaceholder')" />
         </el-form-item>
         <el-form-item :label="$t('forward.firewall')">
           <el-switch v-model="dialog.form.autoFw" />
@@ -73,9 +76,9 @@
             <el-option value="blacklist" :label="$t('common.ipBlacklist')" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="dialog.form.ipListMode" :label="$t('common.ipList')">
+        <el-form-item v-if="dialog.form.ipListMode" :label="$t('common.ipList')" prop="ipListText">
           <el-input
-            v-model="dialog.ipListText"
+            v-model="dialog.form.ipListText"
             type="textarea"
             :rows="2"
             :placeholder="$t('common.ipListPlaceholder')"
@@ -101,12 +104,21 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
+import { ipListValidator, listenValidator, targetsValidator } from '../utils/validate'
+import { splitList } from '../utils/list'
+import { useCrudDialog } from '../composables/useCrudDialog'
+import { useIntervalFn } from '../composables/useIntervalFn'
 
 const { t } = useI18n()
+
+const isMobile = ref(window.innerWidth < 768)
+function onResize() {
+  isMobile.value = window.innerWidth < 768
+}
 
 const rules = ref([])
 const loading = ref(false)
@@ -116,72 +128,62 @@ function protoText(p) {
   return protoTexts[p] || p
 }
 
-const formRef = ref()
-const dialog = reactive({
-  visible: false,
-  isEdit: false,
-  saving: false,
-  ipListText: '',
-  form: { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', autoFw: false, ipListMode: '', enabled: true }
+const {
+  formRef,
+  dialog,
+  open: openDialog,
+  submit: save
+} = useCrudDialog({
+  emptyForm: () => ({
+    id: '',
+    name: '',
+    proto: 'tcp',
+    listen: '',
+    targetsText: '',
+    autoFw: false,
+    ipListMode: '',
+    ipListText: '',
+    enabled: true
+  }),
+  fromRow: (row) => ({
+    id: row.id,
+    name: row.name,
+    proto: row.proto || 'tcp',
+    listen: row.listen,
+    targetsText: (row.targets || []).join(', '),
+    autoFw: !!row.autoFw,
+    ipListMode: row.ipListMode || '',
+    ipListText: (row.ipList || []).join(', '),
+    enabled: row.enabled
+  }),
+  onSubmit: (f, d) => {
+    const body = {
+      name: f.name,
+      enabled: f.enabled,
+      proto: f.proto,
+      listen: f.listen,
+      targets: splitList(f.targetsText),
+      autoFw: f.autoFw,
+      ipListMode: f.ipListMode,
+      ipList: f.ipListMode ? splitList(f.ipListText) : []
+    }
+    return d.isEdit ? request.put(`/api/forwards/${f.id}`, body) : request.post('/api/forwards', body)
+  },
+  onSaved: () => load()
 })
 
 const formRules = computed(() => ({
   name: [{ required: true, message: t('forward.nameRequired'), trigger: 'blur' }],
-  listen: [{ required: true, message: t('forward.listenRequired'), trigger: 'blur' }],
-  targetsText: [{ required: true, message: t('forward.targetsRequired'), trigger: 'blur' }]
+  listen: [
+    { required: true, message: t('forward.listenRequired'), trigger: 'blur' },
+    { validator: listenValidator(t), trigger: 'blur' }
+  ],
+  targetsText: [
+    { required: true, message: t('forward.targetsRequired'), trigger: 'blur' },
+    { validator: targetsValidator(t), trigger: 'blur' }
+  ],
+  ipListText: [{ validator: ipListValidator(t), trigger: 'blur' }]
 }))
-
-function openDialog(row) {
-  dialog.isEdit = !!row
-  dialog.form = row
-    ? {
-        id: row.id,
-        name: row.name,
-        proto: row.proto || 'tcp',
-        listen: row.listen,
-        targetsText: (row.targets || []).join(', '),
-        autoFw: !!row.autoFw,
-        ipListMode: row.ipListMode || '',
-        enabled: row.enabled
-      }
-    : { id: '', name: '', proto: 'tcp', listen: '', targetsText: '', autoFw: false, ipListMode: '', enabled: true }
-  dialog.ipListText = row ? (row.ipList || []).join(', ') : ''
-  dialog.visible = true
-}
-
-function splitList(text) {
-  return (text || '').split(',').map((s) => s.trim()).filter(Boolean)
-}
-
-async function save() {
-  await formRef.value.validate()
-  const f = dialog.form
-  const body = {
-    name: f.name,
-    enabled: f.enabled,
-    proto: f.proto,
-    listen: f.listen,
-    targets: splitList(f.targetsText),
-    autoFw: f.autoFw,
-    ipListMode: f.ipListMode,
-    ipList: f.ipListMode ? splitList(dialog.ipListText) : []
-  }
-  dialog.saving = true
-  try {
-    if (dialog.isEdit) {
-      await request.put(`/api/forwards/${f.id}`, body)
-    } else {
-      await request.post('/api/forwards', body)
-    }
-    ElMessage.success(t('common.saveSuccess'))
-    dialog.visible = false
-    load()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    dialog.saving = false
-  }
-}
 
 async function toggleRule(row) {
   try {
@@ -221,6 +223,15 @@ async function loadLogs() {
   }
 }
 
+// 抽屉打开期间每 5s 自动刷新，关闭即停止
+const logsPoller = useIntervalFn(loadLogs, 5000)
+watch(
+  () => logsDrawer.visible,
+  (visible) => {
+    visible ? logsPoller.start() : logsPoller.stop()
+  }
+)
+
 async function load() {
   loading.value = true
   try {
@@ -233,7 +244,13 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  window.addEventListener('resize', onResize)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+})
 </script>
 
 <style scoped>
@@ -256,8 +273,29 @@ onMounted(load)
 }
 .log-line {
   padding: 3px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--ap-border-soft);
   word-break: break-all;
   color: var(--ap-text);
+}
+.action-cell {
+  display: flex;
+  flex-wrap: wrap;
+}
+.action-cell .el-button + .el-button {
+  margin-left: 8px;
+}
+@media (max-width: 850px) {
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+@media (max-width: 767px) {
+  .form-tip {
+    display: block;
+    margin-left: 0;
+    margin-top: 4px;
+  }
 }
 </style>

@@ -12,7 +12,7 @@
 		}
 	},
 	"admin/services/andeyproxy/panel": {
-		"title": "管理面板",
+		"title": "Admin Panel",
 		"order": 10,
 		"action": {
 			"type": "view",

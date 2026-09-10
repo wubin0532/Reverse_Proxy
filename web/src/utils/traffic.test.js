@@ -13,7 +13,11 @@ describe('calculateTrafficRates', () => {
   it('returns zero for the first sample and after counters reset', () => {
     const current = { s1: { bytesIn: 10, bytesOut: 20, rules: { r1: { bytesIn: 5, bytesOut: 8 } } } }
     expect(calculateTrafficRates(current, {}, 0).s1.bytesIn).toBe(0)
-    const reset = calculateTrafficRates(current, { s1: { bytesIn: 100, bytesOut: 200, rules: { r1: { bytesIn: 50, bytesOut: 80 } } } }, 3)
+    const reset = calculateTrafficRates(
+      current,
+      { s1: { bytesIn: 100, bytesOut: 200, rules: { r1: { bytesIn: 50, bytesOut: 80 } } } },
+      3
+    )
     expect(reset.s1.bytesOut).toBe(0)
     expect(reset.s1.rules.r1.bytesIn).toBe(0)
   })

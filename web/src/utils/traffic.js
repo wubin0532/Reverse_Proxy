@@ -1,6 +1,6 @@
 export function calculateTrafficRates(current = {}, previous = {}, elapsedSeconds = 0) {
   const result = {}
-  const rate = (value = 0, old = 0) => elapsedSeconds > 0 && value >= old ? (value - old) / elapsedSeconds : 0
+  const rate = (value = 0, old = 0) => (elapsedSeconds > 0 && value >= old ? (value - old) / elapsedSeconds : 0)
   for (const [siteID, site] of Object.entries(current)) {
     const oldSite = previous?.[siteID]
     result[siteID] = {

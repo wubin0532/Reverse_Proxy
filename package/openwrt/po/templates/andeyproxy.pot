@@ -1,0 +1,168 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-andeyproxy\n"
+"POT-Creation-Date: 2026-09-10\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Running"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Stopped"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Enabled"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Disabled"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Querying…"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Unknown"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Unavailable"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Not generated yet"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "This is the initial password generated on first start (admin user \"admin\"); change it immediately after login. It will no longer be shown here once changed."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Initial password changed or not generated yet"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Runtime status"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Panel URL"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Service status"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "andey-Proxy started"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Start"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "andey-Proxy stopped"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Stop"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "\"Enabled\" is not checked; save and apply first, then start the service."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "CPU architecture"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Version"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Config files"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Initial password"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "All-in-one tool for DDNS / reverse proxy / ACME certificates / port forwarding. For detailed configuration use the \"Admin Panel\" page."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Basic settings"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Enable"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "The service restarts automatically after save & apply."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Allow plain HTTP"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Disabled by default. Only for legacy devices that cannot use HTTPS; a security warning is shown while enabled."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Admin port"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Config directory"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "Stores configuration, certificates and other runtime data."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "The config directory must be a dedicated subdirectory under /etc/ and must not contain .."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/settings.js
+msgid "andey-Proxy service restarted"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "Admin panel URL:"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "Open admin panel in new window"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "The admin panel uses HTTPS by default. The initial password is randomly generated and shown only once in the startup log."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "To prevent the admin session from being hijacked by embedding, the panel only opens in a new HTTPS window."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/andeyproxy/panel.js
+msgid "Google Authenticator can be bound under \"Account Security\" at the top right of the panel. If both the authenticator and the recovery codes are lost, stop the service first, then run on the device terminal:"
+msgstr ""
+
+#: usr/share/luci/menu.d/luci-app-andeyproxy.json
+msgid "Admin Panel"
+msgstr ""

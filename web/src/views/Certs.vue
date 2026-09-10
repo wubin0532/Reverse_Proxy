@@ -40,19 +40,25 @@
           <el-switch :model-value="row.enabled" @change="toggleCert(row)" />
         </template>
       </el-table-column>
-      <el-table-column :label="$t('certs.colActions')" width="280" fixed="right">
+      <el-table-column
+        :label="$t('certs.colActions')"
+        :width="isMobile ? 180 : 280"
+        :fixed="isMobile ? false : 'right'"
+      >
         <template #default="{ row }">
-          <el-button link type="primary" :disabled="row.obtaining" @click="obtainCert(row)">
-            {{ row.status === 'ok' || row.status === 'expiring' ? $t('certs.reissue') : $t('certs.obtain') }}
-          </el-button>
-          <el-button link type="primary" @click="download(row, 'cert')">{{ $t('certs.cert') }}</el-button>
-          <el-button link type="primary" @click="download(row, 'key')">{{ $t('certs.key') }}</el-button>
-          <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
-          <el-popconfirm :title="$t('certs.deleteConfirm')" @confirm="deleteCert(row)">
-            <template #reference>
-              <el-button link type="danger">{{ $t('common.delete') }}</el-button>
-            </template>
-          </el-popconfirm>
+          <div class="action-cell">
+            <el-button link type="primary" :disabled="row.obtaining" @click="obtainCert(row)">
+              {{ row.status === 'ok' || row.status === 'expiring' ? $t('certs.reissue') : $t('certs.obtain') }}
+            </el-button>
+            <el-button link type="primary" @click="download(row, 'cert')">{{ $t('certs.cert') }}</el-button>
+            <el-button link type="primary" @click="download(row, 'key')">{{ $t('certs.key') }}</el-button>
+            <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
+            <el-popconfirm :title="$t('certs.deleteConfirm')" @confirm="deleteCert(row)">
+              <template #reference>
+                <el-button link type="danger">{{ $t('common.delete') }}</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
         </template>
       </el-table-column>
       <template #empty><el-empty :description="$t('certs.empty')" :image-size="60" /></template>
@@ -77,11 +83,15 @@
           />
         </el-form-item>
         <el-form-item :label="$t('certs.dnsCredential')" prop="providerId">
-          <el-select v-model="dialog.form.providerId" style="width: 100%" :placeholder="$t('certs.providerPlaceholder')">
+          <el-select
+            v-model="dialog.form.providerId"
+            style="width: 100%"
+            :placeholder="$t('certs.providerPlaceholder')"
+          >
             <el-option
               v-for="p in providers"
               :key="p.id"
-              :label="(p.remark || p.id) + '（' + p.type + '）'"
+              :label="(p.remark || p.id) + '（' + providerTypeName(p.type) + '）'"
               :value="p.id"
             />
           </el-select>
@@ -90,10 +100,7 @@
           <el-input v-model="dialog.form.email" :placeholder="$t('certs.emailPlaceholder')" />
         </el-form-item>
         <el-form-item :label="$t('certs.caDir')">
-          <el-input
-            v-model="dialog.form.caDirUrl"
-            :placeholder="$t('certs.caDirPlaceholder')"
-          />
+          <el-input v-model="dialog.form.caDirUrl" :placeholder="$t('certs.caDirPlaceholder')" />
         </el-form-item>
         <el-form-item :label="$t('certs.renewDays')">
           <el-input-number v-model="dialog.form.renewDays" :min="1" :max="89" />
@@ -109,19 +116,32 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
 import { formatTime } from '../utils/format'
+import { splitList } from '../utils/list'
+import { useCrudDialog } from '../composables/useCrudDialog'
+import { useIntervalFn } from '../composables/useIntervalFn'
 
 const { t } = useI18n()
 
 const certs = ref([])
 const providers = ref([])
 const loading = ref(false)
-let pollTimer = null
+const certPoller = useIntervalFn(load, 5000)
+
+const PROVIDER_TYPES = ['aliyun', 'cloudflare', 'dnspod', 'tencentcloud', 'huaweicloud', 'godaddy', 'route53']
+function providerTypeName(type) {
+  return PROVIDER_TYPES.includes(type) ? t(`ddns.providerTypes.${type}`) : type
+}
+
+const isMobile = ref(window.innerWidth < 768)
+function onResize() {
+  isMobile.value = window.innerWidth < 768
+}
 
 const statusTagTypes = {
   pending: 'info',
@@ -137,12 +157,45 @@ function statusTagType(s) {
   return statusTagTypes[s] || 'info'
 }
 
-const formRef = ref()
-const dialog = reactive({
-  visible: false,
-  isEdit: false,
-  saving: false,
-  form: { id: '', name: '', domainsText: '', providerId: '', email: '', caDirUrl: '', renewDays: 30, enabled: true }
+const {
+  formRef,
+  dialog,
+  open: openDialog,
+  submit: save
+} = useCrudDialog({
+  emptyForm: () => ({
+    id: '',
+    name: '',
+    domainsText: '',
+    providerId: '',
+    email: '',
+    caDirUrl: '',
+    renewDays: 30,
+    enabled: true
+  }),
+  fromRow: (row) => ({
+    id: row.id,
+    name: row.name,
+    domainsText: (row.domains || []).join(', '),
+    providerId: row.providerId,
+    email: row.email,
+    caDirUrl: row.caDirUrl || '',
+    renewDays: row.renewDays || 30,
+    enabled: row.enabled
+  }),
+  onSubmit: (f, d) => {
+    const body = {
+      name: f.name,
+      enabled: f.enabled,
+      domains: splitList(f.domainsText),
+      providerId: f.providerId,
+      email: f.email,
+      caDirUrl: f.caDirUrl,
+      renewDays: f.renewDays
+    }
+    return d.isEdit ? request.put(`/api/certs/${f.id}`, body) : request.post('/api/certs', body)
+  },
+  onSaved: () => load()
 })
 
 const rules = computed(() => ({
@@ -151,52 +204,6 @@ const rules = computed(() => ({
   providerId: [{ required: true, message: t('certs.providerRequired'), trigger: 'change' }],
   email: [{ required: true, message: t('certs.emailRequired'), trigger: 'blur' }]
 }))
-
-function openDialog(row) {
-  dialog.isEdit = !!row
-  dialog.form = row
-    ? {
-        id: row.id,
-        name: row.name,
-        domainsText: (row.domains || []).join(', '),
-        providerId: row.providerId,
-        email: row.email,
-        caDirUrl: row.caDirUrl || '',
-        renewDays: row.renewDays || 30,
-        enabled: row.enabled
-      }
-    : { id: '', name: '', domainsText: '', providerId: '', email: '', caDirUrl: '', renewDays: 30, enabled: true }
-  dialog.visible = true
-}
-
-async function save() {
-  await formRef.value.validate()
-  const f = dialog.form
-  const body = {
-    name: f.name,
-    enabled: f.enabled,
-    domains: f.domainsText.split(',').map((s) => s.trim()).filter(Boolean),
-    providerId: f.providerId,
-    email: f.email,
-    caDirUrl: f.caDirUrl,
-    renewDays: f.renewDays
-  }
-  dialog.saving = true
-  try {
-    if (dialog.isEdit) {
-      await request.put(`/api/certs/${f.id}`, body)
-    } else {
-      await request.post('/api/certs', body)
-    }
-    ElMessage.success(t('common.saveSuccess'))
-    dialog.visible = false
-    load()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    dialog.saving = false
-  }
-}
 
 async function toggleCert(row) {
   try {
@@ -210,7 +217,11 @@ async function toggleCert(row) {
 
 async function obtainCert(row) {
   try {
-    await ElMessageBox.confirm(t('certs.obtainConfirm'), t('certs.obtainTitle'), { type: 'warning', confirmButtonText: t('certs.continue'), cancelButtonText: t('common.cancel') })
+    await ElMessageBox.confirm(t('certs.obtainConfirm'), t('certs.obtainTitle'), {
+      type: 'warning',
+      confirmButtonText: t('certs.continue'),
+      cancelButtonText: t('common.cancel')
+    })
   } catch {
     return
   }
@@ -226,7 +237,11 @@ async function obtainCert(row) {
 async function download(row, part) {
   if (part === 'key') {
     try {
-      await ElMessageBox.confirm(t('certs.keyDownloadConfirm'), t('certs.keyDownloadTitle'), { type: 'warning', confirmButtonText: t('certs.download'), cancelButtonText: t('common.cancel') })
+      await ElMessageBox.confirm(t('certs.keyDownloadConfirm'), t('certs.keyDownloadTitle'), {
+        type: 'warning',
+        confirmButtonText: t('certs.download'),
+        cancelButtonText: t('common.cancel')
+      })
     } catch {
       return
     }
@@ -254,13 +269,9 @@ async function load() {
   try {
     const res = await request.get('/api/certs')
     certs.value = res.data || []
-    const anyObtaining = certs.value.some((c) => c.obtaining)
-    if (anyObtaining && !pollTimer) {
-      pollTimer = setInterval(load, 5000)
-    } else if (!anyObtaining && pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
+    // 有证书正在申请时保持轮询，全部完成后停止
+    if (certs.value.some((c) => c.obtaining)) certPoller.start()
+    else certPoller.stop()
   } catch {
     // 拦截器已提示
   } finally {
@@ -280,12 +291,10 @@ async function loadProviders() {
 onMounted(() => {
   load()
   loadProviders()
+  window.addEventListener('resize', onResize)
 })
 onUnmounted(() => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
@@ -309,5 +318,29 @@ onUnmounted(() => {
   margin-left: 10px;
   color: var(--ap-muted);
   font-size: 12px;
+}
+.action-cell {
+  display: flex;
+  flex-wrap: wrap;
+}
+.action-cell .el-button + .el-button {
+  margin-left: 8px;
+}
+@media (max-width: 850px) {
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .error-text {
+    max-width: 100%;
+  }
+}
+@media (max-width: 767px) {
+  .form-tip {
+    display: block;
+    margin-left: 0;
+    margin-top: 4px;
+  }
 }
 </style>

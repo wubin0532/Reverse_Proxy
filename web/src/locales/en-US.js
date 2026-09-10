@@ -43,6 +43,11 @@ export default {
   router: {
     needChangePassword: 'Please change the one-time initial password first'
   },
+  validate: {
+    listenFormat: 'Invalid listen address, e.g. :8080 or 0.0.0.0:443',
+    targetFormat: 'Invalid target address; use host:port (e.g. 192.168.1.10:3389), comma-separated',
+    ipOrCidr: 'Invalid IP or CIDR: {value}'
+  },
   nav: {
     group: 'Network Management',
     dashboard: 'Dashboard',
@@ -52,7 +57,8 @@ export default {
     webServiceTitle: 'Web Services',
     forward: 'Port Forwarding',
     notifications: 'Notification Center',
-    logs: 'Log Center'
+    logs: 'Log Center',
+    settings: 'Settings'
   },
   login: {
     subtitle: 'Securely manage reverse proxies and network entry points',
@@ -88,7 +94,8 @@ export default {
     logoutButton: 'Log Out',
     language: 'Language',
     security: {
-      mustChangeAlert: 'You must replace the one-time password on first login. All sessions will be logged out after saving.',
+      mustChangeAlert:
+        'You must replace the one-time password on first login. All sessions will be logged out after saving.',
       username: 'Admin Username',
       currentPassword: 'Current Password',
       newPassword: 'New Password',
@@ -109,7 +116,8 @@ export default {
       bindGa: 'Bind Google Authenticator',
       changePasswordFirst: 'Please change the one-time first-login password before enabling two-factor authentication.',
       setupTitle: 'Bind Google Authenticator',
-      setupVerifyAlert: 'Please verify your current admin password first. The binding secret is shown only once and is transmitted over HTTPS only.',
+      setupVerifyAlert:
+        'Please verify your current admin password first. The binding secret is shown only once and is transmitted over HTTPS only.',
       qrAlt: 'Google Authenticator binding QR code',
       setupGuide: 'Scan the QR code with Google Authenticator, or enter the key below manually.',
       timeAccurate: 'The router clock must be accurate, otherwise one-time codes will fail.',
@@ -127,7 +135,8 @@ export default {
     },
     recovery: {
       title: 'Save One-Time Recovery Codes',
-      alert: 'Each recovery code can be used only once. They cannot be viewed again after closing this window — copy or download them now and store them offline.',
+      alert:
+        'Each recovery code can be used only once. They cannot be viewed again after closing this window — copy or download them now and store them offline.',
       copyAll: 'Copy All',
       downloadFile: 'Download as Text File',
       savedCheckbox: 'I have saved the recovery codes securely on another device',
@@ -166,6 +175,8 @@ export default {
     noFirewallRules: 'No automatic allow rules',
     trafficTitle: 'Site Traffic',
     memoryStats: 'In-memory stats · reset on restart',
+    chartTitle: 'Traffic Trend',
+    chartSitePlaceholder: 'Select a site',
     requests: 'Requests',
     trafficIn: 'In',
     trafficOut: 'Out',
@@ -177,7 +188,8 @@ export default {
     update: {
       title: 'Manual Update via Package',
       noNetwork: 'Never goes online on its own',
-      alert: 'Only .run packages up to 100 MiB, signed by the project Ed25519 key and matching the current architecture are accepted. Scripts inside the package are never executed.',
+      alert:
+        'Only .run packages up to 100 MiB, signed by the project Ed25519 key and matching the current architecture are accepted. Scripts inside the package are never executed.',
       uploadHint: 'Drop a signed .run package here, or click to select',
       version: 'Version',
       arch: 'Arch',
@@ -218,17 +230,20 @@ export default {
     backup: {
       title: 'Configuration Backup',
       crossDevice: 'Cross-device migration',
-      alert: 'Configuration is stored encrypted with a device-bound key and cannot be copied to other routers directly. Export re-encrypts it with the backup passphrase you set, so it can be restored on any device.',
+      alert:
+        'Configuration is stored encrypted with a device-bound key and cannot be copied to other routers directly. Export re-encrypts it with the backup passphrase you set, so it can be restored on any device.',
       export: 'Export Backup',
       import: 'Import & Restore',
       exportTitle: 'Export Configuration Backup',
-      exportAlert: 'The backup passphrase encrypts the backup file and is required for import. If lost, the backup cannot be restored.',
+      exportAlert:
+        'The backup passphrase encrypts the backup file and is required for import. If lost, the backup cannot be restored.',
       currentAdminPassword: 'Current Admin Password',
       backupPassword: 'Backup Passphrase (at least 8 characters)',
       confirmBackupPassword: 'Confirm Backup Passphrase',
       exportDownload: 'Export & Download',
       importTitle: 'Import Configuration Backup',
-      importAlert: 'Importing overwrites ALL current configuration (including admin account and password). All sessions are invalidated; log in again with the account from the backup.',
+      importAlert:
+        'Importing overwrites ALL current configuration (including admin account and password). All sessions are invalidated; log in again with the account from the backup.',
       backupFile: 'Backup File',
       chooseFile: 'Choose Backup File',
       backupPasswordLabel: 'Backup Passphrase',
@@ -245,6 +260,9 @@ export default {
   logs: {
     title: 'Structured Logs',
     subtitle: 'Current file 1 MiB, 4 rotated files kept, ~5 MiB total cap',
+    typeAll: 'All Types',
+    typeAccess: 'Access Logs',
+    typeSystem: 'System Logs',
     resume: 'Resume Refresh',
     pause: 'Pause Refresh',
     downloadFiltered: 'Download Filtered',
@@ -286,14 +304,16 @@ export default {
     telegram: {
       description: 'Send notifications directly through the Telegram Bot API without an inbound webhook.',
       dialogTitle: 'Configure Telegram',
-      guide: 'Create a bot with BotFather, send it a message, then obtain the Chat ID. The Bot Token is encrypted at rest and never returned to the page.',
+      guide:
+        'Create a bot with BotFather, send it a message, then obtain the Chat ID. The Bot Token is encrypted at rest and never returned to the page.',
       botToken: 'Bot Token',
       topic: 'Topic ID (optional)',
       clearToken: 'Clear the saved Bot Token'
     },
     subscription: {
       title: 'Event Subscription',
-      description: 'With no type selected, all warnings and errors are sent. Selecting types sends all levels from those modules.',
+      description:
+        'With no type selected, all warnings and errors are sent. Selecting types sends all levels from those modules.',
       selectLabel: 'Subscribed Event Types',
       allWarnError: 'All warnings/errors',
       selected: '{n} type(s) selected'
@@ -337,7 +357,8 @@ export default {
     email: 'Email',
     emailPlaceholder: "ACME account email, e.g. admin{'@'}example.com",
     caDir: 'CA Directory URL',
-    caDirPlaceholder: "Leave empty for Let's Encrypt production; for testing use https://acme-staging-v02.api.letsencrypt.org/directory",
+    caDirPlaceholder:
+      "Leave empty for Let's Encrypt production; for testing use https://acme-staging-v02.api.letsencrypt.org/directory",
     renewDays: 'Renew Days',
     renewTip: 'Days before expiry to auto-renew; default 30',
     nameRequired: 'Please enter the certificate name',
@@ -351,11 +372,13 @@ export default {
       expired: 'Expired',
       error: 'Error'
     },
-    obtainConfirm: 'This starts a real ACME certificate request against the CA and consumes its issuance quota. Continue?',
+    obtainConfirm:
+      'This starts a real ACME certificate request against the CA and consumes its issuance quota. Continue?',
     obtainTitle: 'Obtain Certificate',
     continue: 'Continue',
     obtainStarted: 'Certificate request is running in the background. Refresh later to see the result',
-    keyDownloadConfirm: 'A leaked private key allows the certificate to be impersonated. Keep it safe. Download the private key?',
+    keyDownloadConfirm:
+      'A leaked private key allows the certificate to be impersonated. Keep it safe. Download the private key?',
     keyDownloadTitle: 'Download Private Key',
     download: 'Download'
   },
@@ -380,8 +403,13 @@ export default {
     providerTypes: {
       aliyun: 'Alibaba Cloud',
       cloudflare: 'Cloudflare',
-      dnspod: 'DNSPod'
+      dnspod: 'DNSPod',
+      tencentcloud: 'Tencent Cloud DNSPod',
+      huaweicloud: 'Huawei Cloud',
+      godaddy: 'GoDaddy',
+      route53: 'AWS Route53'
     },
+    acmeOnly: 'ACME certs only',
     editProvider: 'Edit Credential',
     addProviderTitle: 'Add Credential',
     remark: 'Remark',
@@ -391,6 +419,14 @@ export default {
     aliyunKeyIdPlaceholder: 'Alibaba Cloud AccessKey ID',
     dnspodTokenPlaceholder: 'DNSPod Token',
     aliyunSecretPlaceholder: 'Alibaba Cloud AccessKey Secret',
+    tencentSecretIdPlaceholder: 'Tencent Cloud SecretId',
+    tencentSecretKeyPlaceholder: 'Tencent Cloud SecretKey',
+    huaweiAkPlaceholder: 'Huawei Cloud Access Key ID',
+    huaweiSkPlaceholder: 'Huawei Cloud Secret Access Key',
+    godaddyKeyPlaceholder: 'GoDaddy API Key',
+    godaddySecretPlaceholder: 'GoDaddy API Secret',
+    route53AkPlaceholder: 'AWS Access Key ID',
+    route53SkPlaceholder: 'AWS Secret Access Key',
     customEndpoint: 'Custom Endpoint',
     endpointPlaceholder: 'Optional; keep the default in production',
     testDomain: 'Test Domain',
@@ -536,7 +572,8 @@ export default {
     rateLimitRps: 'Requests per IP per Second',
     rateLimitBurst: 'Burst Allowed',
     maxBody: 'Max Request Body (MiB)',
-    collapseTip: 'Timeouts are in seconds; 0 keeps the system default or disables the limit. For new rules, 5s connect and 60s response header are recommended.',
+    collapseTip:
+      'Timeouts are in seconds; 0 keeps the system default or disables the limit. For new rules, 5s connect and 60s response header are recommended.',
     responseRewrite: 'Response Rewriting (optional)',
     rewriteLocation: 'Rewrite Location',
     rewriteLocationTip: 'Only rewrites absolute redirect URLs pointing at the current backend',
@@ -576,6 +613,40 @@ export default {
     backendFailed: 'Connection failed',
     fillBackend: 'Please enter backend addresses',
     fillTarget: 'Please enter the target URL',
-    fillRootDir: 'Please enter the root directory'
+    fillRootDir: 'Please enter the root directory',
+    trafficChart: 'Traffic Trend',
+    healthTitle: 'Health Check',
+    healthEnable: 'Active Health Check',
+    healthEnableTip: 'When off, backends are only removed passively on request failures',
+    healthType: 'Probe Type',
+    healthPath: 'Probe Path',
+    healthInterval: 'Interval (s)',
+    healthTimeout: 'Timeout (s)',
+    healthRise: 'Rise (successes)',
+    healthFall: 'Fall (failures)',
+    healthTip: 'Interval 2-300s; timeout 1-60s and not above the interval; thresholds 1-10.',
+    healthPathError: 'Probe path must start with /',
+    healthTimeoutError: 'Probe timeout cannot exceed the interval',
+    healthActive: 'Active probing',
+    healthPassive: 'Passive'
+  },
+  chart: {
+    empty: 'No traffic in this time range',
+    requestsPerMin: 'Requests/min',
+    bytesIn: 'Bytes In',
+    bytesOut: 'Bytes Out'
+  },
+  settings: {
+    title: 'Settings',
+    subtitle: 'Version and system info, firewall allowances, account security shortcuts',
+    quickActions: 'Quick Actions',
+    uptime: 'Uptime',
+    uptimeHours: '{h}h {m}m',
+    uptimeDays: '{d}d {h}h',
+    accountSecurityDesc:
+      'Change the admin username and password; bind or disable Google Authenticator two-factor authentication.',
+    openAccountSecurity: 'Open Account Security',
+    notificationsDesc: 'Configure the Telegram notification channel and event subscriptions.',
+    goNotifications: 'Open Notification Center'
   }
 }

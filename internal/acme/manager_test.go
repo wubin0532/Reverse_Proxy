@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func genSelfSigned(t *testing.T, dnsNames []string, notAfter time.Time) (certPEM
 	return certPEM, keyPEM
 }
 
-// writeCertFiles 把证书写入配置目录的 certs/ 下并返回填充好路径的 CertConf。
+// writeCertFiles 把证书写入配置目录的 certs/ 下，登记运行状态并返回 CertConf。
 func writeCertFiles(t *testing.T, cfg *config.Config, id string, dnsNames []string, notAfter time.Time) config.CertConf {
 	t.Helper()
 	certPEM, keyPEM := genSelfSigned(t, dnsNames, notAfter)
@@ -56,14 +57,18 @@ func writeCertFiles(t *testing.T, cfg *config.Config, id string, dnsNames []stri
 	if err := os.WriteFile(filepath.Join(dir, id+".key"), keyPEM, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	cfg.State().Update(func(s *config.State) {
+		s.Certs[id] = config.CertState{
+			CertFile: filepath.Join("certs", id+".crt"),
+			KeyFile:  filepath.Join("certs", id+".key"),
+			NotAfter: notAfter.UTC().Format(time.RFC3339),
+		}
+	})
 	return config.CertConf{
-		ID:       id,
-		Name:     id,
-		Enabled:  true,
-		Domains:  dnsNames,
-		CertFile: filepath.Join("certs", id+".crt"),
-		KeyFile:  filepath.Join("certs", id+".key"),
-		NotAfter: notAfter.UTC().Format(time.RFC3339),
+		ID:      id,
+		Name:    id,
+		Enabled: true,
+		Domains: dnsNames,
 	}
 }
 
@@ -188,6 +193,18 @@ func TestGetCertificateReloadOnMtime(t *testing.T) {
 	}
 }
 
+func TestNewDNSProviderTypes(t *testing.T) {
+	// huaweicloud 构造时会联网查询项目 ID，无法在离线测试中校验
+	for _, typ := range []string{"aliyun", "cloudflare", "dnspod", "tencentcloud", "godaddy", "route53"} {
+		if _, err := newDNSProvider(config.DNSProviderConf{Type: typ, Key: "k", Secret: "s"}); err != nil {
+			t.Errorf("类型 %s 构造失败: %v", typ, err)
+		}
+	}
+	if _, err := newDNSProvider(config.DNSProviderConf{Type: "nope"}); err == nil {
+		t.Fatal("未知类型应报错")
+	}
+}
+
 func TestParseNotAfter(t *testing.T) {
 	want := time.Date(2030, 6, 15, 12, 0, 0, 0, time.UTC)
 	certPEM, _ := genSelfSigned(t, []string{"x.example.com"}, want)
@@ -207,7 +224,7 @@ func TestParseNotAfter(t *testing.T) {
 func TestCertPathCannotEscapeConfigDirectory(t *testing.T) {
 	cfg := newTestConfig(t)
 	m := NewManager(cfg)
-	cert, key := m.certPath(&config.CertConf{ID: "../../outside", CertFile: "../../etc/passwd", KeyFile: "/tmp/key"})
+	cert, key := m.certPath(&config.CertConf{ID: "../../outside"})
 	wantDir := filepath.Join(cfg.Dir(), "certs")
 	if filepath.Dir(cert) != wantDir || filepath.Dir(key) != wantDir {
 		t.Fatalf("证书路径越界: cert=%s key=%s", cert, key)
@@ -269,23 +286,99 @@ func TestWriteCertificatePairRejectsMismatchWithoutDamagingActivePair(t *testing
 	}
 }
 
+func TestReloadPrunesRemovedAndDisabledCerts(t *testing.T) {
+	cfg := newTestConfig(t)
+	m := NewManager(cfg)
+	defer m.Stop()
+	c := writeCertFiles(t, cfg, "c1", []string{"a.example.com"}, time.Now().Add(90*24*time.Hour))
+	cfg.Lock()
+	cfg.Certs = append(cfg.Certs, c)
+	cfg.Unlock()
+	if _, err := m.GetCertificate(&tls.ClientHelloInfo{ServerName: "a.example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.RLock()
+	_, cached := m.cache["c1"]
+	m.mu.RUnlock()
+	if !cached {
+		t.Fatal("前置条件：证书应已进缓存")
+	}
+
+	waitPruned := func() bool {
+		m.mu.RLock()
+		defer m.mu.RUnlock()
+		_, ok := m.cache["c1"]
+		return !ok
+	}
+	wait := func(f func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			if f() {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("等待 Reload 协调超时")
+	}
+
+	// 删除配置后 Reload，缓存应被清除
+	cfg.Lock()
+	cfg.Certs = nil
+	cfg.Unlock()
+	m.Reload()
+	wait(waitPruned)
+
+	// 恢复但禁用，Reload 同样应清除
+	cfg.Lock()
+	c.Enabled = false
+	cfg.Certs = []config.CertConf{c}
+	cfg.Unlock()
+	if _, err := m.GetCertificate(&tls.ClientHelloInfo{ServerName: "a.example.com"}); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("禁用证书不应再命中 SNI: %v", err)
+	}
+	m.mu.Lock()
+	m.cache["c1"] = &cachedCert{}
+	m.mu.Unlock()
+	m.Reload()
+	wait(waitPruned)
+}
+
+func TestReloadConcurrentAndAfterStop(t *testing.T) {
+	cfg := newTestConfig(t)
+	m := NewManager(cfg)
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m.Reload()
+		}()
+	}
+	m.Stop()
+	wg.Wait() // 并发 Reload 与 Stop 不应死锁
+	m.Reload()  // Stop 后 Reload 为 no-op
+	m.Stop()    // 重复 Stop 安全
+}
+
 func TestNeedRenew(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
 		name string
 		cert config.CertConf
+		st   config.CertState
 		want bool
 	}{
-		{"NotAfter 缺失需补申请", config.CertConf{}, true},
-		{"NotAfter 无法解析需重签", config.CertConf{NotAfter: "bad"}, true},
-		{"距到期 60 天 > 默认 30 天不续", config.CertConf{NotAfter: now.Add(60 * 24 * time.Hour).Format(time.RFC3339)}, false},
-		{"距到期 10 天 < 默认 30 天续签", config.CertConf{NotAfter: now.Add(10 * 24 * time.Hour).Format(time.RFC3339)}, true},
-		{"已过期需续签", config.CertConf{NotAfter: now.Add(-time.Hour).Format(time.RFC3339)}, true},
-		{"自定义 RenewDays=90 时 60 天需续", config.CertConf{NotAfter: now.Add(60 * 24 * time.Hour).Format(time.RFC3339), RenewDays: 90}, true},
-		{"自定义 RenewDays=7 时 10 天不续", config.CertConf{NotAfter: now.Add(10 * 24 * time.Hour).Format(time.RFC3339), RenewDays: 7}, false},
+		{"NotAfter 缺失需补申请", config.CertConf{}, config.CertState{}, true},
+		{"NotAfter 无法解析需重签", config.CertConf{}, config.CertState{NotAfter: "bad"}, true},
+		{"距到期 60 天 > 默认 30 天不续", config.CertConf{}, config.CertState{NotAfter: now.Add(60 * 24 * time.Hour).Format(time.RFC3339)}, false},
+		{"距到期 10 天 < 默认 30 天续签", config.CertConf{}, config.CertState{NotAfter: now.Add(10 * 24 * time.Hour).Format(time.RFC3339)}, true},
+		{"已过期需续签", config.CertConf{}, config.CertState{NotAfter: now.Add(-time.Hour).Format(time.RFC3339)}, true},
+		{"自定义 RenewDays=90 时 60 天需续", config.CertConf{RenewDays: 90}, config.CertState{NotAfter: now.Add(60 * 24 * time.Hour).Format(time.RFC3339)}, true},
+		{"自定义 RenewDays=7 时 10 天不续", config.CertConf{RenewDays: 7}, config.CertState{NotAfter: now.Add(10 * 24 * time.Hour).Format(time.RFC3339)}, false},
 	}
 	for _, c := range cases {
-		if got := needRenew(&c.cert, now); got != c.want {
+		if got := needRenew(&c.cert, c.st, now); got != c.want {
 			t.Errorf("%s: needRenew = %v, want %v", c.name, got, c.want)
 		}
 	}

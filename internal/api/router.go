@@ -52,12 +52,10 @@ func NewServer(cfg *config.Config, secure ...bool) *Server {
 		inFlight:   make(chan struct{}, 64), bodyReadTimeout: 30 * time.Second,
 	}
 	// 恢复上次验证成功的 TOTP 计数器，防止进程重启后同一动态码在窗口内被重用。
-	cfg.RLock()
-	if cfg.Settings.TOTPLastCounter > 0 {
-		s.lastTOTPCounter = uint64(cfg.Settings.TOTPLastCounter)
+	if counter := cfg.State().TOTPCounter(); counter > 0 {
+		s.lastTOTPCounter = uint64(counter)
 		s.hasLastTOTPCounter = true
 	}
-	cfg.RUnlock()
 	return s
 }
 

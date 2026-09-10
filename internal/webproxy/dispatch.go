@@ -2,6 +2,7 @@ package webproxy
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -13,7 +14,26 @@ import (
 	"andey-proxy/internal/logcenter"
 )
 
-// siteHandler 站点入口：规则匹配 → 安全检查 → 按类型分发，并记录访问日志。
+// middleware 可组合的请求处理中间件。
+type middleware func(http.Handler) http.Handler
+
+// compose 按声明顺序组装中间件链：mws[0] 在最外层（最先执行）。
+func compose(base http.Handler, mws ...middleware) http.Handler {
+	for i := len(mws) - 1; i >= 0; i-- {
+		base = mws[i](base)
+	}
+	return base
+}
+
+// matchedRuleKey 命中的子规则（ruleMatchMiddleware 注入请求上下文）。
+type matchedRuleKey struct{}
+
+// matchedRule 取上下文中的命中规则；链上 ruleMatchMiddleware 之后必有值。
+func matchedRule(r *http.Request) *config.SubRule {
+	return r.Context().Value(matchedRuleKey{}).(*config.SubRule)
+}
+
+// siteHandler 站点入口：访问日志与流量统计外壳，请求处理交给中间件链。
 type siteHandler struct {
 	ss *siteServer
 }
@@ -21,10 +41,12 @@ type siteHandler struct {
 func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w, status: http.StatusOK, ss: h.ss}
-	ruleID := h.ss.siteSnapshot().ID
-	matchedRuleID := ""
 	h.ss.beginSiteStats()
 	defer func() {
+		ruleID := h.ss.siteSnapshot().ID
+		if sw.matchedRuleID != "" {
+			ruleID = sw.matchedRuleID
+		}
 		path := r.URL.EscapedPath()
 		if path == "" {
 			path = "/"
@@ -44,71 +66,139 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if bytesIn < 0 {
 			bytesIn = 0
 		}
-		h.ss.finishStats(matchedRuleID, sw.status, bytesIn, sw.bytes)
+		h.ss.finishStats(sw.matchedRuleID, sw.status, bytesIn, sw.bytes)
 	}()
 
-	if ambiguousPath(r.URL.Path) {
-		http.Error(sw, "400 Bad Request", http.StatusBadRequest)
-		return
-	}
-	site := h.ss.siteSnapshot()
-	rule := matchRule(site.Rules, r.Host, r.URL.Path)
-	if rule == nil {
-		writeNotFound(sw, r)
-		return
-	}
-	ruleID = rule.ID
-	matchedRuleID = rule.ID
-	h.ss.beginRuleStats(rule.ID)
-	if allowed, retryAfter := h.ss.limiter.allow(rule, clientIP(r), time.Now()); !allowed {
-		w.Header().Set("Retry-After", fmt.Sprint(retryAfter))
-		http.Error(sw, "429 Too Many Requests", http.StatusTooManyRequests)
-		return
-	}
+	h.ss.dispatchChain().ServeHTTP(sw, r)
+}
 
-	// 强制 HTTPS：监听层嗅探分流出的明文连接（r.TLS == nil）301 跳转到 https，
-	// 同端口的 TLS 请求继续正常分发，避免循环跳转。
-	if r.TLS == nil && forceHTTPSActive(site) {
-		target, ok := forceHTTPSRedirectTarget(r)
-		if !ok {
-			http.Error(sw, "400 Bad Request", http.StatusBadRequest)
-			return
-		}
-		http.Redirect(sw, r, target, http.StatusMovedPermanently)
-		return
-	}
+// dispatchChain 站点请求处理链（惰性构建一次；中间件均读取实时快照，无需随配置重建）。
+// 顺序：路径净化 → 规则匹配 → 限流 → 强制 HTTPS → 安全组件 → 按类型分发。
+func (ss *siteServer) dispatchChain() http.Handler {
+	ss.chainOnce.Do(func() {
+		ss.chain = compose(&ruleDispatch{ss: ss},
+			pathSanityMiddleware(),
+			ss.ruleMatchMiddleware(),
+			ss.rateLimitMiddleware(),
+			ss.forceHTTPSMiddleware(),
+			ss.guardMiddleware(),
+		)
+	})
+	return ss.chain
+}
 
-	if !checkRuleGuard(sw, r, rule, h.ss.logs, h.ss.ipGuardFor(rule)) {
-		return
+// pathSanityMiddleware 拒绝会被后端归一化成其他路径的请求（防绕过下游检查）。
+func pathSanityMiddleware() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if ambiguousPath(r.URL.Path) {
+				http.Error(w, "400 Bad Request", http.StatusBadRequest)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
 	}
+}
 
+// ruleMatchMiddleware 匹配子规则并注入上下文；命中后记入 statusWriter 并开启规则统计，
+// 无匹配时写 404。
+func (ss *siteServer) ruleMatchMiddleware() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rule := matchRule(ss.siteSnapshot().Rules, r.Host, r.URL.Path)
+			if rule == nil {
+				writeNotFound(w, r)
+				return
+			}
+			if sw, ok := w.(*statusWriter); ok {
+				sw.matchedRuleID = rule.ID
+			}
+			ss.beginRuleStats(rule.ID)
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), matchedRuleKey{}, rule)))
+		})
+	}
+}
+
+// rateLimitMiddleware 按规则限流，超限时 429 并带 Retry-After。
+func (ss *siteServer) rateLimitMiddleware() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if allowed, retryAfter := ss.limiter.allow(matchedRule(r), clientIP(r), time.Now()); !allowed {
+				w.Header().Set("Retry-After", fmt.Sprint(retryAfter))
+				http.Error(w, "429 Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// forceHTTPSMiddleware 强制 HTTPS：监听层嗅探分流出的明文连接（r.TLS == nil）301 跳转到 https，
+// 同端口的 TLS 请求继续正常分发，避免循环跳转。
+func (ss *siteServer) forceHTTPSMiddleware() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.TLS == nil && forceHTTPSActive(ss.siteSnapshot()) {
+				target, ok := forceHTTPSRedirectTarget(r)
+				if !ok {
+					http.Error(w, "400 Bad Request", http.StatusBadRequest)
+					return
+				}
+				http.Redirect(w, r, target, http.StatusMovedPermanently)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// guardMiddleware 子规则安全组件（IP/UA 名单、BasicAuth）。
+func (ss *siteServer) guardMiddleware() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rule := matchedRule(r)
+			if !checkRuleGuard(w, r, rule, ss.logs, ss.ipGuardFor(rule)) {
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// ruleDispatch 链末端：按规则类型分发到反代/跳转/文件服务。
+type ruleDispatch struct {
+	ss *siteServer
+}
+
+func (d *ruleDispatch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rule := matchedRule(r)
 	switch rule.Type {
 	case "reverse":
 		if rule.MaxRequestBodyMiB > 0 {
 			limit := int64(rule.MaxRequestBodyMiB) << 20
 			if r.ContentLength > limit {
-				http.Error(sw, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
+				http.Error(w, "413 Request Entity Too Large", http.StatusRequestEntityTooLarge)
 				return
 			}
 			if r.Body != nil && r.Body != http.NoBody {
-				r.Body = http.MaxBytesReader(sw, r.Body, limit)
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
 			}
 		}
-		rh, err := h.ss.reverseHandlerFor(rule)
+		rh, err := d.ss.reverseHandlerFor(rule)
 		if errors.Is(err, errRuleUpdated) {
-			http.Error(sw, "503 Service Unavailable", http.StatusServiceUnavailable)
+			http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		if err != nil {
-			h.ss.logs.Add(fmt.Sprintf("%s 规则[%s] 反代不可用: %v", clientIP(r), rule.Name, err))
-			http.Error(sw, "502 Bad Gateway", http.StatusBadGateway)
+			d.ss.logs.Add(fmt.Sprintf("%s 规则[%s] 反代不可用: %v", clientIP(r), rule.Name, err))
+			http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 			return
 		}
-		rh.ServeHTTP(sw, r)
+		rh.ServeHTTP(w, r)
 	case "redirect", "fileserver":
-		h.ss.staticHandlerFor(rule).ServeHTTP(sw, r)
+		d.ss.staticHandlerFor(rule).ServeHTTP(w, r)
 	default:
-		writeNotFound(sw, r)
+		writeNotFound(w, r)
 	}
 }
 
@@ -243,10 +333,11 @@ func clientIP(r *http.Request) string {
 // 保证 WebSocket 升级与流式响应不受影响。
 type statusWriter struct {
 	http.ResponseWriter
-	status int
-	wrote  bool
-	bytes  int64 // 累计写出的响应体字节数
-	ss     *siteServer
+	status        int
+	wrote         bool
+	bytes         int64  // 累计写出的响应体字节数
+	matchedRuleID string // 命中的子规则 ID（ruleMatchMiddleware 记录，供统计/日志使用）
+	ss            *siteServer
 }
 
 func (w *statusWriter) WriteHeader(code int) {

@@ -17,7 +17,13 @@
             <el-tag>{{ providerTypeName(row.type) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Key / Token" min-width="160"><template #default="{row}"><el-tag :type="row.keyConfigured ? 'success':'warning'">{{ row.keyConfigured ? $t('common.keyConfigured') : $t('common.notConfigured') }}</el-tag></template></el-table-column>
+        <el-table-column label="Key / Token" min-width="160"
+          ><template #default="{ row }"
+            ><el-tag :type="row.keyConfigured ? 'success' : 'warning'">{{
+              row.keyConfigured ? $t('common.keyConfigured') : $t('common.notConfigured')
+            }}</el-tag></template
+          ></el-table-column
+        >
         <el-table-column :label="$t('common.actions')" width="160">
           <template #default="{ row }">
             <el-button link type="primary" @click="openProviderDialog(row)">{{ $t('common.edit') }}</el-button>
@@ -77,7 +83,9 @@
         </el-table-column>
         <el-table-column :label="$t('ddns.colActions')" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" :loading="row._running" @click="runTask(row)">{{ $t('ddns.runOnce') }}</el-button>
+            <el-button link type="primary" :loading="row._running" @click="runTask(row)">{{
+              $t('ddns.runOnce')
+            }}</el-button>
             <el-button link type="primary" @click="openTaskDialog(row)">{{ $t('common.edit') }}</el-button>
             <el-popconfirm :title="$t('ddns.deleteTaskConfirm')" @confirm="deleteTask(row)">
               <template #reference>
@@ -91,42 +99,7 @@
     </el-card>
 
     <!-- 凭据对话框 -->
-    <el-dialog
-      v-model="providerDialog.visible"
-      :title="providerDialog.isEdit ? $t('ddns.editProvider') : $t('ddns.addProviderTitle')"
-      width="480px"
-      destroy-on-close
-    >
-      <el-form ref="providerFormRef" :model="providerDialog.form" :rules="providerRules" label-width="110px">
-        <el-form-item :label="$t('ddns.colProvider')" prop="type">
-          <el-select v-model="providerDialog.form.type" :disabled="providerDialog.isEdit" style="width: 100%">
-            <el-option :label="$t('ddns.providerTypes.aliyun') + ' (aliyun)'" value="aliyun" />
-            <el-option label="Cloudflare" value="cloudflare" />
-            <el-option label="DNSPod (dnspod)" value="dnspod" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('ddns.remark')" prop="remark">
-          <el-input v-model="providerDialog.form.remark" :placeholder="$t('ddns.remarkPlaceholder')" />
-        </el-form-item>
-        <el-form-item :label="keyLabel" prop="key">
-          <el-input v-model="providerDialog.form.key" type="password" show-password :placeholder="providerDialog.isEdit && providerDialog.form.keyConfigured ? $t('common.keepEmpty') : keyPlaceholder" />
-        </el-form-item>
-        <el-form-item v-if="providerDialog.form.type !== 'cloudflare'" :label="secretLabel" prop="secret">
-          <el-input v-model="providerDialog.form.secret" type="password" show-password :placeholder="providerDialog.isEdit && providerDialog.form.secretConfigured ? $t('common.keepEmpty') : secretPlaceholder" />
-        </el-form-item>
-    <el-form-item :label="$t('ddns.customEndpoint')">
-      <el-input v-model="providerDialog.form.endpoint" :placeholder="$t('ddns.endpointPlaceholder')" />
-    </el-form-item>
-        <el-form-item :label="$t('ddns.testDomain')">
-          <el-input v-model="providerDialog.testDomain" :placeholder="$t('ddns.testDomainPlaceholder')" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button :loading="providerDialog.testing" @click="testProvider">{{ $t('ddns.test') }}</el-button>
-        <el-button @click="providerDialog.visible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="providerDialog.saving" @click="saveProvider">{{ $t('common.save') }}</el-button>
-      </template>
-    </el-dialog>
+    <ProviderDialog ref="providerDialogRef" @saved="loadProviders" />
 
     <!-- 任务对话框 -->
     <el-dialog
@@ -149,9 +122,13 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('ddns.providerCred')" prop="providerId">
-          <el-select v-model="taskDialog.form.providerId" style="width: 100%" :placeholder="$t('ddns.providerCredPlaceholder')">
+          <el-select
+            v-model="taskDialog.form.providerId"
+            style="width: 100%"
+            :placeholder="$t('ddns.providerCredPlaceholder')"
+          >
             <el-option
-              v-for="p in providers"
+              v-for="p in ddnsProviders"
               :key="p.id"
               :label="(p.remark || p.id) + '（' + providerTypeName(p.type) + '）'"
               :value="p.id"
@@ -206,6 +183,9 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
+import { splitList } from '../utils/list'
+import { useCrudDialog } from '../composables/useCrudDialog'
+import ProviderDialog from '../components/ddns/ProviderDialog.vue'
 
 const { t } = useI18n()
 
@@ -214,106 +194,22 @@ const tasks = ref([])
 const loadingProviders = ref(false)
 const loadingTasks = ref(false)
 
+const PROVIDER_TYPES = ['aliyun', 'cloudflare', 'dnspod', 'tencentcloud', 'huaweicloud', 'godaddy', 'route53']
+
 function providerTypeName(type) {
-  return ['aliyun', 'cloudflare', 'dnspod'].includes(type) ? t(`ddns.providerTypes.${type}`) : type
+  return PROVIDER_TYPES.includes(type) ? t(`ddns.providerTypes.${type}`) : type
 }
 function providerNameOf(id) {
   const p = providers.value.find((x) => x.id === id)
-  return p ? (p.remark || providerTypeName(p.type)) : id || '-'
+  return p ? p.remark || providerTypeName(p.type) : id || '-'
 }
+// godaddy / route53 仅供 ACME 证书申请，DDNS 任务不可选
+const ddnsProviders = computed(() => providers.value.filter((p) => !['godaddy', 'route53'].includes(p.type)))
 
 // ---------- 凭据 ----------
-const providerFormRef = ref()
-const providerDialog = reactive({
-  visible: false,
-  isEdit: false,
-  saving: false,
-  testing: false,
-  testDomain: '',
-  form: { id: '', type: 'aliyun', remark: '', key: '', secret: '', endpoint: '' }
-})
-
-const keyLabel = computed(() => {
-  const t = providerDialog.form.type
-  if (t === 'aliyun') return 'AccessKey ID'
-  if (t === 'cloudflare') return 'API Token'
-  return 'Token ID'
-})
-const keyPlaceholder = computed(() => {
-  const t2 = providerDialog.form.type
-  if (t2 === 'cloudflare') return t('ddns.cfTokenPlaceholder')
-  if (t2 === 'dnspod') return t('ddns.dnspodTokenIdPlaceholder')
-  return t('ddns.aliyunKeyIdPlaceholder')
-})
-const secretLabel = computed(() => (providerDialog.form.type === 'dnspod' ? 'Token' : 'AccessKey Secret'))
-const secretPlaceholder = computed(() =>
-  providerDialog.form.type === 'dnspod' ? t('ddns.dnspodTokenPlaceholder') : t('ddns.aliyunSecretPlaceholder')
-)
-
-const providerRules = computed(() => ({
-  type: [{ required: true, message: t('ddns.providerRequired'), trigger: 'change' }],
-  key: [{ validator: (_,v,done) => (v || (providerDialog.isEdit && providerDialog.form.keyConfigured)) ? done() : done(new Error(t('ddns.keyRequired'))), trigger: 'blur' }],
-  secret: [{ validator: (_,v,done) => (providerDialog.form.type === 'cloudflare' || v || (providerDialog.isEdit && providerDialog.form.secretConfigured)) ? done() : done(new Error(t('ddns.secretRequired'))), trigger: 'blur' }]
-}))
-
+const providerDialogRef = ref()
 function openProviderDialog(row) {
-  providerDialog.isEdit = !!row
-  providerDialog.testDomain = ''
-  providerDialog.form = row
-  ? { id: row.id, type: row.type, remark: row.remark || '', key: '', secret: '', endpoint: row.endpoint || '', keyConfigured: !!row.keyConfigured, secretConfigured: !!row.secretConfigured, endpointConfigured: !!row.endpoint }
-  : { id: '', type: 'aliyun', remark: '', key: '', secret: '', endpoint: '' }
-  providerDialog.visible = true
-}
-
-async function testProvider() {
-  if (!providerDialog.testDomain) {
-    ElMessage.warning(t('ddns.testDomainRequired'))
-    return
-  }
-  providerDialog.testing = true
-  try {
-    const res = await request.post('/api/providers/test', {
-    id: providerDialog.form.id,
-      type: providerDialog.form.type,
-      key: providerDialog.form.key,
-      secret: providerDialog.form.secret,
-    endpoint: providerDialog.form.endpoint,
-      domain: providerDialog.testDomain
-    })
-    ElMessage.success(res.data?.message || t('ddns.credValid'))
-  } catch {
-    // 拦截器已提示
-  } finally {
-    providerDialog.testing = false
-  }
-}
-
-async function saveProvider() {
-  await providerFormRef.value.validate()
-  providerDialog.saving = true
-  try {
-    const body = {
-      type: providerDialog.form.type,
-      remark: providerDialog.form.remark,
-      key: providerDialog.form.key,
-    secret: providerDialog.form.secret,
-    endpoint: providerDialog.form.endpoint,
-    }
-    // clearEndpoint 仅编辑接口（PUT）接受；创建接口带此字段会被后端拒绝
-    if (providerDialog.isEdit) {
-      body.clearEndpoint = providerDialog.form.endpointConfigured && !providerDialog.form.endpoint
-      await request.put(`/api/providers/${providerDialog.form.id}`, body)
-    } else {
-      await request.post('/api/providers', body)
-    }
-    ElMessage.success(t('common.saveSuccess'))
-    providerDialog.visible = false
-    loadProviders()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    providerDialog.saving = false
-  }
+  providerDialogRef.value?.open(row)
 }
 
 async function deleteProvider(row) {
@@ -375,15 +271,58 @@ async function previewIP() {
 }
 
 // ---------- 任务 ----------
-const taskFormRef = ref()
-const taskDialog = reactive({
-  visible: false,
-  isEdit: false,
-  saving: false,
-  form: {
-    id: '', name: '', domainsText: '', ipType: 'ipv4', providerId: '',
-    ipSource: 'interface', interface: '', apiUrl: '', interval: 300, ttl: 600, enabled: true
-  }
+const {
+  formRef: taskFormRef,
+  dialog: taskDialog,
+  open: openTask,
+  submit: saveTask
+} = useCrudDialog({
+  emptyForm: () => ({
+    id: '',
+    name: '',
+    domainsText: '',
+    ipType: 'ipv4',
+    providerId: '',
+    ipSource: 'interface',
+    interface: 'auto',
+    apiUrl: '',
+    interval: 300,
+    ttl: 0,
+    enabled: true
+  }),
+  fromRow: (row) => ({
+    id: row.id,
+    name: row.name,
+    domainsText: (row.domains || []).join(', '),
+    ipType: row.ipType || 'ipv4',
+    providerId: row.providerId,
+    ipSource: row.ipSource || 'interface',
+    interface: row.interface || '',
+    apiUrl: row.apiUrl || '',
+    interval: row.interval || 300,
+    ttl: row.ttl || 0,
+    enabled: row.enabled
+  }),
+  onSubmit: async (f, d) => {
+    const body = {
+      name: f.name,
+      enabled: f.enabled,
+      providerId: f.providerId,
+      domains: splitList(f.domainsText),
+      ipType: f.ipType,
+      ipSource: f.ipSource,
+      interface: f.ipSource === 'interface' ? f.interface : '',
+      apiUrl: f.ipSource === 'api' ? f.apiUrl : '',
+      interval: f.interval,
+      ttl: f.ttl
+    }
+    if (d.isEdit) {
+      await request.put(`/api/ddns/tasks/${f.id}`, body)
+    } else {
+      await request.post('/api/ddns/tasks', body)
+    }
+  },
+  onSaved: () => loadTasks()
 })
 
 const taskRules = computed(() => ({
@@ -397,58 +336,7 @@ const taskRules = computed(() => ({
 function openTaskDialog(row) {
   preview.result = ''
   loadInterfaces()
-  taskDialog.isEdit = !!row
-  taskDialog.form = row
-    ? {
-        id: row.id,
-        name: row.name,
-        domainsText: (row.domains || []).join(', '),
-        ipType: row.ipType || 'ipv4',
-        providerId: row.providerId,
-        ipSource: row.ipSource || 'interface',
-        interface: row.interface || '',
-        apiUrl: row.apiUrl || '',
-        interval: row.interval || 300,
-        ttl: row.ttl || 0,
-        enabled: row.enabled
-      }
-    : {
-        id: '', name: '', domainsText: '', ipType: 'ipv4', providerId: '',
-        ipSource: 'interface', interface: 'auto', apiUrl: '', interval: 300, ttl: 0, enabled: true
-      }
-  taskDialog.visible = true
-}
-
-async function saveTask() {
-  await taskFormRef.value.validate()
-  const f = taskDialog.form
-  const body = {
-    name: f.name,
-    enabled: f.enabled,
-    providerId: f.providerId,
-    domains: f.domainsText.split(',').map((s) => s.trim()).filter(Boolean),
-    ipType: f.ipType,
-    ipSource: f.ipSource,
-    interface: f.ipSource === 'interface' ? f.interface : '',
-    apiUrl: f.ipSource === 'api' ? f.apiUrl : '',
-    interval: f.interval,
-    ttl: f.ttl
-  }
-  taskDialog.saving = true
-  try {
-    if (taskDialog.isEdit) {
-      await request.put(`/api/ddns/tasks/${f.id}`, body)
-    } else {
-      await request.post('/api/ddns/tasks', body)
-    }
-    ElMessage.success(t('common.saveSuccess'))
-    taskDialog.visible = false
-    loadTasks()
-  } catch {
-    // 拦截器已提示
-  } finally {
-    taskDialog.saving = false
-  }
+  openTask(row)
 }
 
 async function toggleTask(row) {
@@ -540,7 +428,7 @@ onMounted(() => {
 }
 .preview-result {
   margin-left: 10px;
-  color: #67c23a;
+  color: var(--ap-success);
   font-size: 13px;
   font-family: Menlo, Consolas, monospace;
 }

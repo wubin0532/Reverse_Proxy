@@ -1,6 +1,6 @@
 {
 	"luci-app-andeyproxy": {
-		"description": "andey-Proxy 设置访问权限（初始密码读取仅供首次登录，首次改密后文件自动删除；如需禁止只读账号查看可删除 /etc/andey-proxy/initial-password 这一授权行）",
+		"description": "andey-Proxy settings access (initial-password read is for first login only; the file is deleted after the first password change; remove the /etc/andey-proxy/initial-password grant line to hide it from read-only accounts)",
 		"read": {
 			"uci": [ "andey-proxy" ],
 			"ubus": {

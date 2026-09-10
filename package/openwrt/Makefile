@@ -14,7 +14,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-andeyproxy
-PKG_VERSION:=0.3.1
+PKG_VERSION:=0.3.3
 PKG_RELEASE:=1
 
 PKG_LICENSE:=MIT
@@ -66,6 +66,10 @@ define Package/luci-app-andeyproxy/install
 	$(INSTALL_CONF) ./files/andey-proxy.config $(1)/etc/config/andey-proxy
 	$(INSTALL_DIR) $(1)/etc/andey-proxy
 	$(CP) ./luci/* $(1)/
+	# LuCI 翻译：po -> lmo（命名遵循 luci.mk 的 LC_ALIAS 约定：zh_Hans -> zh-cn）
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
+	python3 ./po/po2lmo.py ./po/zh_Hans/andeyproxy.po $(1)/usr/lib/lua/luci/i18n/andeyproxy.zh-cn.lmo
+	python3 ./po/po2lmo.py ./po/en/andeyproxy.po $(1)/usr/lib/lua/luci/i18n/andeyproxy.en.lmo
 endef
 
 define Package/luci-app-andeyproxy/postinst

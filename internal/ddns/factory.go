@@ -15,6 +15,10 @@ func NewProvider(conf config.DNSProviderConf) (Provider, error) {
 		return newCloudflareProvider(conf), nil
 	case "dnspod":
 		return newDnspodProvider(conf), nil
+	case "tencentcloud":
+		return newTencentProvider(conf)
+	case "huaweicloud":
+		return newHuaweiProvider(conf)
 	default:
 		return nil, fmt.Errorf("不支持的 DNS 服务商类型: %s", conf.Type)
 	}

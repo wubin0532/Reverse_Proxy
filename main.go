@@ -32,7 +32,7 @@ import (
 	"andey-proxy/internal/webproxy"
 )
 
-var version = "0.3.1"
+var version = "0.3.3"
 
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
@@ -86,6 +86,11 @@ func main() {
 			return nil
 		}); err != nil {
 			log.Fatalf("重置双重验证失败: %v", err)
+		}
+		// 一并清除防重放计数器并落盘运行状态。
+		cfg.State().Update(func(s *config.State) { s.TOTPLastCounter = 0 })
+		if err := cfg.State().Close(); err != nil {
+			log.Printf("保存运行状态失败: %v", err)
 		}
 		if center, err := logcenter.New(abs); err == nil {
 			center.Add(logcenter.Entry{Time: time.Now(), Level: "warn", Source: "security", Message: "通过设备本机命令关闭了 Google Authenticator"})
@@ -158,8 +163,7 @@ func main() {
 	updateMgr.MarkStarted()
 
 	apiSrv := api.NewServer(cfg, !*allowHTTP)
-	// 备份导入后的热重载：webproxy/forward 显式 Reload，DDNS worker 重排任务。
-	// acme 没有 Reload，由周期扫描与证书 mtime 缓存自动感知。
+	// 备份导入后的热重载：webproxy/forward/acme 显式 Reload，DDNS worker 重排任务。
 	apiSrv.SetConfigRestore(version, func() {
 		if err := webSvc.Reload(); err != nil {
 			log.Printf("导入配置后重载 Web 服务失败: %v", err)
@@ -168,6 +172,7 @@ func main() {
 			log.Printf("导入配置后重载端口转发失败: %v", err)
 		}
 		ddnsWorker.Reload()
+		acmeMgr.Reload()
 	})
 	apiSrv.Mount(func(r chi.Router) { ddns.RegisterRoutes(r, cfg, ddnsWorker) })
 	apiSrv.Mount(func(r chi.Router) { forward.RegisterRoutes(r, cfg, fwdSvc) })
@@ -234,6 +239,10 @@ func main() {
 	fwdSvc.Stop()
 	webSvc.Stop()
 	acmeMgr.Stop()
+	// 各模块已停止、不再有状态写入后，落盘运行状态的待写变更。
+	if err := cfg.State().Close(); err != nil {
+		log.Printf("保存运行状态失败: %v", err)
+	}
 	log.Println("已退出")
 }
 

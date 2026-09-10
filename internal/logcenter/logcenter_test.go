@@ -75,7 +75,7 @@ func TestRedactionAndRotationLimit(t *testing.T) {
 	}
 	chunk := bytes.Repeat([]byte("x"), 64<<10)
 	for i := 0; i < 100; i++ {
-		c.writeBatch(chunk)
+		c.writeBatch(c.system, chunk)
 	}
 	if err := c.Close(); err != nil {
 		t.Fatal(err)

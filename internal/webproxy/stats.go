@@ -3,6 +3,7 @@ package webproxy
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"andey-proxy/internal/config"
 )
@@ -52,6 +53,8 @@ type StatsSnapshot struct {
 	Status3xx int64 `json:"status3xx"`
 	Status4xx int64 `json:"status4xx"`
 	Status5xx int64 `json:"status5xx"`
+	// Backends 由 API 层附带（reverse 规则的后端健康状态），统计桶本身不填。
+	Backends []BackendHealth `json:"backends,omitempty"`
 }
 
 func (st *trafficStats) snapshot() StatsSnapshot {
@@ -68,9 +71,88 @@ type SiteStats struct {
 	Rules map[string]StatsSnapshot `json:"rules"`
 }
 
+// seriesMaxPoints 每站点最多保留的分钟桶数（24h）。
+const seriesMaxPoints = 1440
+
+// minuteBucket 当前分钟的累加桶（原子计数，无锁快速路径）。
+type minuteBucket struct {
+	minute   int64
+	requests atomic.Int64
+	bytesIn  atomic.Int64
+	bytesOut atomic.Int64
+}
+
+// seriesPoint 已完成分钟的快照。
+type seriesPoint struct {
+	minute   int64
+	requests int64
+	bytesIn  int64
+	bytesOut int64
+}
+
+// siteSeries 站点分钟级流量环形缓冲：当前桶用原子指针 + 原子加，
+// 分钟切换时加锁封存旧桶，超限丢弃最旧。内存约 1440×32B/站点，随站点统计一并清理。
+type siteSeries struct {
+	mu     sync.Mutex
+	cur    atomic.Pointer[minuteBucket]
+	points []seriesPoint // 已完成分钟桶，最旧在前
+}
+
+func (s *siteSeries) add(now time.Time, bytesIn, bytesOut int64) {
+	m := now.Unix() / 60
+	if b := s.cur.Load(); b != nil && b.minute == m {
+		b.requests.Add(1)
+		b.bytesIn.Add(bytesIn)
+		b.bytesOut.Add(bytesOut)
+		return
+	}
+	s.mu.Lock()
+	b := s.cur.Load()
+	if b == nil || b.minute != m {
+		if b != nil {
+			s.points = append(s.points, seriesPoint{b.minute, b.requests.Load(), b.bytesIn.Load(), b.bytesOut.Load()})
+			if len(s.points) > seriesMaxPoints {
+				s.points = append([]seriesPoint(nil), s.points[len(s.points)-seriesMaxPoints:]...)
+			}
+		}
+		nb := &minuteBucket{minute: m}
+		s.cur.Store(nb)
+		b = nb
+	}
+	s.mu.Unlock()
+	b.requests.Add(1)
+	b.bytesIn.Add(bytesIn)
+	b.bytesOut.Add(bytesOut)
+}
+
+// snapshot 返回 [from, to]（分钟 Unix 戳）的稠密序列，无流量的分钟补零。
+func (s *siteSeries) snapshot(from, to int64) []seriesPoint {
+	s.mu.Lock()
+	points := append([]seriesPoint(nil), s.points...)
+	cur := s.cur.Load()
+	s.mu.Unlock()
+	if cur != nil && cur.minute >= from {
+		points = append(points, seriesPoint{cur.minute, cur.requests.Load(), cur.bytesIn.Load(), cur.bytesOut.Load()})
+	}
+	byMinute := make(map[int64]seriesPoint, len(points))
+	for _, p := range points {
+		byMinute[p.minute] = p
+	}
+	out := make([]seriesPoint, 0, to-from+1)
+	for m := from; m <= to; m++ {
+		if p, ok := byMinute[m]; ok {
+			out = append(out, p)
+		} else {
+			out = append(out, seriesPoint{minute: m})
+		}
+	}
+	return out
+}
+
 type siteStats struct {
-	total trafficStats
-	rules sync.Map // ruleID -> *trafficStats
+	total  trafficStats
+	rules  sync.Map // ruleID -> *trafficStats
+	series siteSeries
 }
 
 func (st *siteStats) ruleFor(ruleID string) *trafficStats {
@@ -88,6 +170,7 @@ func (st *siteStats) beginRule(ruleID string) {
 
 func (st *siteStats) finish(ruleID string, status int, bytesIn, bytesOut int64) {
 	st.total.finish(status, bytesIn, bytesOut)
+	st.series.add(time.Now(), bytesIn, bytesOut)
 	if ruleID != "" {
 		st.ruleFor(ruleID).finish(status, bytesIn, bytesOut)
 	}
@@ -130,4 +213,32 @@ func (s *Service) AllSiteStats() map[string]SiteStats {
 		return true
 	})
 	return out
+}
+
+// SiteSeriesView 站点分钟级流量时间序列（API 响应）。
+// Points 为紧凑数组 [分钟Unix戳, 请求数, 入字节, 出字节]，无流量的分钟补零。
+type SiteSeriesView struct {
+	SiteID string    `json:"siteId"`
+	Step   int64     `json:"step"` // 恒为 60（秒）
+	From   int64     `json:"from"` // 首点分钟 Unix 戳
+	To     int64     `json:"to"`   // 末点分钟 Unix 戳（含当前进行中的分钟）
+	Points [][]int64 `json:"points"`
+}
+
+// SiteSeries 返回站点最近 span 的分钟级流量序列；无统计数据的站点返回零填充序列。
+func (s *Service) SiteSeries(siteID string, span time.Duration) SiteSeriesView {
+	to := time.Now().Unix() / 60
+	from := to - int64(span/time.Minute) + 1
+	view := SiteSeriesView{SiteID: siteID, Step: 60, From: from * 60, To: to * 60, Points: [][]int64{}}
+	v, ok := s.stats.Load(siteID)
+	if !ok {
+		for m := from; m <= to; m++ {
+			view.Points = append(view.Points, []int64{m * 60, 0, 0, 0})
+		}
+		return view
+	}
+	for _, p := range v.(*siteStats).series.snapshot(from, to) {
+		view.Points = append(view.Points, []int64{p.minute * 60, p.requests, p.bytesIn, p.bytesOut})
+	}
+	return view
 }

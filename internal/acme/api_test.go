@@ -131,11 +131,6 @@ func TestCertCRUD(t *testing.T) {
 
 	// 落盘一份证书后测试下载与删除清理文件
 	c := writeCertFiles(t, cfg, created.ID, []string{"*.example.com"}, time.Now().Add(90*24*time.Hour))
-	cfg.Lock()
-	cfg.Certs[0].CertFile = c.CertFile
-	cfg.Certs[0].KeyFile = c.KeyFile
-	cfg.Certs[0].NotAfter = c.NotAfter
-	cfg.Unlock()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/certs/"+created.ID+"/download?part=key", nil)
 	rec := httptest.NewRecorder()
@@ -204,18 +199,19 @@ func TestStatusOf(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
 		cert config.CertConf
+		st   config.CertState
 		want string
 	}{
-		{config.CertConf{}, "pending"},
-		{config.CertConf{LastError: "x"}, "error"},
-		{config.CertConf{NotAfter: "bad"}, "error"},
-		{config.CertConf{NotAfter: now.Add(-time.Hour).Format(time.RFC3339)}, "expired"},
-		{config.CertConf{NotAfter: now.Add(10 * 24 * time.Hour).Format(time.RFC3339)}, "expiring"},
-		{config.CertConf{NotAfter: now.Add(60 * 24 * time.Hour).Format(time.RFC3339)}, "ok"},
+		{config.CertConf{}, config.CertState{}, "pending"},
+		{config.CertConf{}, config.CertState{LastError: "x"}, "error"},
+		{config.CertConf{}, config.CertState{NotAfter: "bad"}, "error"},
+		{config.CertConf{}, config.CertState{NotAfter: now.Add(-time.Hour).Format(time.RFC3339)}, "expired"},
+		{config.CertConf{}, config.CertState{NotAfter: now.Add(10 * 24 * time.Hour).Format(time.RFC3339)}, "expiring"},
+		{config.CertConf{}, config.CertState{NotAfter: now.Add(60 * 24 * time.Hour).Format(time.RFC3339)}, "ok"},
 	}
 	for _, c := range cases {
-		if got := statusOf(&c.cert, now); got != c.want {
-			t.Errorf("statusOf(%+v) = %s, want %s", c.cert, got, c.want)
+		if got := statusOf(&c.cert, c.st, now); got != c.want {
+			t.Errorf("statusOf(%+v, %+v) = %s, want %s", c.cert, c.st, got, c.want)
 		}
 	}
 }

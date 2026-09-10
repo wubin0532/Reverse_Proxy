@@ -46,12 +46,30 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 	r.Put("/api/sites/{id}/rules/{ruleId}", h.updateRule)
 	r.Delete("/api/sites/{id}/rules/{ruleId}", h.deleteRule)
 	r.Post("/api/sites/{id}/rules/{ruleId}/toggle", h.toggleRule)
+	r.Get("/api/sites/{id}/rules/{ruleId}/health", h.getRuleHealth)
+	r.Put("/api/sites/{id}/rules/{ruleId}/health", h.putRuleHealth)
+	r.Delete("/api/sites/{id}/rules/{ruleId}/health", h.deleteRuleHealth)
+	r.Get("/api/sites/{id}/series", h.series)
 	r.Get("/api/sites/{id}/logs", h.logs)
 	r.Post("/api/sites/backend-test", h.testBackend)
 }
 
 func (h *apiHandler) stats(w http.ResponseWriter, _ *http.Request) {
-	api.OK(w, h.svc.AllSiteStats())
+	all := h.svc.AllSiteStats()
+	// 附带各 reverse 规则的后端健康状态（仅已构建处理器的规则）。
+	for siteID, rules := range h.svc.AllBackendHealth() {
+		st, ok := all[siteID]
+		if !ok {
+			continue
+		}
+		for ruleID, backends := range rules {
+			snap := st.Rules[ruleID]
+			snap.Backends = backends
+			st.Rules[ruleID] = snap
+		}
+		all[siteID] = st
+	}
+	api.OK(w, all)
 }
 
 type backendTestResponse struct {
@@ -320,6 +338,7 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.svc.Reload()
+	h.svc.PruneHealth()
 	log.Printf("[security] 删除 Web 站点，ID: %s", id)
 	api.OK(w, nil)
 }
@@ -561,6 +580,7 @@ func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate fu
 		return nil, false
 	}
 	h.svc.statsFor(siteID).pruneRules(next.Rules)
+	h.svc.PruneHealth()
 	return &next, true
 }
 
@@ -573,6 +593,121 @@ func redactedRule(site *config.Site, ruleID string) config.SubRule {
 		}
 	}
 	return config.SubRule{}
+}
+
+// findRule 查找站点及其子规则（深拷贝，可直接修改）。
+func (h *apiHandler) findRule(siteID, ruleID string) (config.SubRule, bool) {
+	h.cfg.RLock()
+	defer h.cfg.RUnlock()
+	for _, site := range h.cfg.Sites {
+		if site.ID != siteID {
+			continue
+		}
+		for _, rule := range site.Rules {
+			if rule.ID == ruleID {
+				return rule, true
+			}
+		}
+		return config.SubRule{}, false
+	}
+	return config.SubRule{}, false
+}
+
+type ruleHealthView struct {
+	Conf     HealthCheckConf `json:"conf"`
+	Backends []BackendHealth `json:"backends"`
+}
+
+func (h *apiHandler) getRuleHealth(w http.ResponseWriter, r *http.Request) {
+	siteID, ruleID := chi.URLParam(r, "id"), chi.URLParam(r, "ruleId")
+	rule, ok := h.findRule(siteID, ruleID)
+	if !ok {
+		api.Fail(w, 404, errRuleNotFound.Error())
+		return
+	}
+	if rule.Type != "reverse" {
+		api.Fail(w, 400, "仅反向代理规则支持健康检查")
+		return
+	}
+	backends := h.svc.RuleBackendHealth(siteID, ruleID)
+	if backends == nil {
+		backends = []BackendHealth{}
+	}
+	api.OK(w, ruleHealthView{Conf: h.svc.HealthConf(ruleID), Backends: backends})
+}
+
+func (h *apiHandler) putRuleHealth(w http.ResponseWriter, r *http.Request) {
+	siteID, ruleID := chi.URLParam(r, "id"), chi.URLParam(r, "ruleId")
+	var conf HealthCheckConf
+	if err := api.DecodeBody(r, &conf); err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	if err := conf.validate(); err != nil {
+		api.Fail(w, 400, err.Error())
+		return
+	}
+	rule, ok := h.findRule(siteID, ruleID)
+	if !ok {
+		api.Fail(w, 404, errRuleNotFound.Error())
+		return
+	}
+	if rule.Type != "reverse" {
+		api.Fail(w, 400, "仅反向代理规则支持健康检查")
+		return
+	}
+	if err := h.svc.SetRuleHealth(siteID, rule, conf); err != nil {
+		api.Fail(w, 500, "保存健康检查配置失败")
+		return
+	}
+	log.Printf("[security] 设置 Web 子规则健康检查，站点 ID: %s，规则 ID: %s，启用: %t", siteID, ruleID, conf.Enabled)
+	api.OK(w, h.svc.HealthConf(ruleID))
+}
+
+func (h *apiHandler) deleteRuleHealth(w http.ResponseWriter, r *http.Request) {
+	siteID, ruleID := chi.URLParam(r, "id"), chi.URLParam(r, "ruleId")
+	rule, ok := h.findRule(siteID, ruleID)
+	if !ok {
+		api.Fail(w, 404, errRuleNotFound.Error())
+		return
+	}
+	if err := h.svc.DeleteRuleHealth(siteID, rule); err != nil {
+		api.Fail(w, 500, "删除健康检查配置失败")
+		return
+	}
+	log.Printf("[security] 删除 Web 子规则健康检查，站点 ID: %s，规则 ID: %s", siteID, ruleID)
+	api.OK(w, nil)
+}
+
+// series 站点流量分钟级时间序列，range 支持 1h / 6h / 24h（默认 24h）。
+func (h *apiHandler) series(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.cfg.RLock()
+	exists := false
+	for i := range h.cfg.Sites {
+		if h.cfg.Sites[i].ID == id {
+			exists = true
+			break
+		}
+	}
+	h.cfg.RUnlock()
+	if !exists {
+		api.Fail(w, 404, "站点不存在")
+		return
+	}
+	var span time.Duration
+	switch rng := r.URL.Query().Get("range"); rng {
+	case "", "24h":
+		span = 24 * time.Hour
+	case "1h":
+		span = time.Hour
+	case "6h":
+		span = 6 * time.Hour
+	default:
+		api.Fail(w, 400, "range 必须是 1h、6h 或 24h")
+		return
+	}
+	api.OK(w, h.svc.SiteSeries(id, span))
 }
 
 func (h *apiHandler) logs(w http.ResponseWriter, r *http.Request) {

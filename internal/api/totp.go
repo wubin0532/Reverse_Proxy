@@ -132,12 +132,11 @@ func (s *Server) verifyFactorLocked(code string, consumeRecovery bool) bool {
 		}
 		s.lastTOTPCounter = counter
 		s.hasLastTOTPCounter = true
-		// 计数器随配置落盘，防止进程重启后同一动态码在 30~90 秒窗口内被重用。
-		// 登录成功是低频事件，每次验证成功写一次可接受。
-		if err := s.cfg.Update(func(c *config.Config) error {
-			c.Settings.TOTPLastCounter = int64(counter)
-			return nil
-		}); err != nil {
+		// 计数器落运行状态库（state.json），防止进程重启后同一动态码在 30~90 秒
+		// 窗口内被重用。登录成功是低频事件，每次验证成功立即写一次，写盘频率=登录频率。
+		st := s.cfg.State()
+		st.Update(func(state *config.State) { state.TOTPLastCounter = int64(counter) })
+		if err := st.Flush(); err != nil {
 			log.Printf("[security] 保存 TOTP 计数器失败: %v", err)
 		}
 		return true
@@ -160,6 +159,16 @@ func (s *Server) verifyFactorLocked(code string, consumeRecovery bool) bool {
 }
 
 var errInvalidFactor = &factorError{}
+
+// resetTOTPCounter 清除状态库中的防重放计数器（启用/关闭双重验证后调用），
+// 避免旧密钥时代的计数器在重启后拦截新密钥的首个动态码。
+func (s *Server) resetTOTPCounter() {
+	st := s.cfg.State()
+	st.Update(func(state *config.State) { state.TOTPLastCounter = 0 })
+	if err := st.Flush(); err != nil {
+		log.Printf("[security] 重置 TOTP 计数器失败: %v", err)
+	}
+}
 
 type factorError struct{}
 
@@ -346,6 +355,7 @@ func (s *Server) handleTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 500, "启用双重验证失败")
 		return
 	}
+	s.resetTOTPCounter()
 	s.revokeAllSessions(w)
 	w.Header().Set("Cache-Control", "no-store")
 	log.Printf("[security] Google Authenticator 已启用，全部会话已撤销")
@@ -419,6 +429,9 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 	if err != nil {
 		Fail(w, 500, "保存双重验证设置失败")
 		return
+	}
+	if !regenerate {
+		s.resetTOTPCounter()
 	}
 	s.revokeAllSessions(w)
 	w.Header().Set("Cache-Control", "no-store")
