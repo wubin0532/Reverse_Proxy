@@ -253,12 +253,32 @@ LINE=$(awk '/^__PAYLOAD_BELOW__$/ {print NR + 1; exit 0}' "$0")
 tail -n +"$LINE" "$0" | tar xz -C "$TMP"
 
 echo "安装 andey-Proxy $VERSION ..."
-install -m 755 "$TMP/andey-proxy" "$INSTALL_DIR/$BIN_NAME"
-install -m 755 "$TMP/andey-proxy-uninstall" "$INSTALL_DIR/andey-proxy-uninstall"
-install -d -m 700 "$CONF_DIR"
+# 不依赖 install(1)：OpenWrt/ImmortalWrt 的 BusyBox 未必编入该 applet，
+# 缺失时脚本会在 set -e 下直接中断，表现为"run 包装不上"
+cp -f "$TMP/andey-proxy" "$INSTALL_DIR/$BIN_NAME"
+chmod 755 "$INSTALL_DIR/$BIN_NAME"
+cp -f "$TMP/andey-proxy-uninstall" "$INSTALL_DIR/andey-proxy-uninstall"
+chmod 755 "$INSTALL_DIR/andey-proxy-uninstall"
+mkdir -p "$CONF_DIR"
+chmod 700 "$CONF_DIR"
 
 if [ -d /etc/init.d ]; then
-  install -m 755 "$TMP/andey-proxy.init" /etc/init.d/$BIN_NAME
+  cp -f "$TMP/andey-proxy.init" /etc/init.d/$BIN_NAME
+  chmod 755 /etc/init.d/$BIN_NAME
+  # OpenWrt 的 init 脚本走 procd + UCI：/etc/config/andey-proxy 缺失时
+  # enabled 默认 0，即使 enable 过 start 也不会拉起进程。.run 包不释放
+  # UCI 配置，这里补一份最小配置让安装后服务真正跑起来（ipk 由包内配置负责）
+  if [ -x /sbin/uci ] && [ ! -f /etc/config/andey-proxy ]; then
+    mkdir -p /etc/config
+    cat > /etc/config/andey-proxy <<'UCIEOF'
+config andey-proxy 'main'
+	option enabled '1'
+	option confdir '/etc/andey-proxy'
+	option port '16606'
+	option admin_http '0'
+UCIEOF
+    chmod 644 /etc/config/andey-proxy
+  fi
   /etc/init.d/$BIN_NAME enable 2>/dev/null || true
   /etc/init.d/$BIN_NAME start 2>/dev/null || true
 elif command -v systemctl >/dev/null 2>&1; then
