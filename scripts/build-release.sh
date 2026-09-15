@@ -47,6 +47,34 @@ sha256_file() {
   fi
 }
 
+# LuCI 翻译：po -> lmo（.lmo 是 LuCI 专有格式，msgfmt 的 .mo 不可用）。
+# 文件名遵循 luci.mk 的 LC_ALIAS 约定（zh_Hans -> zh-cn），
+# 运行时 LuCI 会加载 /usr/lib/lua/luci/i18n/*.<系统语言>.lmo 中的全部翻译。
+# ipk 与 .run 都要用，抽成函数避免两边漂移。
+build_luci_i18n() {
+  local i18ndir=$1 po lang
+  local po2lmo_cmd
+  if command -v po2lmo >/dev/null 2>&1; then
+    po2lmo_cmd=(po2lmo)
+  elif command -v python3 >/dev/null 2>&1; then
+    po2lmo_cmd=(python3 package/openwrt/po/po2lmo.py)
+  else
+    echo "错误：编译 LuCI 翻译需要 po2lmo 或 python3" >&2
+    exit 1
+  fi
+  mkdir -p "$i18ndir"
+  for po in package/openwrt/po/*/andeyproxy.po; do
+    [ -f "$po" ] || continue
+    lang=$(basename "$(dirname "$po")")
+    case "$lang" in
+      zh_Hans) lang=zh-cn ;;
+      zh_Hant) lang=zh-tw ;;
+    esac
+    "${po2lmo_cmd[@]}" "$po" "$i18ndir/andeyproxy.$lang.lmo"
+    chmod 644 "$i18ndir/andeyproxy.$lang.lmo"
+  done
+}
+
 # goarch 后缀|GOARCH|opkg 架构|GOARM|GOMIPS
 TARGETS=(
   "x86_64|amd64|x86_64||"
@@ -86,30 +114,7 @@ make_ipk() {
             "$root/data/www/luci-static/resources/view/andeyproxy/settings.js" \
             "$root/data/www/luci-static/resources/view/andeyproxy/panel.js"
 
-  # LuCI 翻译：po -> lmo 编译进 ipk（.lmo 是 LuCI 专有格式，msgfmt 的 .mo 不可用）。
-  # 文件名遵循 luci.mk 的 LC_ALIAS 约定（zh_Hans -> zh-cn），
-  # 运行时 LuCI 会加载 /usr/lib/lua/luci/i18n/*.<系统语言>.lmo 中的全部翻译。
-  local po2lmo_cmd
-  if command -v po2lmo >/dev/null 2>&1; then
-    po2lmo_cmd=(po2lmo)
-  elif command -v python3 >/dev/null 2>&1; then
-    po2lmo_cmd=(python3 package/openwrt/po/po2lmo.py)
-  else
-    echo "错误：编译 LuCI 翻译需要 po2lmo 或 python3" >&2
-    exit 1
-  fi
-  local po lang i18ndir="$root/data/usr/lib/lua/luci/i18n"
-  mkdir -p "$i18ndir"
-  for po in package/openwrt/po/*/andeyproxy.po; do
-    [ -f "$po" ] || continue
-    lang=$(basename "$(dirname "$po")")
-    case "$lang" in
-      zh_Hans) lang=zh-cn ;;
-      zh_Hant) lang=zh-tw ;;
-    esac
-    "${po2lmo_cmd[@]}" "$po" "$i18ndir/andeyproxy.$lang.lmo"
-    chmod 644 "$i18ndir/andeyproxy.$lang.lmo"
-  done
+  build_luci_i18n "$root/data/usr/lib/lua/luci/i18n"
 
   local size
   size=$(du -sk "$root/data" | cut -f1)
@@ -193,6 +198,17 @@ make_run() {
   cp "$WORK/bin_$suffix" "$root/payload/andey-proxy"
   cp package/openwrt/files/andey-proxy.init "$root/payload/andey-proxy.init"
 
+  # LuCI 界面（菜单/ACL/设置页/翻译）也打进 .run：ImmortalWrt 25.12 起包管理器
+  # 换成 apk，.ipk 装不上，只能走 .run；而用户期望服务菜单里有入口。
+  # 载荷放在 luci/ 前缀下，安装脚本只在目标机装了 LuCI 时才铺开，
+  # 纯 Linux 服务器上这些文件原样忽略（升级解析器按文件名取件，也不受影响）。
+  cp -r package/openwrt/luci/. "$root/payload/luci/"
+  chmod 644 "$root/payload/luci/usr/share/luci/menu.d/luci-app-andeyproxy.json" \
+            "$root/payload/luci/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" \
+            "$root/payload/luci/www/luci-static/resources/view/andeyproxy/settings.js" \
+            "$root/payload/luci/www/luci-static/resources/view/andeyproxy/panel.js"
+  build_luci_i18n "$root/payload/luci/usr/lib/lua/luci/i18n"
+
   cat > "$root/payload/andey-proxy-uninstall" <<'UNEOF'
 #!/bin/sh
 # andey-Proxy 卸载程序：停止并删除服务、二进制、配置文件与全部运行数据（证书/缓存）
@@ -223,6 +239,17 @@ rm -f /usr/bin/$BIN_NAME
 rm -rf /etc/andey-proxy
 rm -f /etc/andey-proxy.key
 rm -f /etc/config/andey-proxy
+
+# 移除随 .run 一起安装的 LuCI 界面（菜单/ACL/设置页/翻译）
+rm -f /usr/share/luci/menu.d/luci-app-andeyproxy.json
+rm -f /usr/share/rpcd/acl.d/luci-app-andeyproxy.json
+rm -f /www/luci-static/resources/view/andeyproxy/settings.js
+rm -f /www/luci-static/resources/view/andeyproxy/panel.js
+rmdir /www/luci-static/resources/view/andeyproxy 2>/dev/null || true
+rm -f /usr/lib/lua/luci/i18n/andeyproxy.*.lmo
+# 清 LuCI 缓存并让 rpcd 重新加载 ACL，服务菜单里的入口立即消失
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+/etc/init.d/rpcd restart 2>/dev/null || true
 
 echo "andey-Proxy 已完全卸载（配置与缓存已清空）"
 
@@ -278,6 +305,26 @@ config andey-proxy 'main'
 	option admin_http '0'
 UCIEOF
     chmod 644 /etc/config/andey-proxy
+  fi
+
+  # LuCI 界面：仅在目标机确实装了 LuCI 时铺开（纯 Linux 服务器跳过）
+  if [ -d /usr/share/luci ] && [ -d /www/luci-static ] && [ -d "$TMP/luci" ]; then
+    mkdir -p /usr/share/luci/menu.d /usr/share/rpcd/acl.d \
+             /www/luci-static/resources/view/andeyproxy /usr/lib/lua/luci/i18n
+    cp -f "$TMP/luci/usr/share/luci/menu.d/luci-app-andeyproxy.json" /usr/share/luci/menu.d/
+    cp -f "$TMP/luci/usr/share/rpcd/acl.d/luci-app-andeyproxy.json" /usr/share/rpcd/acl.d/
+    cp -f "$TMP/luci/www/luci-static/resources/view/andeyproxy/"*.js /www/luci-static/resources/view/andeyproxy/
+    cp -f "$TMP/luci/usr/lib/lua/luci/i18n/"andeyproxy.*.lmo /usr/lib/lua/luci/i18n/
+    chmod 644 /usr/share/luci/menu.d/luci-app-andeyproxy.json \
+              /usr/share/rpcd/acl.d/luci-app-andeyproxy.json
+    for f in /www/luci-static/resources/view/andeyproxy/*.js /usr/lib/lua/luci/i18n/andeyproxy.*.lmo; do
+      [ -f "$f" ] || continue
+      chmod 644 "$f"
+    done
+    # 清 LuCI 缓存并让 rpcd 重新加载 ACL，菜单无需重启设备即可出现
+    rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+    /etc/init.d/rpcd restart 2>/dev/null || true
+    echo "LuCI 界面已安装：服务 -> andey-Proxy（浏览器强制刷新后可见）"
   fi
   /etc/init.d/$BIN_NAME enable 2>/dev/null || true
   /etc/init.d/$BIN_NAME start 2>/dev/null || true

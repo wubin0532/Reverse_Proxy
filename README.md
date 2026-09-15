@@ -78,6 +78,14 @@ opkg remove andey-proxy
 opkg install luci-app-andeyproxy_*.ipk   # postinst 自动从备份恢复配置
 ```
 
+没有 opkg 的 OpenWrt（ImmortalWrt 25.12 起改用 apk）直接用 `.run` 包,它同样自带 LuCI 界面：
+
+```bash
+sh andey-proxy_*_linux_x86_64.run
+```
+
+安装脚本会在检测到 LuCI 时铺开菜单、ACL、设置页与翻译,自动创建 `/etc/config/andey-proxy`（`enabled=1`、端口 16606）并启动服务,无需再手动装包或改配置;纯 Linux 服务器上这些 LuCI 文件会被忽略。
+
 ## 目录结构
 
 ```
