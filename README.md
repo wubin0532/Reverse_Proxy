@@ -1,135 +1,137 @@
-# 路由器最安全的反向代理插件
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-一款轻量的多合一网络工具，专为路由器和低功耗设备设计，单二进制运行，内置 Web 管理后台。
+# andey-proxy
 
-## 功能
+A lightweight, all-in-one network toolkit for routers and low-power devices. It runs as a single binary with no runtime dependencies and ships with a built-in web console.
 
-- **Web 服务 / 反向代理**:多站点监听，按域名 + 路径前缀分发子规则
-  - 独立 HTTP/2 后端连接池、多后端轮询、WebSocket、SSE 与长连接
-  - 自动可信代理头、透传 Host、只写自定义请求头、Basic Auth、后端自签 TLS
-  - 子规则热更新、连接/响应超时、路径前缀移除及后端连接测试
-  - 可选按直接客户端 IP 限速、请求体上限、Location 与 Cookie Domain/Path 改写
-  - 站点级"强制 HTTPS"开关：同端口明文/TLS 嗅探分流，明文请求 301 跳转
-  - 站点流量统计面板：请求数、状态码分布与出入流量（内存统计，重启清零）
-  - 301/302 跳转
-  - 静态文件服务
-- **HTTPS 证书**:ACME 自动申请与续签(DNS-01,支持泛域名),按 SNI 自动供给证书;无证书时回退自签
-  - 支持阿里云、Cloudflare、DNSPod
-- **端口转发**:TCP / UDP 四层转发,带实时日志
-  - 规则级 `idleTimeout` TCP 空闲超时（默认 600 秒，仅 API/配置字段）
-- **DDNS 动态域名**:定时检测 IP 变化并更新 DNS 记录
-  - IP 来源:网卡 / 自定义 API
-  - 支持 IPv4 / IPv6,阿里云、Cloudflare、DNSPod
-- **安全防护**:IP 黑白名单(支持 CIDR)、User-Agent 黑白名单,转发与 Web 服务共用
-- **管理后台**:Vue 3 + Element Plus,通过 `go:embed` 嵌入二进制,无需额外部署
-- **运维控制台**:健康概览、防火墙、手动更新和最近错误统一管理
-- **日志中心**:结构化查询、下载与审计，磁盘占用上限约 5 MiB
-- **通知中心**:独立管理通知渠道与事件订阅，当前支持 Telegram Bot，可按证书 / DDNS / 站点 / 转发类型筛选
-- **配置备份**:Dashboard 导出/导入加密备份文件（口令派生密钥，可跨设备迁移）
-- **账户安全**:可选 Google Authenticator 双重验证、一次性恢复码和设备本机重置
+## Features
 
-## 快速开始
+- **Web service / reverse proxy** — multiple site listeners, dispatch by hostname + path prefix
+  - Dedicated HTTP/2 backend connection pools, round-robin across multiple backends, WebSocket, SSE and long-lived connections
+  - Automatic trusted-proxy headers, Host passthrough, write-only custom request headers, Basic Auth, self-signed TLS to backends
+  - Hot reload of child rules, connect/response timeouts, path-prefix stripping, backend connection testing
+  - Optional rate limiting per direct client IP, request body size cap, Location and Cookie Domain/Path rewriting
+  - Per-site "force HTTPS" switch: plaintext/TLS sniffing on the same port, plaintext requests get a 301
+  - Per-site traffic panel: request count, status-code distribution, inbound/outbound bytes (in-memory, cleared on restart)
+  - 301/302 redirects
+  - Static file serving
+- **HTTPS certificates** — ACME issuance and renewal (DNS-01, wildcards supported), certificates selected by SNI, falling back to a self-signed certificate when nothing matches
+  - Providers: Alibaba Cloud, Cloudflare, DNSPod
+- **Port forwarding** — TCP/UDP layer-4 forwarding with live logs
+  - Per-rule `idleTimeout` for TCP (default 600s, API/config field only)
+- **DDNS** — periodically detects IP changes and updates DNS records
+  - IP source: network interface or custom API
+  - IPv4/IPv6; Alibaba Cloud, Cloudflare, DNSPod
+- **Access control** — IP allow/deny lists (CIDR supported) and User-Agent allow/deny lists, shared by port forwarding and the web service
+- **Admin console** — Vue 3 + Element Plus, embedded into the binary with `go:embed`, nothing extra to deploy
+- **Operations console** — health overview, firewall, manual updates and recent errors in one place
+- **Log center** — structured query, download and audit, with a disk usage cap of about 5 MiB
+- **Notification center** — manage channels and event subscriptions independently; currently Telegram Bot, filterable by certificate / DDNS / site / forwarding event type
+- **Config backup** — export and import an encrypted backup from the dashboard (passphrase-derived key, movable across devices)
+- **Account security** — optional Google Authenticator two-factor authentication, one-time recovery codes and on-device reset
 
-### 下载
+## Quick start
 
-从 [Releases](https://github.com/wubin0532/Reverse_Proxy/releases) 下载对应架构的二进制,支持:
+### Download
 
-| 架构 | 适用设备 |
+Grab the build for your architecture from [Releases](https://github.com/wubin0532/Reverse_Proxy/releases):
+
+| Architecture | Target devices |
 |------|---------|
-| x86_64 | 普通 Linux 服务器 / 软路由 |
-| arm64 | ARM64 路由器、树莓派 4+ |
-| armv7 | 32 位 ARM 设备 |
-| mips / mipsle | MT7621 等 MIPS 路由器(softfloat) |
+| x86_64 | Standard Linux servers / x86 soft routers |
+| arm64 | ARM64 routers, Raspberry Pi 4+ |
+| armv7 | 32-bit ARM devices |
+| mips / mipsle | MIPS routers such as MT7621 (softfloat) |
 
-### 运行
-
-```bash
-./andey-proxy              # 默认后台端口 16606,配置目录 ./andey-proxy-conf
-./andey-proxy -p 8080      # 指定后台端口
-./andey-proxy -listen 192.168.1.1  # 只绑定指定网卡地址（默认监听全部网卡）
-./andey-proxy -cd /etc/andey-proxy  # 指定配置目录
-```
-
-启动后访问 `https://<设备IP>:16606`。无匹配的 ACME 证书时会使用自签证书，浏览器首次需确认。账号默认为 `admin`，一次性随机密码只在首次启动的控制台输出一次。
-
-如必须兼容无法使用 HTTPS 的旧客户端，可显式传入 `-admin-http`；该模式会在首页持续显示高风险警告。
-
-### 从源码构建
-
-需要 `go.mod` 指定的 Go 版本和 Node.js:
+### Run
 
 ```bash
-make build          # 构建前端 + 本机二进制(输出 andey-proxy)
-./scripts/build-all.sh  # 交叉编译全部架构(输出 dist/)
+./andey-proxy                      # default admin port 16606, config dir ./andey-proxy-conf
+./andey-proxy -p 8080              # use a different admin port
+./andey-proxy -listen 192.168.1.1  # bind to one interface only (defaults to all interfaces)
+./andey-proxy -cd /etc/andey-proxy # use a specific config directory
 ```
 
-前端产物通过 `go:embed` 嵌入二进制,构建 Go 代码前需先执行 `make web`(或 `cd web && npm ci && npm run build`)。
+Then open `https://<device-ip>:16606`. When no ACME certificate matches, a self-signed one is used and the browser will ask you to confirm it on first visit. The default account is `admin`; the one-time random password is printed to the console on first start only.
 
-### OpenWrt 安装
+If you must support legacy clients that cannot do HTTPS, pass `-admin-http` explicitly. That mode keeps a high-risk warning on the dashboard at all times.
 
-`package/openwrt/` 提供了 OpenWrt 包定义（含 LuCI 界面文件）,可用 OpenWrt SDK 编译为 ipk,详见该目录下 Makefile 头部注释。默认配置目录 `/etc/andey-proxy`。
+### Build from source
 
-Release 中的 `luci-app-andeyproxy_*.ipk` 一个包即包含主程序与 LuCI 界面（服务 -> andey-Proxy 菜单）。旧版曾拆分为 `andey-proxy` + `luci-app-andeyproxy` 两个包；从旧包名 `andey-proxy` 迁移时请先备份再卸载（旧包卸载会删除运行数据）：
+Requires the Go version pinned in `go.mod` plus Node.js:
+
+```bash
+make build              # build frontend + local binary (outputs andey-proxy)
+./scripts/build-all.sh  # cross-compile every architecture (outputs dist/)
+```
+
+Frontend assets are embedded into the binary via `go:embed`, so `make web` (or `cd web && npm ci && npm run build`) has to run before building the Go code.
+
+### OpenWrt
+
+`package/openwrt/` contains the OpenWrt package definition (including the LuCI files) and can be built into an ipk with the OpenWrt SDK; see the comments at the top of the Makefile in that directory. The default config directory is `/etc/andey-proxy`.
+
+The `luci-app-andeyproxy_*.ipk` in each release contains both the main program and the LuCI interface (under the **Services → andey-Proxy** menu). Earlier versions split this into `andey-proxy` + `luci-app-andeyproxy`; when migrating from the old package name, back up before removing, because uninstalling the old package deletes runtime data:
 
 ```bash
 cp -a /etc/andey-proxy /etc/andey-proxy.bak
 cp -a /etc/config/andey-proxy /etc/andey-proxy.bak.uci
 opkg remove andey-proxy
-opkg install luci-app-andeyproxy_*.ipk   # postinst 自动从备份恢复配置
+opkg install luci-app-andeyproxy_*.ipk   # postinst restores the config from the backup
 ```
 
-没有 opkg 的 OpenWrt（ImmortalWrt 25.12 起改用 apk）直接用 `.run` 包,它同样自带 LuCI 界面：
+On OpenWrt builds without opkg (ImmortalWrt 25.12 and later moved to apk), use the `.run` package instead — it carries the LuCI files too:
 
 ```bash
 sh andey-proxy_*_linux_x86_64.run
 ```
 
-安装脚本会在检测到 LuCI 时铺开菜单、ACL、设置页与翻译,自动创建 `/etc/config/andey-proxy`（`enabled=1`、端口 16606）并启动服务,无需再手动装包或改配置;纯 Linux 服务器上这些 LuCI 文件会被忽略。
+When LuCI is detected, the installer lays out the menu entries, ACLs, settings page and translations, creates `/etc/config/andey-proxy` (`enabled=1`, port 16606) and starts the service, so there is no manual package install or config editing left to do. On plain Linux servers those LuCI files are ignored.
 
-## 目录结构
+## Repository layout
 
 ```
-├── main.go              # 入口:加载配置、启动各模块与后台 HTTP 服务
+├── main.go              # entry point: load config, start modules and the admin HTTP server
 ├── internal/
-│   ├── webproxy/        # Web 服务/反向代理核心(站点监听、子规则分发、访问日志)
-│   ├── forward/         # TCP/UDP 端口转发
-│   ├── ddns/            # DDNS 调度器与 DNS 服务商实现
-│   ├── acme/            # ACME 证书申请、续签、SNI 供给(基于 lego)
-│   ├── guard/           # IP / UA 黑白名单
-│   ├── adminweb/        # 嵌入的前端静态资源
-│   ├── api/             # 后台 REST API
-│   ├── auth/            # 登录认证
-│   ├── logcenter/       # 结构化日志、轮转、下载与审计
-│   ├── notify/          # 事件总线、通知渠道管理与 Telegram Bot 发送
-│   └── config/          # AES-256-GCM 加密配置与原子事务
-├── web/                 # 前端源码(Vue 3 + Vite + Element Plus)
-├── package/openwrt/     # OpenWrt ipk 打包
-└── scripts/build-all.sh # 多架构交叉编译
+│   ├── webproxy/        # web service / reverse proxy core (site listeners, child rule dispatch, access logs)
+│   ├── forward/         # TCP/UDP port forwarding
+│   ├── ddns/            # DDNS scheduler and DNS provider implementations
+│   ├── acme/            # ACME issuance, renewal and SNI certificate serving (built on lego)
+│   ├── guard/           # IP / User-Agent allow and deny lists
+│   ├── adminweb/        # embedded frontend static assets
+│   ├── api/             # admin REST API
+│   ├── auth/            # login authentication
+│   ├── logcenter/       # structured logs, rotation, download and audit
+│   ├── notify/          # event bus, notification channel management, Telegram Bot delivery
+│   └── config/          # AES-256-GCM encrypted config with atomic transactions
+├── web/                 # frontend source (Vue 3 + Vite + Element Plus)
+├── package/openwrt/     # OpenWrt ipk packaging
+└── scripts/build-all.sh # multi-architecture cross compilation
 ```
 
-## 配置
+## Configuration
 
-所有配置使用 AES-256-GCM 整体加密保存。设备密钥独立保存；OpenWrt 默认为 `/etc/andey-proxy.key`，权限 `0600`。DNS Token、Basic Auth 密码和自定义请求头都是只写字段，API 不返回明文。
+All configuration is stored as a single AES-256-GCM encrypted blob. The device key is stored separately; on OpenWrt it defaults to `/etc/andey-proxy.key` with mode `0600`. DNS tokens, Basic Auth passwords and custom request headers are write-only fields — the API never returns them in plaintext.
 
-安全注意事项：备份或迁移配置目录时，`.key` 文件（配置加密密钥）与配置本体同等敏感，须一并保护、切勿随备份外泄；丢失 `.key` 则既有加密配置无法解密。Dashboard 的备份导出使用独立口令派生密钥，不受 `.key` 影响。使用自签证书首次访问管理后台时，请对照启动日志中输出的 SHA-256 指纹核对浏览器提示的证书指纹后再信任。
+Security notes: when backing up or migrating the config directory, the `.key` file (the config encryption key) is as sensitive as the config itself. Protect it, and never let it leak with a backup. Lose the `.key` and the existing encrypted config can no longer be decrypted. Dashboard backup export uses its own passphrase-derived key and is unaffected by `.key`. When you first reach the admin console through a self-signed certificate, compare the browser's certificate fingerprint against the SHA-256 fingerprint printed in the startup log before trusting it.
 
-### 代理行为与资源限制
+### Proxy behavior and resource limits
 
-- 后端故障自动重试仅适用于无请求体的 GET、HEAD、OPTIONS，最多切换一次；POST、PUT、PATCH、DELETE 等请求失败时直接返回错误，避免重复执行操作。重试保留原始路径、查询参数和公网 Host 信息。
-- 在匹配子规则与鉴权之前拒绝含 `.` / `..` 路径段、重复斜杠或反斜杠的歧义路径（包括解码后出现这些内容的请求），返回 400。移除前缀时保留剩余路径的百分号编码。
-- 静态文件服务将文件访问限制在配置的根目录内，拒绝指向根目录外的符号链接。根目录内的符号链接、隐藏文件及目录列表仍可访问，因此根目录应只放准备公开的内容。
-- 同端口 HTTP/TLS 分流每站点最多保留 128 个待嗅探连接，首字节等待上限 10 秒；达到上限后关闭新的连接。
-- 四层端口转发在所有规则间共享 256 条 TCP 连接、256 个活跃 UDP 会话的上限。达到上限时关闭新 TCP 连接、丢弃新 UDP 会话的数据包，已有会话继续运行；每条 UDP 规则的会话索引也限制为 256 项。这些是当前版本的固定资源上限。
-- 规则热更新只重建发生变化的处理器和连接池。持有旧规则快照、尚未取得处理器的请求可能收到 503，随后新请求使用新配置。
-- 配置备份 v1 只接受程序导出时使用的固定 scrypt 参数（约 32 MiB 派生内存）。导入与导出互斥，已有操作进行时返回 409；畸形加密字段在派生密钥前被拒绝。
+- Automatic backend failover retries only apply to bodyless GET, HEAD and OPTIONS, and switch backends at most once. Failed POST, PUT, PATCH and DELETE requests return an error directly so operations are never executed twice. Retries preserve the original path, query string and public Host information.
+- Ambiguous paths containing `.` / `..` segments, repeated slashes or backslashes (including after decoding) are rejected with 400 before child rules and authentication are matched. Percent-encoding is preserved when stripping a path prefix.
+- Static file serving is confined to the configured root directory and refuses symlinks that point outside it. Symlinks inside the root, hidden files and directory listings remain accessible, so only put content in the root that you intend to publish.
+- Same-port HTTP/TLS sniffing keeps at most 128 pending connections per site with a 10-second wait for the first byte; beyond that, new connections are closed.
+- Layer-4 port forwarding shares a global cap of 256 TCP connections and 256 active UDP sessions across all rules. At the cap, new TCP connections are closed and new UDP session packets are dropped, while existing sessions keep running. Each UDP rule's session index is also capped at 256 entries. These are fixed limits in the current version.
+- Hot rule reload only rebuilds the handlers and connection pools that changed. Requests holding an old rule snapshot that have not yet acquired a handler may receive a 503; subsequent requests use the new config.
+- Config backup v1 accepts only the fixed scrypt parameters the program uses when exporting (about 32 MiB of derivation memory). Import and export are mutually exclusive and return 409 while another operation is running. Malformed encrypted fields are rejected before the key is derived.
 
-### Google Authenticator 双重验证
+### Google Authenticator two-factor authentication
 
-在管理面板右上角打开“账户安全”，输入当前密码后即可绑定 Google Authenticator 或其他兼容 RFC 6238 的验证器。双重验证默认关闭；启用、关闭或重新生成恢复码后，全部已有会话都会失效并要求重新登录。
+Open **Account security** in the top-right of the admin panel and enter your current password to bind Google Authenticator or any other RFC 6238-compatible authenticator. Two-factor authentication is off by default; enabling it, disabling it or regenerating recovery codes invalidates all existing sessions and requires logging in again.
 
-绑定时生成的 10 个恢复码只显示一次，请下载或离线妥善保存。管理后台使用明文 HTTP 时，为避免验证码和绑定密钥被窃听，登录第二步及所有双重验证管理接口都会被拒绝。
+The 10 recovery codes generated during binding are shown once — download them or store them offline. Because the admin console can be served over plaintext HTTP, the second login step and all two-factor management endpoints are rejected in that mode, so the code and the binding secret cannot be eavesdropped on.
 
-如果验证器和恢复码均丢失，可在设备本机先停止服务，再执行一次性重置：
+If both the authenticator and the recovery codes are lost, stop the service on the device itself and run a one-time reset:
 
 ```bash
 /etc/init.d/andey-proxy stop
@@ -137,25 +139,25 @@ sh andey-proxy_*_linux_x86_64.run
 /etc/init.d/andey-proxy start
 ```
 
-重置命令通过配置锁确认服务已经停止；服务仍在运行时会拒绝修改配置。该命令仅关闭双重验证，不会修改管理员密码或其他业务配置。
+The reset command confirms through the config lock that the service has stopped and refuses to modify the config while it is still running. It only disables two-factor authentication; the admin password and other settings are untouched.
 
-## 手动更新
+## Manual update
 
-程序不会主动连网检查版本，也不会从 GitHub 或其他站点下载并执行脚本。请自行下载对应架构的签名 `.run` 包，在首页“上传包手动更新”中先检查签名、摘要、Linux/CPU/ELF 架构和版本，再输入管理密码安装。
+The program never phones home for version checks and never downloads or executes scripts from GitHub or anywhere else. Download the signed `.run` package for your architecture yourself, then use **Upload package to update manually** on the dashboard: verify the signature, digest, Linux/CPU/ELF architecture and version before entering the admin password to install.
 
-发布包使用 Ed25519 签名。构建 `.run` 前必须通过 `RELEASE_SIGNING_KEY` 指定发布私钥；GitHub Actions 使用名为 `RELEASE_SIGNING_PRIVATE_KEY` 的受保护 Secret。私钥不得提交到仓库或写入产物。
+Release packages are signed with Ed25519. Building a `.run` requires the release private key to be supplied through `RELEASE_SIGNING_KEY`; GitHub Actions reads it from a protected secret named `RELEASE_SIGNING_PRIVATE_KEY`. The private key must never be committed to the repository or written into build artifacts.
 
 ## CI
 
-推送到 `main` 或打 `v*` 标签时,GitHub Actions 从 `go.mod` 读取 Go 版本，运行前端测试与构建、`go vet ./...`、`go test -race ./...`、依赖漏洞扫描并构建全部 5 种架构的二进制。标签构建还会生成五架构签名 `.run` 与 OpenWrt `.ipk` 产物(见 [Actions](https://github.com/wubin0532/Reverse_Proxy/actions))。
+On every push to `main` or `v*` tag, GitHub Actions reads the Go version from `go.mod` and runs frontend tests and build, `go vet ./...`, `go test -race ./...`, a dependency vulnerability scan, and builds all five architecture variants. Tag builds additionally produce signed `.run` packages and OpenWrt `.ipk` artifacts for all five architectures (see [Actions](https://github.com/wubin0532/Reverse_Proxy/actions)).
 
-## 安全部署建议
+## Security deployment notes
 
-- 管理后台建议使用专用主机名/端口，避免与对外业务站点共用域名，降低被扫描与跨站攻击面。
-- 生产环境请使用 `-listen` 将管理后台绑定到内网地址，不要直接暴露到公网；默认监听全部网卡时启动日志会给出警告。
-- OpenWrt LuCI 界面的只读 ACL 仅授予状态查询与 `/etc/andey-proxy/initial-password` 读取权限：初始密码读取仅供首次登录，管理员首次改密后该文件自动删除；如需禁止只读账号查看，可在 `luci-app-andeyproxy.json` 中删除该授权行。
-- 仓库 `release/` 目录中的旧版包签名自检未通过，属于安全审计前的存量产物，请勿分发或安装；请等待重新签名的正式版本发布。
+- Use a dedicated hostname and port for the admin console instead of sharing a domain with public sites, to reduce scanning and cross-site attack surface.
+- In production, use `-listen` to bind the admin console to an internal address rather than exposing it to the internet. Binding to all interfaces by default prints a warning in the startup log.
+- The read-only ACL for the OpenWrt LuCI interface grants only status queries plus read access to `/etc/andey-proxy/initial-password`. That file exists only for the first login and is deleted automatically once the administrator changes the password. To stop read-only accounts from seeing it, remove that grant line in `luci-app-andeyproxy.json`.
+- The legacy packages in the repository's `release/` directory fail their own signature self-check. They are leftovers from before the security audit — do not redistribute or install them, and wait for a freshly signed release instead.
 
 ## License
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE)
