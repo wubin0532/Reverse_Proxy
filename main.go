@@ -32,7 +32,7 @@ import (
 	"andey-proxy/internal/webproxy"
 )
 
-var version = "0.3.5"
+var version = "0.3.6"
 
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
