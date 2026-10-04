@@ -138,7 +138,7 @@ func (ss *siteServer) rateLimitMiddleware() middleware {
 func (ss *siteServer) forceHTTPSMiddleware() middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.TLS == nil && forceHTTPSActive(ss.siteSnapshot()) {
+			if requestScheme(r) != "https" && forceHTTPSActive(ss.siteSnapshot()) {
 				target, ok := forceHTTPSRedirectTarget(r)
 				if !ok {
 					http.Error(w, "400 Bad Request", http.StatusBadRequest)
@@ -326,6 +326,9 @@ func forceHTTPSRedirectTarget(r *http.Request) (string, bool) {
 
 // clientIP 只信任直接连接地址，避免攻击者伪造 X-Forwarded-For 绕过名单。
 func clientIP(r *http.Request) string {
+	if identity, ok := r.Context().Value(tunnelIdentityKey{}).(tunnelIdentity); ok {
+		return identity.IP
+	}
 	return hostOnly(r.RemoteAddr)
 }
 

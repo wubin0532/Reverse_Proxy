@@ -31,12 +31,15 @@ type Server struct {
 	inFlight           chan struct{} // 在途请求预算
 	bodyReadTimeout    time.Duration // 普通 API 请求体读取期限
 	twoFactorMu        sync.Mutex
+	authGeneration     uint64
+	checkLoginPassword func(string, string) bool
 	backupMu           sync.Mutex // one backup import/export at a time (scrypt memory)
 	loginChallenges    map[string]*loginChallenge
 	totpSetups         map[string]*totpSetup
 	lastTOTPCounter    uint64
 	hasLastTOTPCounter bool
 	version            string // 备份文件元信息里的应用版本
+	restoreGuard       func() (func(), error)
 	restoreHook        func() // 配置导入后的热重载回调（main 装配各服务 Reload）
 }
 
@@ -46,7 +49,7 @@ func NewServer(cfg *config.Config, secure ...bool) *Server {
 		isSecure = secure[0]
 	}
 	s := &Server{
-		cfg: cfg, tokens: auth.NewTokenStore(), secure: isSecure,
+		cfg: cfg, tokens: auth.NewTokenStore(), secure: isSecure, checkLoginPassword: auth.CheckPassword,
 		loginLimiter: newFailureLimiter(), loginChallenges: make(map[string]*loginChallenge),
 		totpSetups: make(map[string]*totpSetup),
 		inFlight:   make(chan struct{}, 64), bodyReadTimeout: 30 * time.Second,
@@ -174,7 +177,7 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 			Fail(w, 403, "首次登录必须先修改初始密码")
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, s.admitSession(r, c.Value))
 	})
 }
 
@@ -220,11 +223,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 403, "账号或密码错误")
 		return
 	}
-	s.cfg.RLock()
-	user := s.cfg.Settings.AdminUser
-	hash := s.cfg.Settings.AdminPassHash
-	totpEnabled := s.cfg.Settings.TOTPEnabled
-	s.cfg.RUnlock()
+	proof := s.credentials()
+	user, hash, totpEnabled := proof.user, proof.hash, proof.totp
 
 	release, ok := auth.AcquireVerifySlot(3 * time.Second)
 	if !ok {
@@ -233,7 +233,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	valid := false
 	if hash != "" && subtle.ConstantTimeCompare([]byte(body.Username), []byte(user)) == 1 {
-		valid = auth.CheckPassword(hash, body.Password)
+		valid = s.checkLoginPassword(hash, body.Password)
 	} else {
 		// 用户名不匹配（或尚未初始化密码）时也执行一次 bcrypt 校验，
 		// 保持两条路径耗时一致，结果丢弃。
@@ -245,12 +245,16 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 403, "账号或密码错误")
 		return
 	}
+	if !s.lockCredentials(w, proof) {
+		return
+	}
+	defer s.twoFactorMu.Unlock()
 	if totpEnabled {
 		if !s.secure {
 			Fail(w, 403, "已启用双重验证，必须通过 HTTPS 登录")
 			return
 		}
-		challengeID, err := s.issueLoginChallenge(ip)
+		challengeID, err := s.issueLoginChallengeLocked(ip)
 		if err != nil {
 			Fail(w, 500, "无法创建双重验证挑战")
 			return
@@ -307,10 +311,8 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 400, "请求格式错误")
 		return
 	}
-	s.cfg.RLock()
-	hash := s.cfg.Settings.AdminPassHash
-	user := s.cfg.Settings.AdminUser
-	s.cfg.RUnlock()
+	proof := s.credentials()
+	hash, user := proof.hash, proof.user
 	body.Username = strings.TrimSpace(body.Username)
 	if body.Username == "" {
 		body.Username = user
@@ -346,6 +348,10 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 500, "密码加密失败")
 		return
 	}
+	if !s.lockRequestCredentials(w, r, proof) {
+		return
+	}
+	defer s.twoFactorMu.Unlock()
 	if err := s.cfg.Update(func(c *config.Config) error {
 		c.Settings.AdminUser = body.Username
 		c.Settings.AdminPassHash = newHash
@@ -360,7 +366,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[security] 删除初始密码文件失败: %v", err)
 	}
 	log.Printf("[security] 管理账号密码已修改，全部会话已撤销")
-	s.revokeAllSessions(w)
+	s.revokeSessionsLocked(w)
 	OK(w, map[string]bool{"loginRequired": true})
 }
 

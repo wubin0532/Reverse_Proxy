@@ -26,9 +26,10 @@ const (
 )
 
 type loginChallenge struct {
-	IP       string
-	Expires  time.Time
-	Attempts int
+	IP         string
+	Expires    time.Time
+	Attempts   int
+	Generation uint64
 }
 
 type totpSetup struct {
@@ -46,14 +47,12 @@ func secureRandomID() (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
-func (s *Server) issueLoginChallenge(ip string) (string, error) {
+func (s *Server) issueLoginChallengeLocked(ip string) (string, error) {
 	id, err := secureRandomID()
 	if err != nil {
 		return "", err
 	}
 	now := time.Now()
-	s.twoFactorMu.Lock()
-	defer s.twoFactorMu.Unlock()
 	for key, challenge := range s.loginChallenges {
 		if !challenge.Expires.After(now) {
 			delete(s.loginChallenges, key)
@@ -65,7 +64,7 @@ func (s *Server) issueLoginChallenge(ip string) (string, error) {
 			break
 		}
 	}
-	s.loginChallenges[id] = &loginChallenge{IP: ip, Expires: now.Add(loginChallengeTTL)}
+	s.loginChallenges[id] = &loginChallenge{IP: ip, Expires: now.Add(loginChallengeTTL), Generation: s.authGeneration}
 	return id, nil
 }
 
@@ -91,7 +90,7 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	s.twoFactorMu.Lock()
 	challenge := s.loginChallenges[body.ChallengeID]
-	if challenge == nil || !challenge.Expires.After(time.Now()) || challenge.Attempts >= 5 {
+	if challenge == nil || challenge.Generation != s.authGeneration || !challenge.Expires.After(time.Now()) || challenge.Attempts >= 5 {
 		delete(s.loginChallenges, body.ChallengeID)
 		s.twoFactorMu.Unlock()
 		Fail(w, 403, "双重验证码无效或已过期")
@@ -107,14 +106,15 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		delete(s.loginChallenges, body.ChallengeID)
 	}
-	s.twoFactorMu.Unlock()
 	if !ok {
+		s.twoFactorMu.Unlock()
 		log.Printf("[security] 双重验证登录失败，客户端 IP: %s", ip)
 		Fail(w, 403, "双重验证码无效或已过期")
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	s.finishLogin(w, ip)
+	s.twoFactorMu.Unlock()
 }
 
 func (s *Server) verifyFactorLocked(code string, consumeRecovery bool) bool {
@@ -206,7 +206,8 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
 		return
 	}
-	valid, busy := s.checkCurrentPassword(body.Password)
+	proof := s.credentials()
+	valid, busy := verifyCurrentPassword(proof.hash, body.Password)
 	if busy {
 		Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
 		return
@@ -238,7 +239,9 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 500, "生成绑定任务失败")
 		return
 	}
-	s.twoFactorMu.Lock()
+	if !s.lockRequestCredentials(w, r, proof) {
+		return
+	}
 	now := time.Now()
 	for setupID, setup := range s.totpSetups {
 		if !setup.Expires.After(now) {
@@ -260,6 +263,10 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) lookupSetup(r *http.Request, id string) (*totpSetup, bool) {
 	binding, ok := sessionBinding(r)
 	if !ok {
+		return nil, false
+	}
+	cookie, err := r.Cookie(TokenCookie)
+	if err != nil || !s.tokens.Valid(cookie.Value) {
 		return nil, false
 	}
 	setup := s.totpSetups[id]
@@ -349,14 +356,16 @@ func (s *Server) handleTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	delete(s.totpSetups, body.SetupID)
-	s.hasLastTOTPCounter = false
+	if err == nil {
+		s.hasLastTOTPCounter = false
+		s.resetTOTPCounter()
+		s.revokeSessionsLocked(w)
+	}
 	s.twoFactorMu.Unlock()
 	if err != nil {
 		Fail(w, 500, "启用双重验证失败")
 		return
 	}
-	s.resetTOTPCounter()
-	s.revokeAllSessions(w)
 	w.Header().Set("Cache-Control", "no-store")
 	log.Printf("[security] Google Authenticator 已启用，全部会话已撤销")
 	OK(w, map[string]interface{}{"recoveryCodes": codes, "loginRequired": true})
@@ -386,7 +395,8 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 		Fail(w, http.StatusTooManyRequests, "密码错误次数过多，请稍后再试")
 		return
 	}
-	valid, busy := s.checkCurrentPassword(body.Password)
+	proof := s.credentials()
+	valid, busy := verifyCurrentPassword(proof.hash, body.Password)
 	if busy {
 		Fail(w, http.StatusTooManyRequests, "请求过于频繁，请稍后再试")
 		return
@@ -396,7 +406,9 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 		return
 	}
 	ClearPasswordConfirmFailures("totp", r.RemoteAddr)
-	s.twoFactorMu.Lock()
+	if !s.lockRequestCredentials(w, r, proof) {
+		return
+	}
 	if !s.verifyFactorLocked(strings.TrimSpace(body.Code), false) {
 		s.twoFactorMu.Unlock()
 		Fail(w, 403, "当前密码或双重验证码错误")
@@ -422,18 +434,18 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 			return nil
 		})
 	}
-	if !regenerate {
-		s.hasLastTOTPCounter = false
+	if err == nil {
+		if !regenerate {
+			s.hasLastTOTPCounter = false
+			s.resetTOTPCounter()
+		}
+		s.revokeSessionsLocked(w)
 	}
 	s.twoFactorMu.Unlock()
 	if err != nil {
 		Fail(w, 500, "保存双重验证设置失败")
 		return
 	}
-	if !regenerate {
-		s.resetTOTPCounter()
-	}
-	s.revokeAllSessions(w)
 	w.Header().Set("Cache-Control", "no-store")
 	if regenerate {
 		log.Printf("[security] 双重验证恢复码已重新生成，全部会话已撤销")
@@ -446,10 +458,7 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 
 // checkCurrentPassword 在全局并发预算内校验当前管理密码。
 // busy 为 true 表示校验预算耗尽，本次未执行校验，调用方应拒绝请求。
-func (s *Server) checkCurrentPassword(password string) (valid, busy bool) {
-	s.cfg.RLock()
-	hash := s.cfg.Settings.AdminPassHash
-	s.cfg.RUnlock()
+func verifyCurrentPassword(hash, password string) (valid, busy bool) {
 	if hash == "" || len(password) > 72 {
 		return false, false
 	}
@@ -462,10 +471,7 @@ func (s *Server) checkCurrentPassword(password string) (valid, busy bool) {
 }
 
 func (s *Server) revokeAllSessions(w http.ResponseWriter) {
-	s.tokens.RevokeAll()
 	s.twoFactorMu.Lock()
-	s.loginChallenges = make(map[string]*loginChallenge)
-	s.totpSetups = make(map[string]*totpSetup)
-	s.twoFactorMu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: TokenCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: s.secure})
+	defer s.twoFactorMu.Unlock()
+	s.revokeSessionsLocked(w)
 }

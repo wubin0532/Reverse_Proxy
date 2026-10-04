@@ -1,5 +1,5 @@
 // Element Plus 模板组件由 vite.config.js 中 unplugin-vue-components 按需自动注册；
-// 此处集中维护原有的全局样式加载清单（集合与顺序保持不变，避免影响 theme.css 覆盖），
+// 此处集中加载已使用组件的样式，保证 theme.css 的覆盖顺序，
 // 并注册 v-loading 指令。ElMessage 等 API 组件的样式也在这里加载。
 import { ElLoading } from 'element-plus'
 import 'element-plus/es/components/alert/style/css'
@@ -40,6 +40,18 @@ import 'element-plus/es/components/table-column/style/css'
 import 'element-plus/es/components/tag/style/css'
 import 'element-plus/es/components/tooltip/style/css'
 import 'element-plus/es/components/upload/style/css'
+
+import 'element-plus/es/components/tabs/style/css'
+
+import 'element-plus/es/components/descriptions/style/css'
+
+import 'element-plus/es/components/progress/style/css'
+
+import 'element-plus/es/components/message-box/style/css'
+
+import 'element-plus/es/components/notification/style/css'
+
+import 'element-plus/es/components/radio/style/css'
 
 export default {
   install(app) {

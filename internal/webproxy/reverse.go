@@ -172,19 +172,17 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 			} else {
 				pr.Out.Host = target.Host
 			}
-			for _, k := range []string{"Forwarded", "X-Forwarded-Host", "X-Real-IP", "X-Forwarded-For", "X-Forwarded-Proto", "X-Real-Proto", "X-Forwarded-Port", "X-Forwarded-Prefix"} {
+			for _, k := range []string{"Forwarded", "X-Forwarded-Host", "X-Real-IP", "X-Forwarded-For", "X-Forwarded-Proto", "X-Real-Proto", "X-Forwarded-Port", "X-Forwarded-Prefix", "CF-Connecting-IP", "True-Client-IP"} {
 				pr.Out.Header.Del(k)
 			}
 			stripCookieHeader(pr.Out.Header, api.TokenCookie)
 			if autoHeaders {
 				pr.SetXForwarded()
-				ip, _, err := net.SplitHostPort(pr.In.RemoteAddr)
-				if err != nil {
-					ip = pr.In.RemoteAddr
-				}
+				ip := clientIP(pr.In)
+				pr.Out.Header.Set("X-Forwarded-For", ip)
 				proto := "http"
 				defaultPort := "80"
-				if pr.In.TLS != nil {
+				if requestScheme(pr.In) == "https" {
 					proto = "https"
 					defaultPort = "443"
 				}
@@ -193,6 +191,7 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 					port = defaultPort
 				}
 				pr.Out.Header.Set("X-Real-IP", ip)
+				pr.Out.Header.Set("X-Forwarded-Proto", proto)
 				pr.Out.Header.Set("X-Real-Proto", proto)
 				pr.Out.Header.Set("X-Forwarded-Port", port)
 			}
@@ -299,10 +298,7 @@ func (h *reverseHandler) pick(exclude *proxyEntry) *proxyEntry {
 
 func (h *reverseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	entry := h.pick(nil)
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
+	scheme := requestScheme(r)
 	ctx := context.WithValue(r.Context(), originalRequestKey{}, r.Clone(r.Context()))
 	ctx = context.WithValue(ctx, publicRequestKey{}, publicRequestInfo{scheme: scheme, host: r.Host})
 	entry.proxy.ServeHTTP(w, r.WithContext(ctx))

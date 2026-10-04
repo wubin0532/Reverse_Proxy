@@ -121,6 +121,7 @@
             <el-checkbox value="cert">{{ $t('notifications.eventTypes.cert') }}</el-checkbox>
             <el-checkbox value="ddns">{{ $t('notifications.eventTypes.ddns') }}</el-checkbox>
             <el-checkbox value="site">{{ $t('notifications.eventTypes.site') }}</el-checkbox>
+            <el-checkbox value="tunnel">{{ $t('notifications.eventTypes.tunnel') }}</el-checkbox>
             <el-checkbox value="forward">{{ $t('notifications.eventTypes.forward') }}</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
@@ -157,7 +158,7 @@ const form = reactive({
   types: [],
   telegram: { enabled: false, botToken: '', clearBotToken: false, chatId: '', messageThreadId: 0 }
 })
-const allTypes = ['cert', 'ddns', 'site', 'forward']
+const allTypes = ['cert', 'ddns', 'site', 'forward', 'tunnel']
 const telegramActive = computed(() => settings.telegram.enabled && settings.telegram.configured)
 const displayedTypes = computed(() => (settings.types.length ? settings.types : allTypes))
 const subscriptionSummary = computed(() =>
@@ -253,10 +254,11 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 26px 30px;
-  border-radius: 18px;
-  color: white;
-  background: linear-gradient(125deg, var(--ap-hero-from), var(--ap-hero-to));
-  box-shadow: 0 16px 38px var(--ap-hero-shadow);
+  border-radius: var(--ap-radius);
+  color: var(--ap-text);
+  background: var(--ap-card);
+  border: 1px solid var(--ap-border);
+  box-shadow: var(--ap-shadow);
 }
 .notify-hero h1 {
   margin: 6px 0;

@@ -111,6 +111,10 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 		}
 		valid := auth.CheckPassword(hash, body.Password)
 		release()
+		if !api.CurrentSession(req) {
+			api.Fail(w, 401, "登录已失效，请重新登录")
+			return
+		}
 		if !valid {
 			api.Fail(w, 403, "管理密码错误")
 			return

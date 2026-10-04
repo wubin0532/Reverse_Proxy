@@ -141,9 +141,7 @@ async function onSubmit() {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background:
-    radial-gradient(circle at 20% 10%, var(--ap-brand-from) 0, transparent 35%),
-    linear-gradient(140deg, var(--ap-sidebar-to) 0%, var(--ap-hero-from) 100%);
+  background: var(--ap-bg);
 }
 .login-card {
   width: min(420px, 100%);
@@ -165,7 +163,7 @@ async function onSubmit() {
   color: white;
   font-size: 25px;
   font-weight: 750;
-  background: linear-gradient(145deg, var(--ap-brand-from), var(--ap-brand-to));
+  background: var(--ap-primary);
   box-shadow: 0 10px 24px var(--ap-brand-shadow);
 }
 .login-subtitle {

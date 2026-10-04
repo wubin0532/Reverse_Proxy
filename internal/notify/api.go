@@ -12,7 +12,7 @@ import (
 	"andey-proxy/internal/config"
 )
 
-var knownTypePrefixes = []string{"cert", "ddns", "site", "forward"}
+var knownTypePrefixes = []string{"cert", "ddns", "site", "forward", "tunnel"}
 
 type handler struct {
 	cfg     *config.Config

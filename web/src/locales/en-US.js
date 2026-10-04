@@ -49,8 +49,12 @@ export default {
     ipOrCidr: 'Invalid IP or CIDR: {value}'
   },
   nav: {
+    trafficGroup: 'Traffic & access',
+    domainGroup: 'Domains & certificates',
+    systemGroup: 'System & operations',
+    tunnels: 'Cloudflare Tunnels',
     group: 'Network Management',
-    dashboard: 'Dashboard',
+    dashboard: 'Overview',
     ddns: 'DDNS',
     certs: 'Certificates',
     webService: 'Web Services',
@@ -323,6 +327,7 @@ export default {
       empty: 'No notification events'
     },
     eventTypes: {
+      tunnel: 'Tunnel',
       cert: 'Certificate',
       ddns: 'DDNS',
       site: 'Site',
@@ -624,6 +629,8 @@ export default {
     bytesOut: 'Bytes Out'
   },
   settings: {
+    general: 'System information',
+    maintenance: 'Updates & backups',
     title: 'Settings',
     subtitle: 'Version and system info, firewall allowances, account security shortcuts',
     quickActions: 'Quick Actions',

@@ -22,14 +22,16 @@ type CertState struct {
 
 // State 全部运行期状态的磁盘快照。只放运行事件产生的状态，用户意图留在加密配置里。
 type State struct {
-	TOTPLastCounter int64                `json:"totpLastCounter,omitempty"` // 最近一次验证成功的 TOTP 计数器，防重放
-	Certs           map[string]CertState `json:"certs,omitempty"`           // key: CertConf.ID
+	TunnelOperations map[string]TunnelOperation `json:"tunnelOperations,omitempty"`
+	TOTPLastCounter  int64                      `json:"totpLastCounter,omitempty"` // 最近一次验证成功的 TOTP 计数器，防重放
+	Certs            map[string]CertState       `json:"certs,omitempty"`           // key: CertConf.ID
 }
 
 // StateStore 运行状态存储：单个 state.json（0600，tmp+rename+fsync 原子写）。
 // Update 去抖合并落盘；关键低频事件（登录成功、证书申请结束）可紧接 Flush 立即落盘。
 type StateStore struct {
 	mu         sync.Mutex
+	flushMu    sync.Mutex // serialize snapshots and the shared temporary file
 	path       string
 	state      State
 	dirty      bool
@@ -94,6 +96,8 @@ func (st *StateStore) Update(fn func(*State)) {
 
 // Flush 有待落盘变更时立即原子写盘；无变更直接返回。
 func (st *StateStore) Flush() error {
+	st.flushMu.Lock()
+	defer st.flushMu.Unlock()
 	st.mu.Lock()
 	if !st.dirty {
 		st.mu.Unlock()

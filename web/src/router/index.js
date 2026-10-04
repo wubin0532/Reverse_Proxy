@@ -41,6 +41,12 @@ const routes = [
         component: () => import('../views/Notifications.vue'),
         meta: { titleKey: 'nav.notifications' }
       },
+      {
+        path: 'tunnels',
+        name: 'Tunnels',
+        component: () => import('../views/Tunnels.vue'),
+        meta: { titleKey: 'nav.tunnels' }
+      },
       { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue'), meta: { titleKey: 'nav.logs' } },
       {
         path: 'settings',

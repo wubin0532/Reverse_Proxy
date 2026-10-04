@@ -166,3 +166,9 @@ msgstr "Google Authenticator can be bound under \"Account Security\" at the top 
 #: usr/share/luci/menu.d/luci-app-andeyproxy.json
 msgid "Admin Panel"
 msgstr "Admin Panel"
+
+msgid "Admin login"
+msgstr "Admin login"
+
+msgid "The admin account is separate from the router root account. HTTPS is enabled by default; use the panel URL above."
+msgstr "The admin account is separate from the router root account. HTTPS is enabled by default; use the panel URL above."

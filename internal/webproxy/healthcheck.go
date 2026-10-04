@@ -1,16 +1,11 @@
 package webproxy
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 	"time"
 
 	"andey-proxy/internal/config"
@@ -25,70 +20,18 @@ const (
 	eventBackendUp   = "site.backend_up"
 )
 
-// HealthCheckConf 子规则主动健康检查配置。Enabled 为 false（默认）时维持
-// 纯被动熔断行为；启用后探测结果为准：被动失败可立即摘除，恢复必须探测成功。
-//
-// 配置不挂在 config.SubRule 上（该包由其他模块维护），由 healthStore
-// 按规则 ID 持久化到配置目录下的 webproxy-health.json。
-type HealthCheckConf struct {
-	Enabled         bool   `json:"enabled"`
-	Type            string `json:"type"`            // tcp / http，默认 tcp
-	Path            string `json:"path"`            // http 探测路径，默认 /
-	IntervalSeconds int    `json:"intervalSeconds"` // 探测间隔，默认 10
-	TimeoutSeconds  int    `json:"timeoutSeconds"`  // 单次探测超时，默认 3
-	Rise            int    `json:"rise"`            // 连续成功多少次恢复，默认 1
-	Fall            int    `json:"fall"`            // 连续失败多少次摘除，默认 2
-}
+// HealthCheckConf preserves the health API shape; values live in encrypted Config.
+type HealthCheckConf config.HealthCheckConf
 
 func (c HealthCheckConf) withDefaults() HealthCheckConf {
-	if c.Type == "" {
-		c.Type = "tcp"
-	}
-	if c.Path == "" {
-		c.Path = "/"
-	}
-	if c.IntervalSeconds == 0 {
-		c.IntervalSeconds = 10
-	}
-	if c.TimeoutSeconds == 0 {
-		c.TimeoutSeconds = 3
-	}
-	if c.Rise == 0 {
-		c.Rise = 1
-	}
-	if c.Fall == 0 {
-		c.Fall = 2
-	}
-	return c
+	return HealthCheckConf(config.HealthCheckConf(c).WithDefaults())
 }
 
 func (c *HealthCheckConf) validate() error {
-	*c = c.withDefaults()
-	if c.Type != "tcp" && c.Type != "http" {
-		return fmt.Errorf("健康检查类型必须是 tcp 或 http")
-	}
-	if !strings.HasPrefix(c.Path, "/") || strings.ContainsAny(c.Path, " \r\n\t") {
-		return fmt.Errorf("健康检查路径必须以 / 开头且不含空白字符")
-	}
-	if c.Type == "tcp" {
-		c.Path = "/"
-	}
-	if c.IntervalSeconds < 2 || c.IntervalSeconds > 300 {
-		return fmt.Errorf("健康检查间隔必须为 2 到 300 秒")
-	}
-	if c.TimeoutSeconds < 1 || c.TimeoutSeconds > 60 {
-		return fmt.Errorf("健康检查超时必须为 1 到 60 秒")
-	}
-	if c.TimeoutSeconds > c.IntervalSeconds {
-		return fmt.Errorf("健康检查超时不能大于探测间隔")
-	}
-	if c.Rise < 1 || c.Rise > 10 {
-		return fmt.Errorf("恢复阈值必须为 1 到 10 次")
-	}
-	if c.Fall < 1 || c.Fall > 10 {
-		return fmt.Errorf("摘除阈值必须为 1 到 10 次")
-	}
-	return nil
+	conf := config.HealthCheckConf(*c)
+	err := conf.Validate()
+	*c = HealthCheckConf(conf)
+	return err
 }
 
 // BackendHealth 单个后端的健康快照（API 响应）。
@@ -278,83 +221,4 @@ func (h *reverseHandler) backendHealth() []BackendHealth {
 		out = append(out, bh)
 	}
 	return out
-}
-
-// healthStore 按规则 ID 持久化健康检查配置（webproxy 自有边车文件，
-// 避免改动 config 包的结构体）。读取结果常驻内存，磁盘仅在变更时写。
-type healthStore struct {
-	mu    sync.Mutex
-	path  string
-	confs map[string]HealthCheckConf // ruleID -> conf
-}
-
-func newHealthStore(dir string) *healthStore {
-	st := &healthStore{path: filepath.Join(dir, "webproxy-health.json"), confs: make(map[string]HealthCheckConf)}
-	data, err := os.ReadFile(st.path)
-	if err != nil {
-		return st
-	}
-	var file struct {
-		Rules map[string]HealthCheckConf `json:"rules"`
-	}
-	if json.Unmarshal(data, &file) == nil {
-		for id, conf := range file.Rules {
-			st.confs[id] = conf.withDefaults()
-		}
-	}
-	return st
-}
-
-func (st *healthStore) confFor(ruleID string) HealthCheckConf {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	return st.confs[ruleID].withDefaults()
-}
-
-func (st *healthStore) set(ruleID string, conf HealthCheckConf) error {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	st.confs[ruleID] = conf.withDefaults()
-	return st.saveLocked()
-}
-
-func (st *healthStore) delete(ruleID string) error {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	if _, ok := st.confs[ruleID]; !ok {
-		return nil
-	}
-	delete(st.confs, ruleID)
-	return st.saveLocked()
-}
-
-// prune 清理已不存在规则的配置（规则/站点删除后调用）。keep 为全部现存规则 ID。
-func (st *healthStore) prune(keep map[string]bool) error {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	changed := false
-	for id := range st.confs {
-		if !keep[id] {
-			delete(st.confs, id)
-			changed = true
-		}
-	}
-	if !changed {
-		return nil
-	}
-	return st.saveLocked()
-}
-
-func (st *healthStore) saveLocked() error {
-	data, err := json.Marshal(struct {
-		Rules map[string]HealthCheckConf `json:"rules"`
-	}{Rules: st.confs})
-	if err != nil {
-		return err
-	}
-	tmp := st.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, st.path)
 }

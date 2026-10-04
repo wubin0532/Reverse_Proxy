@@ -31,10 +31,15 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.backupMu.Unlock()
+	proof := s.credentials()
 	if !s.confirmAdminPassword(w, r, body.Password) {
 		return
 	}
+	if !s.lockRequestCredentials(w, r, proof) {
+		return
+	}
 	plain, err := s.cfg.PlainJSON()
+	s.twoFactorMu.Unlock()
 	if err != nil {
 		Fail(w, 500, "读取配置失败")
 		return
@@ -78,6 +83,7 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.backupMu.Unlock()
+	proof := s.credentials()
 	if !s.confirmAdminPassword(w, r, body.Password) {
 		return
 	}
@@ -86,16 +92,29 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		Fail(w, 400, err.Error())
 		return
 	}
+	if s.restoreGuard != nil {
+		release, err := s.restoreGuard()
+		if err != nil {
+			Fail(w, 409, err.Error())
+			return
+		}
+		defer release()
+	}
+	if !s.lockRequestCredentials(w, r, proof) {
+		return
+	}
 	if err := s.cfg.Restore(plain); err != nil {
+		s.twoFactorMu.Unlock()
 		Fail(w, 400, "导入失败: "+err.Error())
 		return
 	}
+	s.revokeSessionsLocked(w)
+	s.twoFactorMu.Unlock()
 	// 热重载各服务；失败只记日志，配置本身已生效，重启后也会加载。
 	if s.restoreHook != nil {
 		s.restoreHook()
 	}
 	log.Printf("[security] 已从备份导入配置，全部会话已撤销，客户端: %s", directIP(r.RemoteAddr))
-	s.revokeAllSessions(w)
 	OK(w, map[string]bool{"loginRequired": true})
 }
 
@@ -122,3 +141,6 @@ func (s *Server) confirmAdminPassword(w http.ResponseWriter, r *http.Request, pa
 	ClearPasswordConfirmFailures("backup", r.RemoteAddr)
 	return true
 }
+
+// SetConfigRestoreGuard coordinates restore with asynchronous cloud mutations.
+func (s *Server) SetConfigRestoreGuard(fn func() (func(), error)) { s.restoreGuard = fn }

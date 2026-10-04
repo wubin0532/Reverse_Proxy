@@ -30,6 +30,7 @@ type apiHandler struct {
 }
 
 var errSiteNotFound = errors.New("站点不存在")
+var errSiteInTunnel = errors.New("站点正在被 Cloudflare 隧道路由引用")
 var errRuleNotFound = errors.New("子规则不存在")
 
 // RegisterRoutes 挂载 Web 服务相关路由（由主控在鉴权分组内调用）。
@@ -321,6 +322,9 @@ func mergeRuleSecrets(next *config.Site, old config.Site) {
 func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	err := h.cfg.Update(func(c *config.Config) error {
+		if c.TunnelReferencedSite(id) {
+			return errSiteInTunnel
+		}
 		for i := range c.Sites {
 			if c.Sites[i].ID == id {
 				c.Sites = append(c.Sites[:i], c.Sites[i+1:]...)
@@ -329,6 +333,10 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 		}
 		return errSiteNotFound
 	})
+	if errors.Is(err, errSiteInTunnel) {
+		api.Fail(w, 409, err.Error())
+		return
+	}
 	if errors.Is(err, errSiteNotFound) {
 		api.Fail(w, 404, errSiteNotFound.Error())
 		return

@@ -12,13 +12,14 @@ import (
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
 	"andey-proxy/internal/logcenter"
+	"andey-proxy/internal/tunnel"
 	"andey-proxy/internal/upgrade"
 	"andey-proxy/internal/webproxy"
 )
 
 // RegisterRoutes exposes a single resilient dashboard snapshot. A failure in one
 // runtime module is represented as an issue instead of failing the whole page.
-func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, web *webproxy.Service, fwd *forward.Service, fw *firewall.Manager, logs *logcenter.Center, update *upgrade.Manager, version string, adminHTTPS bool) {
+func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, web *webproxy.Service, fwd *forward.Service, fw *firewall.Manager, logs *logcenter.Center, update *upgrade.Manager, version string, adminHTTPS bool, tunnelManagers ...*tunnel.Manager) {
 	r.Get("/api/dashboard", func(w http.ResponseWriter, _ *http.Request) {
 		cfg.RLock()
 		providers := len(cfg.Providers)
@@ -32,6 +33,29 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, w
 
 		stats := map[string]int{"providers": providers, "ddns": len(ddnsTasks), "certs": len(certs), "sites": len(sites), "forwards": len(forwards)}
 		issues := make([]map[string]string, 0)
+		if len(tunnelManagers) > 0 && tunnelManagers[0] != nil {
+			cfg.RLock()
+			tunnels := append([]config.TunnelInstance(nil), cfg.Tunnels...)
+			cfg.RUnlock()
+			stats["tunnels"] = len(tunnels)
+			for _, inst := range tunnels {
+				status := tunnelManagers[0].Status(inst.ID)
+				if op := status.LastOperation; op != nil && (op.Status == "failed" || op.Status == "interrupted") {
+					issues = append(issues, map[string]string{"module": "Tunnel", "id": inst.ID, "message": inst.Name + ": " + op.Error, "path": "/tunnels"})
+				}
+				if !inst.Enabled {
+					continue
+				}
+				if status.Ready {
+					stats["tunnelsReady"]++
+				} else {
+					issues = append(issues, map[string]string{"module": "Tunnel", "id": inst.ID, "message": "隧道连接未就绪: " + inst.Name, "path": "/tunnels"})
+				}
+				for _, message := range status.TargetErrors {
+					issues = append(issues, map[string]string{"module": "Tunnel", "id": inst.ID, "message": message, "path": "/tunnels"})
+				}
+			}
+		}
 		for _, task := range ddnsTasks {
 			if task.Enabled {
 				stats["ddnsEnabled"]++

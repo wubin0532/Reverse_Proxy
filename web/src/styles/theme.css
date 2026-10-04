@@ -1,54 +1,54 @@
 /* 设计令牌唯一来源。JS 侧需要原始色值的场景（uPlot canvas）引用 src/styles/palette.js，
    palette.js 中的色值必须与此处的 --ap-chart-* 保持一致。 */
 :root {
-  /* 品牌主色（青绿家族） */
-  --ap-primary: #087f8c;
-  --ap-primary-dark: #08606b;
-  --ap-accent: #14998b;
+  /* 品牌主色（蓝灰） */
+  --ap-primary: #2563eb;
+  --ap-primary-dark: #1d4ed8;
+  --ap-accent: #2563eb;
 
   /* 状态色 */
-  --ap-success: #1f9d73;
-  --ap-warning: #d28a22;
-  --ap-danger: #d65353;
-  --ap-info: #8ba5a2;
+  --ap-success: #15803d;
+  --ap-warning: #b45309;
+  --ap-danger: #b91c1c;
+  --ap-info: #64748b;
 
   /* 文本 */
-  --ap-text: #17343a;
-  --ap-text-soft: #56706e;
-  --ap-muted: #5a6b70;
-  --ap-text-faint: #aac0c4;
+  --ap-text: #0f172a;
+  --ap-text-soft: #475569;
+  --ap-muted: #64748b;
+  --ap-text-faint: #94a3b8;
 
   /* 背景 / 表面 */
-  --ap-bg: #f3f7f8;
+  --ap-bg: #f8fafc;
   --ap-card: #ffffff;
-  --ap-bg-soft: #f2f6f6;
-  --ap-primary-soft: #e9f6f5;
-  --ap-primary-softer: #f4fbfa;
+  --ap-bg-soft: #f1f5f9;
+  --ap-primary-soft: #eff6ff;
+  --ap-primary-softer: #f8fafc;
 
   /* 边框 */
-  --ap-border: #dce8ea;
-  --ap-border-soft: #edf2f3;
-  --ap-border-hover: #9bcdd0;
+  --ap-border: #e2e8f0;
+  --ap-border-soft: #f1f5f9;
+  --ap-border-hover: #93c5fd;
 
-  /* 深色横幅 / 侧栏（hero 渐变） */
-  --ap-hero-from: #0b5360;
-  --ap-hero-to: #07918f;
+  /* 横幅 / 侧栏 */
+  --ap-hero-from: #ffffff;
+  --ap-hero-to: #ffffff;
   --ap-hero-shadow: rgba(8, 96, 107, 0.2);
-  --ap-hero-text-soft: #cce8e8;
-  --ap-sidebar-from: #0b3e48;
-  --ap-sidebar-to: #092f38;
-  --ap-on-dark-muted: #bfd0d3;
-  --ap-on-dark-faint: #7fa7ad;
-  --ap-brand-from: #16a6a2;
+  --ap-hero-text-soft: #64748b;
+  --ap-sidebar-from: #ffffff;
+  --ap-sidebar-to: #ffffff;
+  --ap-on-dark-muted: #475569;
+  --ap-on-dark-faint: #64748b;
+  --ap-brand-from: #2563eb;
   --ap-brand-to: var(--ap-primary);
-  --ap-brand-shadow: rgba(8, 127, 140, 0.25);
+  --ap-brand-shadow: rgba(37, 99, 235, 0.25);
 
   /* 叠加层 / 光晕 */
   --ap-glass: rgba(255, 255, 255, 0.18);
   --ap-header-bg: rgba(255, 255, 255, 0.92);
-  --ap-menu-active-bg: rgba(34, 181, 176, 0.18);
+  --ap-menu-active-bg: #eff6ff;
   --ap-shadow-dark: rgba(0, 0, 0, 0.18);
-  --ap-focus-ring: rgba(8, 127, 140, 0.25);
+  --ap-focus-ring: rgba(37, 99, 235, 0.25);
   --ap-warning-soft: #fffaf0;
   --ap-warning-border: #efd8ac;
   --ap-warning-glow: rgba(255, 185, 83, 0.25);
@@ -64,52 +64,52 @@
   /* 第三方品牌色 */
   --ap-telegram: #229ed9;
 
-  --ap-radius: 14px;
-  --ap-shadow: 0 10px 30px rgba(20, 70, 78, 0.08);
+  --ap-radius: 8px;
+  --ap-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 
   /* Element Plus 变量对齐：基础色 + 由基础色衍生的 light/dark 阶梯 */
   --el-color-primary: var(--ap-primary);
-  --el-color-primary-dark-2: #066670;
-  --el-color-primary-light-3: #52a5af;
-  --el-color-primary-light-5: #84bfc6;
-  --el-color-primary-light-7: #b5d9dd;
-  --el-color-primary-light-8: #cee5e8;
-  --el-color-primary-light-9: #e6f2f4;
+  --el-color-primary-dark-2: #1e4fbc;
+  --el-color-primary-light-3: #6692f1;
+  --el-color-primary-light-5: #92b1f5;
+  --el-color-primary-light-7: #bed0f9;
+  --el-color-primary-light-8: #d3e0fb;
+  --el-color-primary-light-9: #e9effd;
   --el-color-success: var(--ap-success);
-  --el-color-success-dark-2: #197e5c;
-  --el-color-success-light-3: #62ba9d;
-  --el-color-success-light-5: #90ceba;
-  --el-color-success-light-7: #bde2d6;
-  --el-color-success-light-8: #dbebe4;
-  --el-color-success-light-9: #eef5f2;
+  --el-color-success-dark-2: #116631;
+  --el-color-success-light-3: #5ba677;
+  --el-color-success-light-5: #8ac09e;
+  --el-color-success-light-7: #b9d9c5;
+  --el-color-success-light-8: #d0e6d8;
+  --el-color-success-light-9: #e8f2ec;
   --el-color-warning: var(--ap-warning);
-  --el-color-warning-dark-2: #a86e1b;
-  --el-color-warning-light-3: #e0ad64;
-  --el-color-warning-light-5: #e9c591;
-  --el-color-warning-light-7: #f1dcbd;
-  --el-color-warning-light-8: #f6e9d2;
-  --el-color-warning-light-9: #fbf2e9;
+  --el-color-warning-dark-2: #904207;
+  --el-color-warning-light-3: #ca8753;
+  --el-color-warning-light-5: #daa984;
+  --el-color-warning-light-7: #e8cbb5;
+  --el-color-warning-light-8: #f0ddce;
+  --el-color-warning-light-9: #f8eee6;
   --el-color-danger: var(--ap-danger);
-  --el-color-danger-dark-2: #ab4242;
-  --el-color-danger-light-3: #e28787;
-  --el-color-danger-light-5: #eba9a9;
-  --el-color-danger-light-7: #f3cbcb;
-  --el-color-danger-light-8: #f8dbdb;
-  --el-color-danger-light-9: #fcecec;
+  --el-color-danger-dark-2: #941616;
+  --el-color-danger-light-3: #ce6060;
+  --el-color-danger-light-5: #dc8e8e;
+  --el-color-danger-light-7: #eabbbb;
+  --el-color-danger-light-8: #f1d2d2;
+  --el-color-danger-light-9: #f8e8e8;
   --el-color-error: var(--ap-danger);
-  --el-color-error-dark-2: #ab4242;
-  --el-color-error-light-3: #e28787;
-  --el-color-error-light-5: #eba9a9;
-  --el-color-error-light-7: #f3cbcb;
-  --el-color-error-light-8: #f8dbdb;
-  --el-color-error-light-9: #fcecec;
+  --el-color-error-dark-2: #941616;
+  --el-color-error-light-3: #ce6060;
+  --el-color-error-light-5: #dc8e8e;
+  --el-color-error-light-7: #eabbbb;
+  --el-color-error-light-8: #f1d2d2;
+  --el-color-error-light-9: #f8e8e8;
   --el-color-info: var(--ap-info);
-  --el-color-info-dark-2: #6f8482;
-  --el-color-info-light-3: #aec0be;
-  --el-color-info-light-5: #c5d3d1;
-  --el-color-info-light-7: #dce5e4;
-  --el-color-info-light-8: #e8edec;
-  --el-color-info-light-9: #f1f6f5;
+  --el-color-info-dark-2: #505d6f;
+  --el-color-info-light-3: #929eae;
+  --el-color-info-light-5: #b2bac5;
+  --el-color-info-light-7: #d0d5dc;
+  --el-color-info-light-8: #e0e3e8;
+  --el-color-info-light-9: #f0f1f3;
   --el-text-color-primary: var(--ap-text);
   --el-text-color-regular: var(--ap-text);
   --el-text-color-secondary: var(--ap-muted);
@@ -118,7 +118,7 @@
   --el-border-color-lighter: var(--ap-border-soft);
   --el-border-color-extra-light: var(--ap-border-soft);
   --el-bg-color: var(--ap-card);
-  --el-border-radius-base: 9px;
+  --el-border-radius-base: 6px;
 }
 
 * {
@@ -195,4 +195,18 @@ textarea {
   .el-message-box {
     width: calc(100vw - 28px);
   }
+}
+
+.el-table {
+  --el-table-header-bg-color: var(--ap-bg);
+}
+.el-card__header {
+  padding: 16px 20px;
+}
+h1,
+h2 {
+  letter-spacing: -0.025em;
+}
+.el-button + .el-button {
+  margin-left: 8px;
 }
