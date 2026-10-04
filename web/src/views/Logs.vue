@@ -84,14 +84,22 @@ import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Download, Search, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import request from '../api'
 import { formatTime } from '../utils/format'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const PAGE_LIMIT = 100,
   SSE_RETRY_MS = 10000
-const filters = reactive({ type: '', level: '', source: '', keyword: '', range: null }),
+const filters = reactive({
+    type: '',
+    level: '',
+    source: typeof route.query.source === 'string' ? route.query.source : '',
+    keyword: '',
+    range: null
+  }),
   entries = ref([]),
   nextCursor = ref(-1),
   loading = ref(false),
@@ -108,6 +116,7 @@ function params(cursor = 0) {
     type: filters.type || undefined,
     level: filters.level || undefined,
     source: filters.source || undefined,
+    entityId: typeof route.query.entityId === 'string' ? route.query.entityId : undefined,
     q: filters.keyword || undefined,
     from: filters.range?.[0]?.toISOString(),
     to: filters.range?.[1]?.toISOString(),

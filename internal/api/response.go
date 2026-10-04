@@ -48,5 +48,8 @@ func DecodeBody(r *http.Request, v interface{}) error {
 	} else if !errors.Is(err, io.EOF) {
 		return err
 	}
+	if !CurrentSession(r) {
+		return fmt.Errorf("登录已失效，请重新登录")
+	}
 	return nil
 }

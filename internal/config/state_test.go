@@ -5,9 +5,35 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
+
+func TestConcurrentStateFlushKeepsAllUpdates(t *testing.T) {
+	dir := t.TempDir()
+	st := LoadState(dir)
+	st.writeDelay = time.Hour
+	defer st.Close()
+	var wg sync.WaitGroup
+	for i := 0; i < 24; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			st.Update(func(s *State) { s.TOTPLastCounter++ })
+			if err := st.Flush(); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if err := st.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadState(dir).TOTPCounter(); got != 24 {
+		t.Fatalf("disk counter = %d", got)
+	}
+}
 
 func TestStateStoreUpdateFlushClose(t *testing.T) {
 	dir := t.TempDir()

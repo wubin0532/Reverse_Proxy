@@ -7,8 +7,8 @@ require (
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.56.0
-	golang.org/x/mod v0.38.0
-	golang.org/x/net v0.57.0
+	golang.org/x/mod v0.40.0
+	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.47.0
 )
 
@@ -32,6 +32,6 @@ require (
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/tools v0.49.0 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
 )

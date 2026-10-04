@@ -61,9 +61,19 @@ func TestHealthCheckConfValidate(t *testing.T) {
 	}
 }
 
+func loadHealthTestConfig(t *testing.T, dir string) *config.Config {
+	t.Helper()
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cfg.State().Close() })
+	return cfg
+}
+
 func TestHealthStorePersistence(t *testing.T) {
 	dir := t.TempDir()
-	st := newHealthStore(dir)
+	st := newHealthStore(loadHealthTestConfig(t, dir))
 	if got := st.confFor("r1"); got.Enabled {
 		t.Fatalf("未知规则应返回零值配置, got %+v", got)
 	}
@@ -71,14 +81,14 @@ func TestHealthStorePersistence(t *testing.T) {
 	if err := st.set("r1", conf); err != nil {
 		t.Fatal(err)
 	}
-	reloaded := newHealthStore(dir)
+	reloaded := newHealthStore(loadHealthTestConfig(t, dir))
 	if got := reloaded.confFor("r1"); got != conf {
 		t.Fatalf("重载后配置不一致: want %+v, got %+v", conf, got)
 	}
 	if err := reloaded.prune(map[string]bool{"r2": true}); err != nil {
 		t.Fatal(err)
 	}
-	if got := newHealthStore(dir).confFor("r1"); got.Enabled {
+	if got := newHealthStore(loadHealthTestConfig(t, dir)).confFor("r1"); got.Enabled {
 		t.Fatal("prune 应清理已删除规则的配置并落盘")
 	}
 	if err := reloaded.delete("r1"); err != nil {
@@ -247,7 +257,7 @@ func TestHealthAPI(t *testing.T) {
 	if got := svc.HealthConf("r1"); !got.Enabled || got.Type != "tcp" || got.Fall != 2 || got.Rise != 1 {
 		t.Fatalf("配置未生效或默认值错误: %+v", got)
 	}
-	if got := newHealthStore(cfg.Dir()).confFor("r1"); !got.Enabled {
+	if got := newHealthStore(loadHealthTestConfig(t, cfg.Dir())).confFor("r1"); !got.Enabled {
 		t.Fatal("配置应已落盘")
 	}
 

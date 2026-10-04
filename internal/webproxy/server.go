@@ -5,6 +5,7 @@ package webproxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
 	"net"
@@ -31,8 +32,11 @@ type CertGetter func(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
 
 // Service 管理所有站点的监听器，支持按配置增量增删。
 type Service struct {
-	cfg        *config.Config
-	certGetter CertGetter
+	tunnelMu      sync.Mutex
+	tunnelOrigins map[string]*tunnelOrigin
+	tunnelErrors  map[string]string
+	cfg           *config.Config
+	certGetter    CertGetter
 
 	// FW 可选的防火墙自动放行管理器（main 注入，nil 时跳过）。
 	// Start/Reload 后会按 Enabled && AutoFW 的站点上报期望放行集合。
@@ -46,7 +50,7 @@ type Service struct {
 	// 热重载重建 handler 缓存不丢失，站点删除/禁用时清理，进程重启清零。
 	stats sync.Map
 
-	// health 反向代理后端主动健康检查配置（按规则 ID 持久化的边车文件）。
+	// health 反向代理后端主动健康检查配置（加密主配置的一部分）。
 	health *healthStore
 
 	certMu    sync.Mutex
@@ -100,7 +104,7 @@ func NewService(cfg *config.Config, certGetter CertGetter) *Service {
 		certGetter: certGetter,
 		sites:      make(map[string]*siteServer),
 		certFiles:  make(map[string]*certFileCache),
-		health:     newHealthStore(cfg.Dir()),
+		health:     newHealthStore(cfg),
 	}
 }
 
@@ -128,6 +132,7 @@ func (s *Service) Start() {
 
 // Stop 优雅关闭所有站点（每个最多等 5 秒）。
 func (s *Service) Stop() {
+	s.stopTunnelOrigins()
 	s.mu.Lock()
 	all := make([]*siteServer, 0, len(s.sites))
 	for id, ss := range s.sites {
@@ -217,6 +222,10 @@ func (s *Service) Reload() error {
 	}
 	s.mu.Unlock()
 	s.syncFirewall()
+	if err := s.SyncTunnelOrigins(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	s.reloadRuleHealth()
 	return firstErr
 }
 
@@ -313,6 +322,7 @@ func stopSite(ss *siteServer) {
 	defer cancel()
 	if err := ss.srv.Shutdown(ctx); err != nil {
 		log.Printf("[webproxy] 站点 %s 关闭异常: %v", ss.siteSnapshot().Name, err)
+		_ = ss.srv.Close()
 	}
 	// Shutdown 不跟踪被 Hijack 的连接（WebSocket 反代等），统一关闭登记在册的连接。
 	// 仅覆盖经由 statusWriter.Hijack 升级的连接；连接关闭后反代侧 copy goroutine 随之退出。
@@ -619,10 +629,10 @@ func (s *Service) tlsConfig(siteSnapshot func() config.Site) *tls.Config {
 				}
 			}
 			if site.CertID != "" {
-				if cert, err := s.loadCertFile(site.CertID); err == nil {
+				if cert, err := s.loadCertFile(site.CertID); err == nil && (hello.ServerName == "" || cert.Leaf.VerifyHostname(hello.ServerName) == nil) {
 					return cert, nil
 				} else {
-					log.Printf("[webproxy] 站点 %s 加载证书 %s 失败，使用自签证书: %v", site.Name, site.CertID, err)
+					log.Printf("[webproxy] 站点 %s 证书 %s 不可用于当前连接，使用自签证书", site.Name, site.CertID)
 				}
 			}
 			return s.selfSigned()
@@ -661,6 +671,13 @@ func (s *Service) loadCertFile(certID string) (*tls.Certificate, error) {
 	cert, err := tls.LoadX509KeyPair(crtPath, keyPath)
 	if err != nil {
 		return nil, err
+	}
+	if cert.Leaf == nil {
+		leaf, err := x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return nil, err
+		}
+		cert.Leaf = leaf
 	}
 	s.certFiles[base] = &certFileCache{cert: &cert, modTime: modTime}
 	return &cert, nil

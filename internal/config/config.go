@@ -155,12 +155,15 @@ type TelegramNotification struct {
 
 // Config 根配置。
 type Config struct {
-	Settings  Settings          `json:"settings"`
-	Providers []DNSProviderConf `json:"providers"`
-	DDNS      []DDNSTask        `json:"ddns"`
-	Certs     []CertConf        `json:"certs"`
-	Sites     []Site            `json:"sites"`
-	Forwards  []ForwardRule     `json:"forwards"`
+	TunnelAccounts   []TunnelAccount            `json:"tunnelAccounts,omitempty"`
+	Tunnels          []TunnelInstance           `json:"tunnels,omitempty"`
+	Settings         Settings                   `json:"settings"`
+	Providers        []DNSProviderConf          `json:"providers"`
+	DDNS             []DDNSTask                 `json:"ddns"`
+	Certs            []CertConf                 `json:"certs"`
+	Sites            []Site                     `json:"sites"`
+	Forwards         []ForwardRule              `json:"forwards"`
+	RuleHealthChecks map[string]HealthCheckConf `json:"ruleHealthChecks"`
 
 	mu        sync.RWMutex
 	saveMu    sync.Mutex
@@ -217,6 +220,9 @@ func Load(dir string) (*Config, error) {
 	}
 	if err := json.Unmarshal(plain, c); err != nil {
 		return nil, fmt.Errorf("解析配置失败: %w", err)
+	}
+	if err := c.migrateRuleHealth(plain); err != nil {
+		return nil, err
 	}
 	// 历史版本曾接受但从未实现 webhook IP 来源。迁移时安全禁用，避免
 	// 升级后任务持续失败或给用户造成该能力可用的错觉。
@@ -336,6 +342,8 @@ func (c *Config) rollbackLocked(snapshot []byte) {
 		return
 	}
 	c.Settings, c.Providers, c.DDNS, c.Certs, c.Sites, c.Forwards = stable.Settings, stable.Providers, stable.DDNS, stable.Certs, stable.Sites, stable.Forwards
+	c.TunnelAccounts, c.Tunnels = stable.TunnelAccounts, stable.Tunnels
+	c.RuleHealthChecks = stable.RuleHealthChecks
 }
 
 // Dir 返回配置目录。
@@ -361,6 +369,9 @@ func (c *Config) Restore(plain []byte) error {
 	if incoming.Settings.AdminUser == "" || incoming.Settings.AdminPassHash == "" {
 		return errors.New("备份配置缺少管理账号信息")
 	}
+	if err := incoming.normalizeRuleHealth(); err != nil {
+		return err
+	}
 	if current, err := os.ReadFile(c.filePath); err == nil {
 		if err := os.WriteFile(c.filePath+".bak", current, 0o600); err != nil {
 			return fmt.Errorf("备份当前配置失败: %w", err)
@@ -373,6 +384,12 @@ func (c *Config) Restore(plain []byte) error {
 		cur.Certs = incoming.Certs
 		cur.Sites = incoming.Sites
 		cur.Forwards = incoming.Forwards
+		cur.TunnelAccounts = incoming.TunnelAccounts
+		cur.Tunnels = incoming.Tunnels
+		cur.RuleHealthChecks = incoming.RuleHealthChecks
+		for i := range cur.Tunnels {
+			cur.Tunnels[i].Enabled = false
+		}
 		return nil
 	}); err != nil {
 		return err

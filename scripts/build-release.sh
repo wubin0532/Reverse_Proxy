@@ -153,7 +153,7 @@ if [ "$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
   /etc/init.d/andey-proxy restart 2>/dev/null
 fi
 # LuCI 界面随主包安装：清缓存并让 rpcd 重新加载 ACL
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+rm -rf /tmp/luci-indexcache /tmp/luci-indexcache.* /tmp/luci-modulecache /tmp/luci-modulecache.*
 /etc/init.d/rpcd restart 2>/dev/null
 echo "andey-Proxy 已安装，后台: https://<路由IP>:16606"
 echo "LuCI 菜单位于 服务 -> andey-Proxy（强制刷新浏览器页面后可见）"
@@ -174,7 +174,7 @@ EOF
 # 升级时 opkg 也会执行旧包 postrm（参数 upgrade），绝不能删数据
 [ -n "${IPKG_INSTROOT}" ] && exit 0
 # LuCI 文件由 opkg 自动移除，这里清缓存让菜单立即消失
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+rm -rf /tmp/luci-indexcache /tmp/luci-indexcache.* /tmp/luci-modulecache /tmp/luci-modulecache.*
 [ "$1" = "upgrade" ] && exit 0
 rm -rf /etc/andey-proxy
 rm -f /etc/andey-proxy.key
@@ -248,13 +248,13 @@ rm -f /www/luci-static/resources/view/andeyproxy/panel.js
 rmdir /www/luci-static/resources/view/andeyproxy 2>/dev/null || true
 rm -f /usr/lib/lua/luci/i18n/andeyproxy.*.lmo
 # 清 LuCI 缓存并让 rpcd 重新加载 ACL，服务菜单里的入口立即消失
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+rm -rf /tmp/luci-indexcache /tmp/luci-indexcache.* /tmp/luci-modulecache /tmp/luci-modulecache.*
 /etc/init.d/rpcd restart 2>/dev/null || true
 
 echo "andey-Proxy 已完全卸载（配置与缓存已清空）"
 
-# 自删除（延迟执行，避免 shell 正在读取脚本）
-(sleep 1; rm -f /usr/bin/andey-proxy-uninstall) &
+# Shell 保持已打开的脚本文件；直接删除，避免延迟任务误删随后重装的新脚本。
+rm -f /usr/bin/andey-proxy-uninstall
 exit 0
 UNEOF
   chmod 755 "$root/payload/andey-proxy-uninstall"
@@ -322,7 +322,7 @@ UCIEOF
       chmod 644 "$f"
     done
     # 清 LuCI 缓存并让 rpcd 重新加载 ACL，菜单无需重启设备即可出现
-    rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+    rm -rf /tmp/luci-indexcache /tmp/luci-indexcache.* /tmp/luci-modulecache /tmp/luci-modulecache.*
     /etc/init.d/rpcd restart 2>/dev/null || true
     echo "LuCI 界面已安装：服务 -> andey-Proxy（浏览器强制刷新后可见）"
   fi

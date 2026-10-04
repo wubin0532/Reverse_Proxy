@@ -166,3 +166,9 @@ msgstr "Google Authenticator 可在面板右上角“账户安全”中绑定。
 #: usr/share/luci/menu.d/luci-app-andeyproxy.json
 msgid "Admin Panel"
 msgstr "管理面板"
+
+msgid "Admin login"
+msgstr "后台登录"
+
+msgid "The admin account is separate from the router root account. HTTPS is enabled by default; use the panel URL above."
+msgstr "管理后台账户与路由器 root 账户相互独立。默认启用 HTTPS，请使用上方后台地址访问。"

@@ -30,6 +30,7 @@ type apiHandler struct {
 }
 
 var errSiteNotFound = errors.New("站点不存在")
+var errSiteInTunnel = errors.New("站点正在被 Cloudflare 隧道路由引用")
 var errRuleNotFound = errors.New("子规则不存在")
 
 // RegisterRoutes 挂载 Web 服务相关路由（由主控在鉴权分组内调用）。
@@ -163,6 +164,9 @@ func (h *apiHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	var site config.Site
 	if err := api.DecodeBody(r, &site); err != nil {
 		api.Fail(w, 400, "请求格式错误")
@@ -203,6 +207,9 @@ func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	id := chi.URLParam(r, "id")
 	var site config.Site
 	if err := api.DecodeBody(r, &site); err != nil {
@@ -220,7 +227,7 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 	found := false
 	for i := range h.cfg.Sites {
 		if h.cfg.Sites[i].ID == id {
-			previous = h.cfg.Sites[i]
+			previous = cloneSite(h.cfg.Sites[i])
 			found = true
 			break
 		}
@@ -319,8 +326,14 @@ func mergeRuleSecrets(next *config.Site, old config.Site) {
 }
 
 func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	id := chi.URLParam(r, "id")
 	err := h.cfg.Update(func(c *config.Config) error {
+		if c.TunnelReferencedSite(id) {
+			return errSiteInTunnel
+		}
 		for i := range c.Sites {
 			if c.Sites[i].ID == id {
 				c.Sites = append(c.Sites[:i], c.Sites[i+1:]...)
@@ -329,6 +342,10 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 		}
 		return errSiteNotFound
 	})
+	if errors.Is(err, errSiteInTunnel) {
+		api.Fail(w, 409, err.Error())
+		return
+	}
 	if errors.Is(err, errSiteNotFound) {
 		api.Fail(w, 404, errSiteNotFound.Error())
 		return
@@ -344,6 +361,9 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	id := chi.URLParam(r, "id")
 	enabled := false
 	previousEnabled := false

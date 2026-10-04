@@ -1,6 +1,8 @@
 import { createI18n } from 'vue-i18n'
 import zhCN from './zh-CN'
 import enUS from './en-US'
+import zhTunnel from './tunnel.zh-CN'
+import enTunnel from './tunnel.en-US'
 
 export const LANG_STORAGE_KEY = 'ap-lang'
 
@@ -14,7 +16,7 @@ const i18n = createI18n({
   legacy: false,
   locale: detectLocale(),
   fallbackLocale: 'zh-CN',
-  messages: { 'zh-CN': zhCN, 'en-US': enUS }
+  messages: { 'zh-CN': { ...zhCN, tunnel: zhTunnel }, 'en-US': { ...enUS, tunnel: enTunnel } }
 })
 
 function applyDocument() {

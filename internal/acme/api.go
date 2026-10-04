@@ -1,7 +1,6 @@
 package acme
 
 import (
-	"context"
 	"errors"
 	"log"
 	"mime"
@@ -318,15 +317,10 @@ func (h *handler) obtainCert(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, 404, "证书不存在")
 		return
 	}
-	if h.m.Obtaining(id) {
-		api.Fail(w, 400, "该证书正在申请中")
+	if err := h.m.ObtainAsync(id); err != nil {
+		api.Fail(w, 400, err.Error())
 		return
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(h.m.ctx, 10*time.Minute) // 派生自 Manager 生命周期，Stop 时取消
-		defer cancel()
-		h.m.Obtain(ctx, id) // 结果回写到运行状态库（LastError / NotAfter），前端轮询即可
-	}()
 	api.OK(w, map[string]bool{"obtaining": true})
 }
 

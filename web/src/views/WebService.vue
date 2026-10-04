@@ -477,7 +477,7 @@ onMounted(async () => {
 .rules-panel {
   border: 1px solid var(--ap-border);
   border-radius: 16px;
-  background: linear-gradient(180deg, var(--ap-card), var(--ap-primary-softer));
+  background: var(--ap-card);
   box-shadow: var(--ap-shadow);
 }
 .sites-panel {

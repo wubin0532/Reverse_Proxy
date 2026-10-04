@@ -49,8 +49,12 @@ export default {
     ipOrCidr: '包含无效的 IP 或 CIDR：{value}'
   },
   nav: {
+    trafficGroup: '流量与接入',
+    domainGroup: '域名与证书',
+    systemGroup: '系统与运维',
+    tunnels: 'Cloudflare 隧道',
     group: '网络管理',
-    dashboard: '运维控制台',
+    dashboard: '概览',
     ddns: '动态域名',
     certs: '证书管理',
     webService: 'Web 服务',
@@ -315,6 +319,7 @@ export default {
       empty: '暂无通知事件'
     },
     eventTypes: {
+      tunnel: 'Tunnel',
       cert: '证书',
       ddns: 'DDNS',
       site: '站点',
@@ -613,6 +618,8 @@ export default {
     bytesOut: '出站流量'
   },
   settings: {
+    general: '系统信息',
+    maintenance: '升级与备份',
     title: '系统设置',
     subtitle: '版本与系统信息、防火墙放行、账户安全入口',
     quickActions: '快捷入口',

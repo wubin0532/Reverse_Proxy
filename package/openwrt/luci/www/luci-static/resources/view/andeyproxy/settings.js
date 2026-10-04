@@ -61,7 +61,7 @@ return view.extend({
 		var enabled = !!info.enabled;
 		this.statusSpan.textContent = (running ? _('Running') : _('Stopped'))
 			+ ' / ' + (enabled ? _('Enabled') : _('Disabled'));
-		this.statusSpan.style.color = running ? '#2ea043' : '#c93c37';
+		this.statusSpan.className = running ? 'label success' : 'label warning';
 	},
 
 	refreshStatus: function() {
@@ -112,8 +112,8 @@ return view.extend({
 			}
 			passwordEl.textContent = '';
 			passwordEl.appendChild(E('div', {}, [
-				E('code', { 'style': 'font-size:1.1em;background:#fff3cd;padding:.2em .6em;border:1px solid #e0c36c;border-radius:3px' }, pwd),
-				E('div', { 'style': 'color:#c93c37;margin-top:.3em' },
+				E('code', { 'class': 'cbi-value-description' }, pwd),
+				E('div', { 'class': 'cbi-value-description' },
 					_('This is the initial password generated on first start (admin user "admin"); change it immediately after login. It will no longer be shown here once changed.'))
 			]));
 		}).catch(function() {
@@ -124,9 +124,9 @@ return view.extend({
 		this.refreshStatus();
 
 		var row = function(label, content) {
-			return E('div', { 'class': 'cbi-value', 'style': 'margin-bottom:.4em' }, [
-				E('label', { 'class': 'cbi-value-title', 'style': 'display:inline-block;min-width:8em;font-weight:bold' }, label),
-				E('div', { 'class': 'cbi-value-field', 'style': 'display:inline-block' }, content)
+			return E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, label),
+				E('div', { 'class': 'cbi-value-field' }, content)
 			]);
 		};
 
@@ -169,7 +169,9 @@ return view.extend({
 				' / ',
 				E('code', {}, confdir + '/config.json')
 			])),
-			row(_('Initial password'), passwordEl)
+			E('h3', {}, _('Admin login')),
+			row(_('Initial password'), passwordEl),
+			E('p', { 'class': 'cbi-section-descr' }, _('The admin account is separate from the router root account. HTTPS is enabled by default; use the panel URL above.'))
 		]);
 	},
 

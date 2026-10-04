@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import VueI18nPlugin from '@intlify/unplugin-vue-i18n/vite'
+import { localeResources } from './build/locales.js'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
-import path from 'node:path'
 
 export default defineConfig({
   plugins: [
@@ -15,13 +14,15 @@ export default defineConfig({
       dts: false
     }),
     // 构建期预编译 locale 消息为函数，运行时不再依赖 eval（管理后台 CSP 禁止 unsafe-eval）
-    VueI18nPlugin({
-      include: [path.resolve(__dirname, './src/locales/zh-CN.js'), path.resolve(__dirname, './src/locales/en-US.js')]
-    })
+    localeResources(__dirname)
   ],
   define: {
     // 启用 JIT 编译：预编译的 AST 消息在运行时不经 eval 直接组合成函数
-    __INTLIFY_JIT_COMPILATION__: true
+    __INTLIFY_JIT_COMPILATION__: true,
+    __VUE_I18N_LEGACY_API__: false,
+    __VUE_I18N_FULL_INSTALL__: true,
+    __INTLIFY_DROP_MESSAGE_COMPILER__: false,
+    __VUE_I18N_PROD_DEVTOOLS__: false
   },
   resolve: {
     alias: {

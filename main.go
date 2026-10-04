@@ -28,6 +28,7 @@ import (
 	"andey-proxy/internal/forward"
 	"andey-proxy/internal/logcenter"
 	"andey-proxy/internal/notify"
+	"andey-proxy/internal/tunnel"
 	"andey-proxy/internal/upgrade"
 	"andey-proxy/internal/webproxy"
 )
@@ -143,6 +144,7 @@ func main() {
 	webSvc := webproxy.NewService(cfg, acmeMgr.GetCertificate)
 	fwdSvc := forward.NewService(cfg)
 	ddnsWorker := ddns.NewWorker(cfg)
+	tunnelMgr := tunnel.NewManager(cfg, webSvc, *port)
 	updateMgr := upgrade.NewManager(version, cfg.Dir())
 
 	// 事件总线 + 通知渠道：各模块通过 notify.Publish 上报事件
@@ -160,9 +162,11 @@ func main() {
 	webSvc.Start()
 	fwdSvc.Start()
 	ddnsWorker.Start()
+	tunnelMgr.Start()
 	updateMgr.MarkStarted()
 
 	apiSrv := api.NewServer(cfg, !*allowHTTP)
+	apiSrv.SetConfigRestoreGuard(tunnelMgr.LockForRestore)
 	// 备份导入后的热重载：webproxy/forward/acme 显式 Reload，DDNS worker 重排任务。
 	apiSrv.SetConfigRestore(version, func() {
 		if err := webSvc.Reload(); err != nil {
@@ -173,6 +177,7 @@ func main() {
 		}
 		ddnsWorker.Reload()
 		acmeMgr.Reload()
+		tunnelMgr.Reload()
 	})
 	apiSrv.Mount(func(r chi.Router) { ddns.RegisterRoutes(r, cfg, ddnsWorker) })
 	apiSrv.Mount(func(r chi.Router) { forward.RegisterRoutes(r, cfg, fwdSvc) })
@@ -181,9 +186,10 @@ func main() {
 	apiSrv.Mount(func(r chi.Router) { firewall.RegisterRoutes(r, fwMgr) })
 	apiSrv.Mount(func(r chi.Router) { upgrade.RegisterRoutes(r, updateMgr, cfg) })
 	apiSrv.Mount(func(r chi.Router) { logcenter.RegisterRoutes(r, logs, cfg) })
+	apiSrv.Mount(func(r chi.Router) { tunnel.RegisterRoutes(r, tunnelMgr) })
 	apiSrv.Mount(func(r chi.Router) { notify.RegisterRoutes(r, cfg, notifyBus, notifyManager) })
 	apiSrv.Mount(func(r chi.Router) {
-		dashboard.RegisterRoutes(r, cfg, ddnsWorker, webSvc, fwdSvc, fwMgr, logs, updateMgr, version, !*allowHTTP)
+		dashboard.RegisterRoutes(r, cfg, ddnsWorker, webSvc, fwdSvc, fwMgr, logs, updateMgr, version, !*allowHTTP, tunnelMgr)
 	})
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiSrv.Router())
@@ -235,6 +241,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	httpSrv.Shutdown(ctx)
+	tunnelMgr.Stop()
 	ddnsWorker.Stop()
 	fwdSvc.Stop()
 	webSvc.Stop()

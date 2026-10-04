@@ -22,11 +22,14 @@ A lightweight, all-in-one network toolkit for routers and low-power devices. It 
 - **DDNS** — periodically detects IP changes and updates DNS records
   - IP source: network interface or custom API
   - IPv4/IPv6; Alibaba Cloud, Cloudflare, DNSPod
+- **Cloudflare Tunnel** — create remotely managed tunnels or import an existing Tunnel token, manage multiple connectors, hostname routes, process status and logs
+  - Publish project web sites through a private Unix socket, retaining authentication, visitor-IP rate limits and traffic statistics; or connect directly to HTTP/HTTPS services
+  - Optional external `cloudflared` 2025.4.0+, installed manually or from the official release using the architecture-aware download button; no bundled binary or mandatory installation dependency. See [setup and behavior](docs/cloudflare-tunnel.md)
 - **Access control** — IP allow/deny lists (CIDR supported) and User-Agent allow/deny lists, shared by port forwarding and the web service
 - **Admin console** — Vue 3 + Element Plus, embedded into the binary with `go:embed`, nothing extra to deploy
 - **Operations console** — health overview, firewall, manual updates and recent errors in one place
 - **Log center** — structured query, download and audit, with a disk usage cap of about 5 MiB
-- **Notification center** — manage channels and event subscriptions independently; currently Telegram Bot, filterable by certificate / DDNS / site / forwarding event type
+- **Notification center** — manage channels and event subscriptions independently; currently Telegram Bot, filterable by certificate / DDNS / site / forwarding / tunnel event type
 - **Config backup** — export and import an encrypted backup from the dashboard (passphrase-derived key, movable across devices)
 - **Account security** — optional Google Authenticator two-factor authentication, one-time recovery codes and on-device reset
 
@@ -96,6 +99,7 @@ When LuCI is detected, the installer lays out the menu entries, ACLs, settings p
 │   ├── webproxy/        # web service / reverse proxy core (site listeners, child rule dispatch, access logs)
 │   ├── forward/         # TCP/UDP port forwarding
 │   ├── ddns/            # DDNS scheduler and DNS provider implementations
+│   ├── tunnel/          # external cloudflared supervisor, Cloudflare API and route/DNS synchronization
 │   ├── acme/            # ACME issuance, renewal and SNI certificate serving (built on lego)
 │   ├── guard/           # IP / User-Agent allow and deny lists
 │   ├── adminweb/        # embedded frontend static assets
@@ -143,7 +147,7 @@ The reset command confirms through the config lock that the service has stopped 
 
 ## Manual update
 
-The program never phones home for version checks and never downloads or executes scripts from GitHub or anywhere else. Download the signed `.run` package for your architecture yourself, then use **Upload package to update manually** on the dashboard: verify the signature, digest, Linux/CPU/ELF architecture and version before entering the admin password to install.
+Main-program updates remain manual; uploaded package scripts are never executed. Optional cloudflared checks and binary downloads are available separately on the Tunnel page after administrator confirmation. Download the signed `.run` package for your architecture yourself, then use **Upload package to update manually** under **Settings → Updates & backups**: verify the signature, digest, Linux/CPU/ELF architecture and version before entering the admin password to install.
 
 Release packages are signed with Ed25519. Building a `.run` requires the release private key to be supplied through `RELEASE_SIGNING_KEY`; GitHub Actions reads it from a protected secret named `RELEASE_SIGNING_PRIVATE_KEY`. The private key must never be committed to the repository or written into build artifacts.
 

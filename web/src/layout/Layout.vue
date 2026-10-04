@@ -313,15 +313,31 @@ const securityRules = computed(() => ({
   ]
 }))
 const pageTitle = computed(() => (route.meta.titleKey ? t(route.meta.titleKey) : ''))
-const menuItems = [
-  ['/dashboard', 'nav.dashboard', Odometer],
-  ['/ddns', 'nav.ddns', Compass],
-  ['/certs', 'nav.certs', Lock],
-  ['/web-service', 'nav.webService', Monitor],
-  ['/forward', 'nav.forward', Connection],
-  ['/notifications', 'nav.notifications', Bell],
-  ['/logs', 'nav.logs', Document],
-  ['/settings', 'nav.settings', Setting]
+const menuGroups = [
+  ['', [['/dashboard', 'nav.dashboard', Odometer]]],
+  [
+    'nav.trafficGroup',
+    [
+      ['/web-service', 'nav.webService', Monitor],
+      ['/forward', 'nav.forward', Connection],
+      ['/tunnels', 'nav.tunnels', Connection]
+    ]
+  ],
+  [
+    'nav.domainGroup',
+    [
+      ['/ddns', 'nav.ddns', Compass],
+      ['/certs', 'nav.certs', Lock]
+    ]
+  ],
+  [
+    'nav.systemGroup',
+    [
+      ['/logs', 'nav.logs', Document],
+      ['/notifications', 'nav.notifications', Bell],
+      ['/settings', 'nav.settings', Setting]
+    ]
+  ]
 ]
 const NavMenu = defineComponent({
   props: { collapsed: Boolean },
@@ -333,14 +349,17 @@ const NavMenu = defineComponent({
           h('span', { class: 'logo-mark' }, 'A'),
           !props.collapsed && h('span', 'andey-proxy')
         ]),
-        h('div', { class: 'nav-label' }, props.collapsed ? '' : t('nav.group')),
+
         h(
           ElMenu,
           { defaultActive: route.path, collapse: props.collapsed, router: true, onSelect: () => emit('navigate') },
           () =>
-            menuItems.map(([path, label, icon]) =>
-              h(ElMenuItem, { index: path }, { default: () => [h(ElIcon, null, () => h(icon)), h('span', t(label))] })
-            )
+            menuGroups.flatMap(([group, items]) => [
+              ...(group && !props.collapsed ? [h('div', { class: 'nav-label', role: 'presentation' }, t(group))] : []),
+              ...items.map(([path, label, icon]) =>
+                h(ElMenuItem, { index: path }, { default: () => [h(ElIcon, null, () => h(icon)), h('span', t(label))] })
+              )
+            ])
         )
       ])
     }
@@ -518,7 +537,8 @@ onMounted(() => {
   min-height: 100vh;
 }
 .sidebar {
-  background: linear-gradient(180deg, var(--ap-sidebar-from), var(--ap-sidebar-to));
+  background: var(--ap-card);
+  border-right: 1px solid var(--ap-border);
   transition: width 0.22s;
   overflow: hidden;
 }
@@ -531,7 +551,7 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 0 17px;
-  color: white;
+  color: var(--ap-text);
   font-weight: 700;
   font-size: 18px;
   white-space: nowrap;
@@ -543,7 +563,7 @@ onMounted(() => {
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: linear-gradient(145deg, var(--ap-brand-from), var(--ap-brand-to));
+  background: var(--ap-primary);
   color: white;
   box-shadow: 0 6px 18px var(--ap-shadow-dark);
 }
@@ -554,23 +574,23 @@ onMounted(() => {
   font-size: 11px;
   letter-spacing: 0.12em;
 }
-.sidebar :deep(.el-menu),
-.nav-drawer :deep(.el-menu) {
+.sidebar .el-menu,
+.nav-drawer .el-menu {
   border: 0;
   background: transparent;
 }
-.sidebar :deep(.el-menu-item),
-.nav-drawer :deep(.el-menu-item) {
+.sidebar .el-menu-item,
+.nav-drawer .el-menu-item {
   margin: 5px 10px;
   border-radius: 10px;
   color: var(--ap-on-dark-muted);
 }
-.sidebar :deep(.el-menu-item:hover),
-.sidebar :deep(.el-menu-item.is-active),
-.nav-drawer :deep(.el-menu-item:hover),
-.nav-drawer :deep(.el-menu-item.is-active) {
+.sidebar .el-menu-item:hover,
+.sidebar .el-menu-item.is-active,
+.nav-drawer .el-menu-item:hover,
+.nav-drawer .el-menu-item.is-active {
   background: var(--ap-menu-active-bg);
-  color: white;
+  color: var(--ap-primary);
 }
 .content-shell {
   min-width: 0;
@@ -685,7 +705,7 @@ onMounted(() => {
   gap: 8px;
   margin-bottom: 14px;
 }
-.nav-drawer :deep(.el-drawer__body) {
+.nav-drawer .el-drawer__body {
   padding: 0;
   background: var(--ap-sidebar-from);
 }

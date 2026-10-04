@@ -7,11 +7,13 @@ describe('i18n smoke', () => {
   it('translates without runtime compile errors', () => {
     i18n.global.locale.value = 'zh-CN'
     expect(i18n.global.t('app.title')).toBe('andey-proxy 管理后台')
+    expect(i18n.global.t('tunnel.title')).toBe('Cloudflare 隧道')
     expect(i18n.global.t('certs.emailPlaceholder')).toBe('ACME 账号邮箱，如 admin@example.com')
     expect(i18n.global.t('webService.redirectUrlPlaceholder')).toContain('{path}')
     expect(i18n.global.t('dashboard.issuesToHandle', { n: 3 })).toBe('3 项需要处理')
     i18n.global.locale.value = 'en-US'
     expect(i18n.global.t('app.title')).toBe('andey-proxy Admin')
+    expect(i18n.global.t('tunnel.title')).toBe('Cloudflare Tunnels')
     i18n.global.locale.value = 'zh-CN'
   })
 

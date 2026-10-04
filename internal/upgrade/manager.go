@@ -75,6 +75,7 @@ type stagedPackage struct {
 type Manager struct {
 	version, dir string
 	statusPath   string
+	restart      func() error
 	mu           sync.Mutex
 	state        State
 	errMsg, note string
@@ -83,7 +84,7 @@ type Manager struct {
 
 func NewManager(version, dir string) *Manager {
 	cleanupStaleUploads(dir)
-	m := &Manager{version: version, dir: dir, statusPath: filepath.Join(dir, "update-status.json"), state: StateIdle}
+	m := &Manager{version: version, dir: dir, statusPath: filepath.Join(dir, "update-status.json"), state: StateIdle, restart: startRestart}
 	if data, err := os.ReadFile(m.statusPath); err == nil {
 		var previous Status
 		if json.Unmarshal(data, &previous) == nil {
@@ -244,7 +245,11 @@ func (m *Manager) Install(id string, allowDowngrade bool) error {
 	ver := staged.inspection.Version
 	m.state = StateInstalling
 	m.mu.Unlock()
-	if err := installAtomic(staged.binaryPath); err != nil {
+	exe, err := executablePath()
+	if err == nil {
+		err = installAtomicAt(staged.binaryPath, exe)
+	}
+	if err != nil {
 		_ = os.Remove(staged.path)
 		_ = os.Remove(staged.binaryPath)
 		m.fail(err)
@@ -257,17 +262,21 @@ func (m *Manager) Install(id string, allowDowngrade bool) error {
 	_ = os.Remove(staged.binaryPath)
 	if err := m.persistStatusLocked(ver); err != nil {
 		m.mu.Unlock()
-		_ = restoreBackup()
-		m.fail(fmt.Errorf("保存更新状态失败: %w", err))
-		return err
+		failure := fmt.Errorf("保存更新状态失败: %w", err)
+		if rollbackErr := restoreBackupAt(exe); rollbackErr != nil {
+			failure = fmt.Errorf("%w；恢复备份也失败: %v", failure, rollbackErr)
+		}
+		m.fail(failure)
+		return failure
 	}
 	m.mu.Unlock()
 	log.Printf("[update] 更新 %s 已安装，已安排服务重启", ver)
 	go func() {
 		time.Sleep(time.Second)
-		if err := startRestart(); err != nil {
-			if rollbackErr := restoreBackup(); rollbackErr != nil {
-				err = fmt.Errorf("重启失败: %v；恢复备份也失败: %w", err, rollbackErr)
+		if err := m.restart(); err != nil {
+			err = fmt.Errorf("服务重启失败: %w", err)
+			if rollbackErr := restoreBackupAt(exe); rollbackErr != nil {
+				err = fmt.Errorf("%v；恢复备份也失败: %w", err, rollbackErr)
 			}
 			m.fail(err)
 		}
@@ -481,14 +490,8 @@ func elfMatches(m elf.Machine, data elf.Data, arch string) bool {
 	}
 	return false
 }
-func installAtomic(newBin string) error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	if r, e := filepath.EvalSymlinks(exe); e == nil {
-		exe = r
-	}
+func installAtomicAt(newBin, exe string) error {
+	var err error
 	dir := filepath.Dir(exe)
 	tmp, err := os.CreateTemp(dir, ".andey-proxy-new-*")
 	if err != nil {
@@ -521,18 +524,21 @@ func installAtomic(newBin string) error {
 		return err
 	}
 	if err = os.Rename(tmpName, exe); err != nil {
-		_ = os.Rename(backup, exe)
+		if rollbackErr := os.Rename(backup, exe); rollbackErr != nil {
+			return fmt.Errorf("安装失败: %v；回滚失败: %w", err, rollbackErr)
+		}
 		return err
 	}
 	if dirHandle, openErr := os.Open(dir); openErr == nil {
 		err = dirHandle.Sync()
 		_ = dirHandle.Close()
+	} else {
+		err = openErr
 	}
 	if err != nil {
-		failed := exe + ".failed-update"
-		_ = os.Rename(exe, failed)
-		_ = os.Rename(backup, exe)
-		_ = os.Remove(failed)
+		if rollbackErr := restoreBackupAt(exe); rollbackErr != nil {
+			return fmt.Errorf("保存安装失败: %v；回滚失败: %w", err, rollbackErr)
+		}
 		return err
 	}
 	return nil
@@ -569,22 +575,25 @@ func startRestart() error {
 	return nil
 }
 
-func restoreBackup() error {
-	exe, err := executablePath()
-	if err != nil {
-		return err
-	}
+func restoreBackupAt(exe string) error {
 	backup := exe + ".bak"
 	failed := exe + ".failed-update"
 	if err := os.Rename(exe, failed); err != nil {
 		return err
 	}
 	if err := os.Rename(backup, exe); err != nil {
-		_ = os.Rename(failed, exe)
+		if restoreErr := os.Rename(failed, exe); restoreErr != nil {
+			return fmt.Errorf("恢复备份失败: %v；保留当前程序失败: %w", err, restoreErr)
+		}
 		return err
 	}
 	_ = os.Remove(failed)
-	return nil
+	dir, err := os.Open(filepath.Dir(exe))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func trimLine(s string) string {
