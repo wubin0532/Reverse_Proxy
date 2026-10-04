@@ -5,6 +5,7 @@ package webproxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
 	"net"
@@ -628,10 +629,10 @@ func (s *Service) tlsConfig(siteSnapshot func() config.Site) *tls.Config {
 				}
 			}
 			if site.CertID != "" {
-				if cert, err := s.loadCertFile(site.CertID); err == nil {
+				if cert, err := s.loadCertFile(site.CertID); err == nil && (hello.ServerName == "" || cert.Leaf.VerifyHostname(hello.ServerName) == nil) {
 					return cert, nil
 				} else {
-					log.Printf("[webproxy] 站点 %s 加载证书 %s 失败，使用自签证书: %v", site.Name, site.CertID, err)
+					log.Printf("[webproxy] 站点 %s 证书 %s 不可用于当前连接，使用自签证书", site.Name, site.CertID)
 				}
 			}
 			return s.selfSigned()
@@ -670,6 +671,13 @@ func (s *Service) loadCertFile(certID string) (*tls.Certificate, error) {
 	cert, err := tls.LoadX509KeyPair(crtPath, keyPath)
 	if err != nil {
 		return nil, err
+	}
+	if cert.Leaf == nil {
+		leaf, err := x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return nil, err
+		}
+		cert.Leaf = leaf
 	}
 	s.certFiles[base] = &certFileCache{cert: &cert, modTime: modTime}
 	return &cert, nil

@@ -395,6 +395,7 @@ func rewriteProxyResponse(res *http.Response, target *url.URL, rule config.SubRu
 	if rule.RewriteLocation {
 		if location, err := url.Parse(res.Header.Get("Location")); err == nil && location.IsAbs() && strings.EqualFold(location.Host, target.Host) {
 			if info, ok := res.Request.Context().Value(publicRequestKey{}).(publicRequestInfo); ok {
+				rewriteLocationPath(location, target, rule)
 				location.Scheme = info.scheme
 				location.Host = info.host
 				res.Header.Set("Location", location.String())

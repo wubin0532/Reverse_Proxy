@@ -164,6 +164,9 @@ func (h *apiHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	var site config.Site
 	if err := api.DecodeBody(r, &site); err != nil {
 		api.Fail(w, 400, "请求格式错误")
@@ -204,6 +207,9 @@ func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	id := chi.URLParam(r, "id")
 	var site config.Site
 	if err := api.DecodeBody(r, &site); err != nil {
@@ -221,7 +227,7 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 	found := false
 	for i := range h.cfg.Sites {
 		if h.cfg.Sites[i].ID == id {
-			previous = h.cfg.Sites[i]
+			previous = cloneSite(h.cfg.Sites[i])
 			found = true
 			break
 		}
@@ -320,6 +326,9 @@ func mergeRuleSecrets(next *config.Site, old config.Site) {
 }
 
 func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	id := chi.URLParam(r, "id")
 	err := h.cfg.Update(func(c *config.Config) error {
 		if c.TunnelReferencedSite(id) {
@@ -352,6 +361,9 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
+	h.mutationMu.Lock()
+	defer h.mutationMu.Unlock()
+
 	id := chi.URLParam(r, "id")
 	enabled := false
 	previousEnabled := false

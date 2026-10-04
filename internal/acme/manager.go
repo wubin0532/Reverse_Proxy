@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +77,7 @@ type Manager struct {
 	reloadMu      sync.Mutex
 	reloadRunning bool
 	reloadPending bool
+	started       bool
 	stopped       bool // Stop 已发起，禁止再起 Reload goroutine（保证 wg.Add 先于 wg.Wait）
 }
 
@@ -151,42 +151,6 @@ func newDNSProvider(p config.DNSProviderConf) (challenge.Provider, error) {
 		return dnspod.NewDNSProviderConfig(c)
 	}
 	return nil, fmt.Errorf("不支持的服务商类型: %s", p.Type)
-}
-
-// txtPropagationCheck 生成 DNS-01 传播检查函数：绕过本地 DNS 与权威 NS 直连，
-// 只向指定公共递归服务器查询 TXT 值，任一服务器返回期望值即视为已生效。
-func txtPropagationCheck(servers []string) dns01.WrapPreCheckFunc {
-	return func(_, fqdn, value string, _ dns01.PreCheckFunc) (bool, error) {
-		name := strings.TrimSuffix(fqdn, ".")
-		deadline := time.Now().Add(2 * time.Minute)
-		for {
-			for _, srv := range servers {
-				resolver := &net.Resolver{
-					PreferGo: true,
-					Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
-						d := net.Dialer{Timeout: 5 * time.Second}
-						return d.DialContext(ctx, "udp", srv+":53")
-					},
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-				txts, err := resolver.LookupTXT(ctx, name)
-				cancel()
-				if err != nil {
-					log.Printf("[acme] 传播检查查询 %s 经 %s 失败: %v", name, srv, err)
-					continue
-				}
-				for _, txt := range txts {
-					if txt == value {
-						return true, nil
-					}
-				}
-			}
-			if time.Now().After(deadline) {
-				return false, nil
-			}
-			time.Sleep(5 * time.Second)
-		}
-	}
 }
 
 // accountKeyPath ACME 账户私钥落盘路径（全局共用一个账户密钥）。
@@ -288,12 +252,18 @@ func needRenew(c *config.CertConf, st config.CertState, now time.Time) bool {
 
 // beginObtain 标记证书进入申请中，已在申请则返回 false。
 func (m *Manager) beginObtain(certID string) bool {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+	if m.stopped {
+		return false
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.inflight[certID] {
 		return false
 	}
 	m.inflight[certID] = true
+	m.wg.Add(1)
 	return true
 }
 
@@ -302,6 +272,7 @@ func (m *Manager) endObtain(certID string) {
 	m.mu.Lock()
 	delete(m.inflight, certID)
 	m.mu.Unlock()
+	m.wg.Done()
 }
 
 // Obtaining 证书是否正在申请中。
@@ -318,12 +289,7 @@ func (m *Manager) invalidate(certID string) {
 	m.mu.Unlock()
 }
 
-// setResult 申请结束后回写运行状态库的证书路径、到期时间与错误信息，
-// 并立即落盘（申请是低频高成本事件，不等去抖窗口）。
-func (m *Manager) setResult(certID, notAfter, lastErr string) {
-	if _, ok := m.findCert(certID); !ok {
-		return // 申请期间证书已被删除，不留孤儿状态
-	}
+func (m *Manager) writeResult(certID, notAfter, lastErr string) {
 	st := m.cfg.State()
 	st.Update(func(s *config.State) {
 		cs := s.Certs[certID]
@@ -346,56 +312,72 @@ func (m *Manager) Obtain(ctx context.Context, certID string) error {
 		return errors.New("该证书正在申请中")
 	}
 	defer m.endObtain(certID)
+	return m.runObtain(ctx, certID)
+}
 
-	notAfter, err := m.obtain(ctx, certID)
+func (m *Manager) runObtain(parent context.Context, certID string) error {
+	ctx, cancel := context.WithCancel(parent)
+	stop := context.AfterFunc(m.ctx, cancel)
+	defer func() { stop(); cancel() }()
+	cert, ok := m.findCert(certID)
+	if !ok {
+		return fmt.Errorf("证书不存在: %s", certID)
+	}
+	provider, ok := m.findProvider(cert.ProviderID)
+	if !ok {
+		err := fmt.Errorf("服务商凭据不存在: %s", cert.ProviderID)
+		m.setRequestError(cert, config.DNSProviderConf{}, err.Error())
+		return err
+	}
+	notAfter, err := m.obtain(ctx, cert, provider)
 	name := certID
 	if c, ok := m.findCert(certID); ok && c.Name != "" {
 		name = c.Name
 	}
 	if err != nil {
-		safeErr := m.sanitizeError(certID, err)
-		m.setResult(certID, "", safeErr.Error())
+		if m.ctx.Err() != nil || errors.Is(ctx.Err(), context.Canceled) || errors.Is(err, context.Canceled) || errors.Is(err, errRequestChanged) {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return err
+		}
+		safeErr := sanitizeProviderError(provider, err)
+		m.setRequestError(cert, provider, safeErr.Error())
 		notify.Publish(notify.Event{Type: notify.TypeCertObtainFailed, Entity: name, Level: notify.LevelError, Message: fmt.Sprintf("证书 %s 申请/续签失败: %v", name, safeErr)})
 		return safeErr
 	}
-	m.setResult(certID, notAfter, "")
-	m.invalidate(certID)
 	notify.Publish(notify.Event{Type: notify.TypeCertObtainSuccess, Entity: name, Level: notify.LevelInfo, Message: fmt.Sprintf("证书 %s 申请/续签成功，到期时间 %s", name, notAfter)})
 	return nil
 }
 
 func (m *Manager) sanitizeError(certID string, err error) error {
+	var provider config.DNSProviderConf
+	if cert, ok := m.findCert(certID); ok {
+		provider, _ = m.findProvider(cert.ProviderID)
+	}
+	return sanitizeProviderError(provider, err)
+}
+
+func sanitizeProviderError(provider config.DNSProviderConf, err error) error {
 	if err == nil {
 		return nil
 	}
 	message := err.Error()
-	if cert, ok := m.findCert(certID); ok {
-		if provider, found := m.findProvider(cert.ProviderID); found {
-			for _, secret := range []string{provider.Key, provider.Secret} {
-				if secret != "" {
-					message = strings.ReplaceAll(message, secret, "[REDACTED]")
-				}
-			}
+	for _, secret := range []string{provider.Key, provider.Secret} {
+		if secret != "" {
+			message = strings.ReplaceAll(message, secret, "[REDACTED]")
 		}
 	}
 	return errors.New(logcenter.Redact(message))
 }
 
 // obtain 执行一次完整的申请流程，成功返回新证书到期时间（RFC3339）。
-func (m *Manager) obtain(ctx context.Context, certID string) (string, error) {
+func (m *Manager) obtain(ctx context.Context, cert config.CertConf, provider config.DNSProviderConf) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	cert, ok := m.findCert(certID)
-	if !ok {
-		return "", fmt.Errorf("证书不存在: %s", certID)
-	}
 	if len(cert.Domains) == 0 {
 		return "", errors.New("域名列表不能为空")
-	}
-	provider, ok := m.findProvider(cert.ProviderID)
-	if !ok {
-		return "", fmt.Errorf("服务商凭据不存在: %s", cert.ProviderID)
 	}
 	dnsProvider, err := newDNSProvider(provider)
 	if err != nil {
@@ -408,6 +390,7 @@ func (m *Manager) obtain(ctx context.Context, certID string) (string, error) {
 
 	user := &acmeUser{email: cert.Email, key: accountKey}
 	lcfg := lego.NewConfig(user)
+	lcfg.HTTPClient = operationHTTPClient(ctx, lcfg.HTTPClient)
 	if cert.CADirURL != "" {
 		lcfg.CADirURL = cert.CADirURL // 空 = Let's Encrypt 生产目录
 	}
@@ -421,7 +404,7 @@ func (m *Manager) obtain(ctx context.Context, certID string) (string, error) {
 	// 递归服务器校验 TXT 值，轮询直至出现或超时。
 	challengeOpts := []dns01.ChallengeOption{
 		dns01.AddRecursiveNameservers(dns01.ParseNameservers([]string{"223.5.5.5", "119.29.29.29", "1.1.1.1"})),
-		dns01.WrapPreCheck(txtPropagationCheck([]string{"1.1.1.1", "8.8.8.8"})),
+		dns01.WrapPreCheck(txtPropagationCheck(ctx, []string{"1.1.1.1", "8.8.8.8"})),
 	}
 	if err := client.Challenge.SetDNS01Provider(dnsProvider, challengeOpts...); err != nil {
 		return "", err
@@ -437,19 +420,15 @@ func (m *Manager) obtain(ctx context.Context, certID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	notAfter, err := parseNotAfter(res.Certificate)
-	if err != nil {
-		return "", err
-	}
 	if err := os.MkdirAll(m.certsDir(), 0o700); err != nil {
 		return "", err
 	}
-	certFile, keyFile := m.certPath(&cert)
-	if err := writeCertificatePair(certFile, keyFile, res.Certificate, res.PrivateKey); err != nil {
+	notAfter, err := m.commitCertificate(ctx, cert, provider, res.Certificate, res.PrivateKey)
+	if err != nil {
 		return "", err
 	}
-	log.Printf("[acme] 证书 %s 申请成功，到期时间 %s", cert.Name, notAfter.Format(time.RFC3339))
-	return notAfter.Format(time.RFC3339), nil
+	log.Printf("[acme] 证书 %s 申请成功，到期时间 %s", cert.Name, notAfter)
+	return notAfter, nil
 }
 
 // writeCertificatePair validates and stages both files before replacing the
@@ -548,7 +527,14 @@ func moveIfExists(from, to string) (bool, error) {
 
 // Start 启动后台续签循环：立即扫描一次，之后每 12 小时扫描。
 func (m *Manager) Start() {
+	m.reloadMu.Lock()
+	if m.stopped || m.started {
+		m.reloadMu.Unlock()
+		return
+	}
+	m.started = true
 	m.wg.Add(1)
+	m.reloadMu.Unlock()
 	go func() {
 		defer m.wg.Done()
 		m.scan()
@@ -656,6 +642,10 @@ func (m *Manager) scan() {
 		_, certErr := os.Stat(certFile)
 		_, keyErr := os.Stat(keyFile)
 		missing := certErr != nil || keyErr != nil
+		if !missing {
+			pair, err := m.loadCached(c)
+			missing = err != nil || !coversDomains(pair, c.Domains)
+		}
 		if !missing && !needRenew(c, m.cfg.State().Cert(c.ID), now) {
 			continue
 		}
@@ -723,7 +713,18 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 	if !ok {
 		return nil, fmt.Errorf("没有匹配域名 %s 的证书: %w", name, os.ErrNotExist)
 	}
-	return m.loadCached(&cert)
+	pair, err := m.loadCached(&cert)
+	if err != nil {
+		return nil, err
+	}
+	leaf, err := certificateLeaf(pair)
+	if err != nil {
+		return nil, err
+	}
+	if err := leaf.VerifyHostname(name); err != nil {
+		return nil, fmt.Errorf("证书尚未覆盖域名 %s: %w", name, os.ErrNotExist)
+	}
+	return pair, nil
 }
 
 // loadCached 加载证书文件，缓存命中且 mtime 未变时直接返回缓存。
