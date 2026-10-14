@@ -44,6 +44,8 @@ type cfRecord struct {
 	Name    string `json:"name"`
 	Type    string `json:"type"`
 	Content string `json:"content"`
+	TTL     int    `json:"ttl"`
+	Proxied bool   `json:"proxied"`
 }
 
 // do 发起一次 Cloudflare API 调用。
@@ -122,17 +124,26 @@ func (p *cloudflareProvider) findRecord(ctx context.Context, zoneID, fqdn, recor
 	var out struct {
 		Result []cfRecord `json:"result"`
 	}
-	q := url.Values{"type": {recordType}, "name": {fqdn}}
+	q := url.Values{"type": {recordType}, "name": {fqdn}, "per_page": {"100"}}
 	if err := p.do(ctx, http.MethodGet, "/zones/"+zoneID+"/dns_records", q, nil, &out); err != nil {
 		return nil, err
 	}
+	if (recordType == "TXT" || recordType == "CNAME") && len(out.Result) >= 100 {
+		return nil, fmt.Errorf("远程查询结果超过安全核查范围，请先在服务商控制台整理记录")
+	}
+	var match *cfRecord
 	for i := range out.Result {
 		r := &out.Result[i]
 		if strings.EqualFold(r.Name, fqdn) && strings.EqualFold(r.Type, recordType) {
-			return r, nil
+			if match != nil && (recordType == "TXT" || recordType == "CNAME") {
+				return nil, fmt.Errorf("同名同类型存在多条远程记录，请先在服务商控制台明确要管理的记录")
+			}
+			if match == nil {
+				match = r
+			}
 		}
 	}
-	return nil, nil
+	return match, nil
 }
 
 func (p *cloudflareProvider) QueryRecord(ctx context.Context, domain, recordType string) (string, error) {
@@ -183,10 +194,14 @@ func (p *cloudflareProvider) UpsertRecord(ctx context.Context, domain, recordTyp
 		}
 		return fmt.Sprintf("新增记录 %s %s -> %s", domain, recordType, ip), nil
 	}
-	if rec.Content == ip {
+	if recordValuesEqual(recordType, rec.Content, ip) && rec.TTL == ttl {
 		return fmt.Sprintf("记录 %s 已是最新（%s）", domain, ip), nil
 	}
-	if err := p.do(ctx, http.MethodPut, "/zones/"+zid+"/dns_records/"+rec.ID, nil, body, nil); err != nil {
+	// Preserve the remote proxy mode when reconciling only address/TTL.
+	if recordType != "TXT" {
+		body["proxied"] = rec.Proxied
+	}
+	if err := p.do(ctx, http.MethodPatch, "/zones/"+zid+"/dns_records/"+rec.ID, nil, body, nil); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("更新记录 %s %s: %s -> %s", domain, recordType, rec.Content, ip), nil

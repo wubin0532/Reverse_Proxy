@@ -1,0 +1,218 @@
+Browser tab: 8, Title: "Lucky | SSL/TLS证书", URL: "http://192.168.199.1:16601/andey/#/ssl".
+0 AXWebArea Lucky | SSL/TLS证书, URL: 192.168.199.1:16601/andey/#/ssl
+	1 container
+		2 container app
+			3 container
+				4 container
+					5 button Lucky
+						6 image Lucky
+						7 text Lucky
+						8 text 3.1.4
+					9 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+					10 text SSL/TLS证书 Lucky / SSL/TLS证书
+					11 button 切换主题
+					12 button 切换语言
+					13 button L Lucky Admin
+						14 text L
+						15 text Lucky Admin
+				16 container desktop-sidebar-navigation
+					17 content list
+						18 container 总览
+							19 text 总览
+						20 container 日志中心
+							21 text 日志中心
+						22 container 快速上手
+							23 text 快速上手
+						24 container 动态域名
+							25 text 动态域名
+						26 container Web服务
+							27 text Web服务
+						28 container 端口转发
+							29 text 端口转发
+						30 container STUN穿透
+							31 text STUN穿透
+						32 container Web终端
+							33 text Web终端
+						34 container 计划任务
+							35 text 计划任务
+						36 container SSL/TLS证书
+							37 text SSL/TLS证书
+						38 container 防护中心
+							39 container
+								40 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+									41 text 防护中心
+								42 container
+									43 text IP过滤
+									44 text 安全组
+						45 container IP地址库
+							46 text IP地址库
+						47 container 第三方认证
+							48 text 第三方认证
+						49 container Passkey 管理
+							50 text Passkey 管理
+						51 container LuckyID
+							52 text LuckyID
+						53 container 更多功能
+							54 button (collapsed) Description: 扩张, Secondary Actions: Expand
+								55 text 更多功能
+					56 content list
+						57 container 设置
+							58 text 设置
+						59 container 关于
+							60 text 关于
+				61 container pageContent
+					62 container
+						63 heading SSL/TLS证书, Value: 1
+							64 text SSL/TLS证书
+						65 button 设置
+						66 button 日志
+						67 button 添加证书
+							68 text 添加证书
+						69 container 筛选
+							70 checkbox 全部 1, Value: 1
+							71 checkbox 已启用 1, Value: 0
+							72 checkbox 已禁用 0, Value: 0
+						73 container
+							74 text field (settable) Description: 搜索证书、域名或来源, ID: f_ca0b19f3-d603-4f76-ae3b-19e506f6ffc1
+						75 container SSL 证书列表
+							76 row
+								77 cell
+									78 text 证书
+								79 cell
+									80 text 有效期
+								81 cell
+									82 text 来源
+								83 cell
+									84 text 运行状态
+							85 row
+								86 cell
+									87 text chess
+									88 text *.wubin.ink
+								89 cell
+									90 text 剩余 47 天
+									91 text 2026-12-01 到期
+								92 cell
+									93 text ACME · Let's Encrypt
+									94 text 阿里云 DNS
+								95 cell
+									96 text 有效
+								97 cell
+									98 container
+										99 button 手动续签
+										100 switch Description: 启用, Value: 1
+										101 button 更多操作
+		102 container 添加证书
+			103 container
+				104 text 添加证书
+				105 button 关闭对话框
+				106 container
+					107 heading 基础设置, Value: 3
+						108 text 基础设置
+					109 text 选择证书来源，也可以使用快速填写完成初始配置。
+					110 button 新手引导
+					111 button 快速填写
+					112 text 证书备注
+					113 text field (settable) f_f7a91025-b640-4825-bd2a-59a1ffb96ac5
+					114 text 添加方式
+					115 container
+						116 text ACME
+						117 combo box (collapsed, settable) ACME, ID: f_7ddc7542-6a33-4e13-80af-c4a7ae9c552c, Secondary Actions: Expand
+				118 container
+					119 heading 证书申请, Value: 3
+						120 text 证书申请
+					121 text 填写域名和联系邮箱，选择证书颁发机构。
+					122 text 域名/IP 列表 一行一条域名或 IP，支持通配符域名，例如 *.abc.com
+					123 text entry area (settable) f_73121d26-db0d-46f5-848a-dcbd0b78df92
+					124 text 电子邮箱
+					125 text field (settable) f_b5843112-f145-4b8e-9fc9-013f6ec2e288
+					126 text 证书颁发机构
+					127 container
+						128 text ZeroSSL
+						129 combo box (collapsed, settable) ZeroSSL, ID: f_318eb22d-4613-49e6-a204-dbc90d644248, Secondary Actions: Expand
+					130 text ACME 接口
+					131 text field (settable) Value: https://acme.zerossl.com/v2/DV90, ID: f_5551903d-efda-4cd3-8a3c-958d0c5fa3de
+					132 text EAB 认证
+					133 switch 0
+				134 container
+					135 heading 验证配置, Value: 3
+						136 text 验证配置
+					137 text 选择验证方式，并填写对应的服务商凭据。
+					138 text 验证方式
+					139 text field Value: Cloudflare, ID: f_c47f7c0c-cfbc-41e0-a6cf-03fea47ae90b
+					140 link Description: 创建令牌 -> 编辑区域 DNS（使用模板）, Value: dash.cloudflare.com/profile/api-tokens
+					141 text 注意：全局 Token 无法使用。 从已有 DDNS 任务或 ACME 证书填充
+					142 combo box (collapsed, settable) ID: f_616c89a1-5154-467a-bd50-614fb1c754d7, Secondary Actions: Expand
+					143 button (disabled) 填充
+					144 button 刷新
+					145 text Token
+					146 text field (settable)
+					147 checkbox Description: 显示, Value: 0
+				148 container
+					149 heading 更多设置, Value: 3
+						150 text 更多设置
+					151 text 高级证书申请与验证参数配置
+					152 button (expanded) 更多设置, Secondary Actions: Collapse
+					153 text 算法选择
+					154 container
+						155 text RSA2048
+						156 combo box (collapsed, settable) RSA2048, ID: f_8d417c05-b719-4190-b081-ee3fd58207d1, Secondary Actions: Expand
+					157 text 证书配置
+					158 container
+						159 text 默认（普通域名证书）
+						160 combo box (collapsed, settable) 默认（普通域名证书）, ID: f_d0e0dd62-4a3e-4493-a711-258499315a8b, Secondary Actions: Expand
+					161 text 网络类型
+					162 container
+						163 text tcp
+						164 combo box (collapsed, settable) tcp, ID: f_147821d3-fe70-45d4-b0fa-a7d7163d480e, Secondary Actions: Expand
+					165 text 每次请求轮换私钥
+					166 switch 0
+					167 text 使用全局私钥
+					168 switch 0
+					169 text 串行化验证
+					170 switch 0
+					171 text 通过 DNS 查询获取主域名
+					172 switch 0
+					173 text 通过 CNAME 委托 DNS 验证 启用后，沿 _acme-challenge 的 CNAME 链在最终目标创建 TXT，DNS 凭据须有权管理目标区域。关闭后在原名称创建 TXT，不改变 DNS 查询或证书机构的解析行为；原名称已有 CNAME 时不能同时创建 TXT。
+					174 switch 0
+					175 text 使用 IPv4 网络申请证书
+					176 switch 1
+					177 text DNS 查询强制 IPv4
+					178 switch 0
+					179 text DNS 查询仅使用 TCP
+					180 switch 0
+					181 text 禁用完整传播要求
+					182 switch 0
+					183 text 忽略传播检查错误
+					184 switch 1
+					185 text 禁用权威 NS 传播检查
+					186 switch 0
+					187 text 传播检测超时（秒）
+					188 stepper (settable, integer) Value: 180, ID: f_95d84125-76ce-44a4-9c94-baf1df9bc0e3
+					189 text 等待证书最长时间（秒）
+					190 stepper (settable, integer) Value: 120, ID: f_bd87bea9-9e43-4e4e-b25b-39c9a739932f
+				191 container
+					192 heading 代理设置, Value: 3
+						193 text 代理设置
+					194 text 配置 ACME 申请时使用的代理服务器
+					195 text 代理类型
+					196 container
+						197 text 禁用
+						198 combo box (collapsed, settable) 禁用, ID: f_4ef85c4f-3f12-47e6-b8c9-2870478d5a46, Secondary Actions: Expand
+				199 container
+					200 heading 证书映射, Value: 3
+						201 text 证书映射
+					202 text 将证书文件映射到本地路径
+					203 text 证书映射
+					204 switch 0
+				205 container
+					206 heading 证书同步, Value: 3
+						207 text 证书同步
+					208 text 配置证书同步到其他客户端的策略
+					209 text 同步到所有同步客户端
+					210 switch 0
+					211 text 同步客户端列表
+					212 combo box (collapsed, settable) ID: f_3e5257ea-8835-47d8-8552-fa7950228cb6, Secondary Actions: Expand
+				213 button 取消
+				214 button 添加
+
+The focused UI element is 152 button (expanded) 更多设置, Secondary Actions: Collapse

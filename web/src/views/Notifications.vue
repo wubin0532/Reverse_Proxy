@@ -1,15 +1,14 @@
 <template>
-  <div class="notify-page" v-loading="loading">
-    <section class="notify-hero">
-      <div>
-        <span class="eyebrow">{{ $t('notifications.eyebrow') }}</span>
-        <h1>{{ $t('notifications.title') }}</h1>
-        <p>{{ $t('notifications.subtitle') }}</p>
-      </div>
-      <div class="hero-icon">
-        <el-icon><Bell /></el-icon>
-      </div>
-    </section>
+  <div class="page-grid workspace-page notify-page" v-loading="loading">
+    <WorkspaceHeader
+      :title="$t('notifications.title')"
+      :description="$t('notifications.subtitle')"
+      icon="notifications"
+    >
+      <template #actions
+        ><el-button :icon="Refresh" :loading="loading" @click="load">{{ $t('common.refresh') }}</el-button></template
+      >
+    </WorkspaceHeader>
 
     <div class="channel-grid">
       <el-card class="channel-card">
@@ -94,7 +93,12 @@
       <el-empty v-else :description="$t('notifications.events.empty')" :image-size="58" />
     </el-card>
 
-    <el-dialog v-model="dialogOpen" :title="$t('notifications.telegram.dialogTitle')" width="520px">
+    <el-dialog
+      class="workspace-dialog"
+      v-model="dialogOpen"
+      :title="$t('notifications.telegram.dialogTitle')"
+      width="520px"
+    >
       <el-alert type="info" :title="$t('notifications.telegram.guide')" :closable="false" />
       <el-form label-position="top" class="notify-form">
         <el-form-item :label="$t('common.enabled')"><el-switch v-model="form.telegram.enabled" /></el-form-item>
@@ -136,10 +140,11 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Bell, Refresh } from '@element-plus/icons-vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
+import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import { formatTime } from '../utils/format'
 import { useIntervalFn } from '../composables/useIntervalFn'
 
@@ -247,44 +252,12 @@ onMounted(() => {
 <style scoped>
 .notify-page {
   display: grid;
-  gap: 18px;
-}
-.notify-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 26px 30px;
-  border-radius: var(--ap-radius);
-  color: var(--ap-text);
-  background: var(--ap-card);
-  border: 1px solid var(--ap-border);
-  box-shadow: var(--ap-shadow);
-}
-.notify-hero h1 {
-  margin: 6px 0;
-  font-size: 26px;
-}
-.notify-hero p {
-  margin: 0;
-  color: var(--ap-hero-text-soft);
-}
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.15em;
-}
-.hero-icon {
-  display: grid;
-  place-items: center;
-  width: 68px;
-  height: 68px;
-  border-radius: 20px;
-  background: var(--ap-glass);
-  font-size: 30px;
+  gap: 16px;
 }
 .channel-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
 }
 .card-header,
 .channel-name,
@@ -340,7 +313,8 @@ onMounted(() => {
   white-space: nowrap;
 }
 .actions {
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 18px;
 }
 .event-tags {
@@ -379,18 +353,10 @@ onMounted(() => {
   .channel-grid {
     grid-template-columns: 1fr;
   }
-  .notify-hero {
-    padding: 22px;
-  }
   .event-list > div {
     grid-template-columns: auto minmax(0, 1fr);
   }
   .event-list time {
-    display: none;
-  }
-}
-@media (max-width: 480px) {
-  .hero-icon {
     display: none;
   }
 }

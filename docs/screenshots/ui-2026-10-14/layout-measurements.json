@@ -1,0 +1,242 @@
+{
+  "desktop": [
+    {
+      "label": "概览",
+      "slug": "overview",
+      "url": "http://127.0.0.1:18960/dashboard",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "概览",
+        "资源趋势",
+        "网络流量",
+        "服务状态"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "动态域名",
+      "slug": "ddns",
+      "url": "http://127.0.0.1:18960/ddns",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "动态域名"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Web 服务",
+      "slug": "web",
+      "url": "http://127.0.0.1:18960/web-service",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "Web 服务站点"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "证书管理",
+      "slug": "certs",
+      "url": "http://127.0.0.1:18960/certs",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "证书管理"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "防护中心",
+      "slug": "protection",
+      "url": "http://127.0.0.1:18960/protection",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "防护中心"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "端口转发",
+      "slug": "forward",
+      "url": "http://127.0.0.1:18960/forward",
+      "background": "rgb(243, 243, 240)",
+      "headings": [],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Cloudflare 隧道",
+      "slug": "tunnels",
+      "url": "http://127.0.0.1:18960/tunnels",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "Cloudflare 隧道"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "日志中心",
+      "slug": "logs",
+      "url": "http://127.0.0.1:18960/logs",
+      "background": "rgb(243, 243, 240)",
+      "headings": [],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "通知中心",
+      "slug": "notifications",
+      "url": "http://127.0.0.1:18960/notifications",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "通知中心"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "系统设置",
+      "slug": "settings",
+      "url": "http://127.0.0.1:18960/settings",
+      "background": "rgb(243, 243, 240)",
+      "headings": [
+        "系统设置"
+      ],
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "mobile": [
+    {
+      "label": "概览",
+      "url": "http://127.0.0.1:18960/dashboard",
+      "heading": "概览",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "动态域名",
+      "url": "http://127.0.0.1:18960/ddns",
+      "heading": "动态域名",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Web 服务",
+      "url": "http://127.0.0.1:18960/web-service",
+      "heading": "Web 服务站点",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "证书管理",
+      "url": "http://127.0.0.1:18960/certs",
+      "heading": "证书管理",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "防护中心",
+      "url": "http://127.0.0.1:18960/protection",
+      "heading": "防护中心",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "端口转发",
+      "url": "http://127.0.0.1:18960/forward",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Cloudflare 隧道",
+      "url": "http://127.0.0.1:18960/tunnels",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "日志中心",
+      "url": "http://127.0.0.1:18960/logs",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "通知中心",
+      "url": "http://127.0.0.1:18960/notifications",
+      "heading": "通知中心",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "系统设置",
+      "url": "http://127.0.0.1:18960/settings",
+      "heading": "系统设置",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    }
+  ]
+}

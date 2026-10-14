@@ -1,0 +1,293 @@
+[
+  {
+    "name": "pve-txt-mobile",
+    "documentWidth": 390,
+    "footer": {
+      "bottom": 793,
+      "height": 63,
+      "left": 31,
+      "right": 359,
+      "top": 730,
+      "width": 328,
+      "x": 31,
+      "y": 730
+    },
+    "height": 844,
+    "target": {
+      "bottom": 812,
+      "height": 796,
+      "left": 12,
+      "right": 378,
+      "top": 16,
+      "width": 366,
+      "x": 12,
+      "y": 16
+    },
+    "width": 390
+  },
+  {
+    "name": "pve-cname-mobile",
+    "documentWidth": 390,
+    "footer": {
+      "bottom": 793,
+      "height": 63,
+      "left": 31,
+      "right": 359,
+      "top": 730,
+      "width": 328,
+      "x": 31,
+      "y": 730
+    },
+    "height": 844,
+    "target": {
+      "bottom": 812,
+      "height": 796,
+      "left": 12,
+      "right": 378,
+      "top": 16,
+      "width": 366,
+      "x": 12,
+      "y": 16
+    },
+    "width": 390
+  },
+  {
+    "name": "pve-cname-desktop",
+    "documentWidth": 1920,
+    "footer": {
+      "bottom": 632,
+      "height": 63,
+      "left": 705,
+      "right": 1215,
+      "top": 569,
+      "width": 510,
+      "x": 705,
+      "y": 569
+    },
+    "height": 907,
+    "target": {
+      "bottom": 657,
+      "height": 633,
+      "left": 680,
+      "right": 1240,
+      "top": 24,
+      "width": 560,
+      "x": 680,
+      "y": 24
+    },
+    "width": 1920
+  },
+  {
+    "name": "pve-txt-desktop",
+    "documentWidth": 1920,
+    "footer": {
+      "bottom": 665,
+      "height": 63,
+      "left": 705,
+      "right": 1215,
+      "top": 602,
+      "width": 510,
+      "x": 705,
+      "y": 602
+    },
+    "height": 907,
+    "target": {
+      "bottom": 690,
+      "height": 666,
+      "left": 680,
+      "right": 1240,
+      "top": 24,
+      "width": 560,
+      "x": 680,
+      "y": 24
+    },
+    "width": 1920
+  },
+  {
+    "name": "pve-static-task-desktop",
+    "documentWidth": 1920,
+    "footer": {
+      "bottom": 620,
+      "height": 63,
+      "left": 605,
+      "right": 1315,
+      "top": 557,
+      "width": 710,
+      "x": 605,
+      "y": 557
+    },
+    "height": 907,
+    "target": {
+      "bottom": 645,
+      "height": 621,
+      "left": 580,
+      "right": 1340,
+      "top": 24,
+      "width": 760,
+      "x": 580,
+      "y": 24
+    },
+    "width": 1920
+  },
+  {
+    "name": "pve-static-task-mobile",
+    "documentWidth": 390,
+    "footer": {
+      "bottom": 733.78125,
+      "height": 63,
+      "left": 31,
+      "right": 359,
+      "top": 670.78125,
+      "width": 328,
+      "x": 31,
+      "y": 670.78125
+    },
+    "height": 844,
+    "target": {
+      "bottom": 752.78125,
+      "height": 736.78125,
+      "left": 12,
+      "right": 378,
+      "top": 16,
+      "width": 366,
+      "x": 12,
+      "y": 16
+    },
+    "width": 390
+  },
+  {
+    "name": "pve-long-task-mobile",
+    "documentWidth": 390,
+    "footer": {
+      "bottom": 793,
+      "height": 63,
+      "left": 31,
+      "right": 359,
+      "top": 730,
+      "width": 328,
+      "x": 31,
+      "y": 730
+    },
+    "height": 844,
+    "target": {
+      "bottom": 812,
+      "height": 796,
+      "left": 12,
+      "right": 378,
+      "top": 16,
+      "width": 366,
+      "x": 12,
+      "y": 16
+    },
+    "width": 390
+  },
+  {
+    "name": "pve-trap-help-desktop",
+    "documentWidth": 1920,
+    "height": 907,
+    "target": {
+      "bottom": 976.53125,
+      "height": 756.34375,
+      "left": 277,
+      "right": 1875,
+      "top": 220.1875,
+      "width": 1598,
+      "x": 277,
+      "y": 220.1875
+    },
+    "width": 1920
+  },
+  {
+    "name": "pve-trap-desktop",
+    "documentWidth": 1920,
+    "height": 907,
+    "target": {
+      "bottom": 976.53125,
+      "height": 756.34375,
+      "left": 277,
+      "right": 1875,
+      "top": 220.1875,
+      "width": 1598,
+      "x": 277,
+      "y": 220.1875
+    },
+    "width": 1920
+  },
+  {
+    "name": "pve-trap-mobile",
+    "documentWidth": 390,
+    "height": 844,
+    "target": {
+      "bottom": 1368.0859375,
+      "height": 1054.4921875,
+      "left": 25,
+      "right": 365,
+      "top": 313.59375,
+      "width": 340,
+      "x": 25,
+      "y": 313.59375
+    },
+    "width": 390
+  },
+  {
+    "name": "pve-trap-mobile-footer",
+    "documentWidth": 390,
+    "height": 844,
+    "target": {
+      "bottom": 819.0859375,
+      "height": 1054.4921875,
+      "left": 25,
+      "right": 365,
+      "top": -235.40625,
+      "width": 340,
+      "x": 25,
+      "y": -235.40625
+    },
+    "width": 390
+  },
+  {
+    "name": "pve-trap-help-mobile",
+    "documentWidth": 390,
+    "height": 844,
+    "target": {
+      "bottom": 819.0859375,
+      "height": 1054.4921875,
+      "left": 25,
+      "right": 365,
+      "top": -235.40625,
+      "width": 340,
+      "x": 25,
+      "y": -235.40625
+    },
+    "width": 390
+  },
+  {
+    "name": "trap-footer-buttons-mobile",
+    "buttons": [
+      {
+        "bottom": 741.7890625,
+        "height": 44,
+        "left": 220,
+        "right": 280,
+        "text": "取消",
+        "top": 697.7890625,
+        "width": 60,
+        "x": 220,
+        "y": 697.7890625
+      },
+      {
+        "bottom": 741.7890625,
+        "height": 44,
+        "left": 292,
+        "right": 352,
+        "text": "保存",
+        "top": 697.7890625,
+        "width": 60,
+        "x": 292,
+        "y": 697.7890625
+      }
+    ],
+    "documentWidth": 390,
+    "width": 390
+  }
+]

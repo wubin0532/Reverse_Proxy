@@ -6,18 +6,21 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge"
 	"github.com/go-acme/lego/v4/challenge/dns01"
@@ -38,10 +41,10 @@ const defaultRenewDays = 30
 // scanInterval 后台续签扫描间隔。
 const scanInterval = 12 * time.Hour
 
-// cachedCert 磁盘证书的内存缓存，modTime 变化时重载。
+// cachedCert holds one validated pair; the fingerprint includes both files.
 type cachedCert struct {
-	cert    *tls.Certificate
-	modTime time.Time
+	cert        *tls.Certificate
+	fingerprint [32]byte
 }
 
 // acmeUser 实现 lego 的 registration.User 接口。
@@ -66,6 +69,12 @@ type Manager struct {
 	// accountMu 串行化账户私钥首建（loadAccountKey），独立于 m.mu，
 	// 避免 RSA 密钥生成耗时阻塞证书缓存读写。
 	accountMu sync.Mutex
+
+	// pairMu excludes readers while both certificate files are being replaced.
+	// Where both locks are needed, acquire cfg before pairMu.
+	pairMu         sync.RWMutex
+	mappingMu      sync.Mutex
+	mappingResults sync.Map
 
 	ctx      context.Context // Stop 时取消，中断正在进行的申请
 	cancel   context.CancelFunc
@@ -110,6 +119,9 @@ func (m *Manager) findCert(certID string) (config.CertConf, bool) {
 	defer m.cfg.RUnlock()
 	for _, c := range m.cfg.Certs {
 		if c.ID == certID {
+			c.Domains = append([]string(nil), c.Domains...)
+			c.DNSResolvers = append([]string(nil), c.DNSResolvers...)
+			c.Mappings = append([]config.CertificateMapping(nil), c.Mappings...)
 			return c, true
 		}
 	}
@@ -323,6 +335,9 @@ func (m *Manager) runObtain(parent context.Context, certID string) error {
 	if !ok {
 		return fmt.Errorf("证书不存在: %s", certID)
 	}
+	if cert.Source == "uploaded" {
+		return errors.New("导入证书不支持 ACME 申请，请导入新证书替换")
+	}
 	provider, ok := m.findProvider(cert.ProviderID)
 	if !ok {
 		err := fmt.Errorf("服务商凭据不存在: %s", cert.ProviderID)
@@ -342,10 +357,16 @@ func (m *Manager) runObtain(parent context.Context, certID string) error {
 			return err
 		}
 		safeErr := sanitizeProviderError(provider, err)
+		for _, secret := range []string{cert.EABHMAC, cert.EABKeyID} {
+			if secret != "" {
+				safeErr = errors.New(strings.ReplaceAll(safeErr.Error(), secret, "[REDACTED]"))
+			}
+		}
 		m.setRequestError(cert, provider, safeErr.Error())
 		notify.Publish(notify.Event{Type: notify.TypeCertObtainFailed, Entity: name, Level: notify.LevelError, Message: fmt.Sprintf("证书 %s 申请/续签失败: %v", name, safeErr)})
 		return safeErr
 	}
+	m.autoSyncMappings(certID)
 	notify.Publish(notify.Event{Type: notify.TypeCertObtainSuccess, Entity: name, Level: notify.LevelInfo, Message: fmt.Sprintf("证书 %s 申请/续签成功，到期时间 %s", name, notAfter)})
 	return nil
 }
@@ -372,7 +393,18 @@ func sanitizeProviderError(provider config.DNSProviderConf, err error) error {
 }
 
 // obtain 执行一次完整的申请流程，成功返回新证书到期时间（RFC3339）。
+// lego DNS resolver options use package-global state; serialize the complete
+// DNS operation across managers so concurrent certificates cannot exchange NS.
+var dnsOperations = make(chan struct{}, 1)
+
 func (m *Manager) obtain(ctx context.Context, cert config.CertConf, provider config.DNSProviderConf) (string, error) {
+	select {
+	case dnsOperations <- struct{}{}:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	defer func() { <-dnsOperations }()
+
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -390,7 +422,24 @@ func (m *Manager) obtain(ctx context.Context, cert config.CertConf, provider con
 
 	user := &acmeUser{email: cert.Email, key: accountKey}
 	lcfg := lego.NewConfig(user)
+	if cert.CATrustPEM != "" {
+		roots, err := x509.SystemCertPool()
+		if err != nil {
+			roots = x509.NewCertPool()
+		}
+		roots.AppendCertsFromPEM([]byte(cert.CATrustPEM))
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}
+		lcfg.HTTPClient = &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	}
 	lcfg.HTTPClient = operationHTTPClient(ctx, lcfg.HTTPClient)
+	if cert.KeyType != "" {
+		kt, err := certificateKeyType(cert.KeyType)
+		if err != nil {
+			return "", err
+		}
+		lcfg.Certificate.KeyType = kt
+	}
 	if cert.CADirURL != "" {
 		lcfg.CADirURL = cert.CADirURL // 空 = Let's Encrypt 生产目录
 	}
@@ -402,14 +451,30 @@ func (m *Manager) obtain(ctx context.Context, cert config.CertConf, provider con
 	// 境外权威 NS（UDP 53 超时），国内递归 DNS 又存在 TTL 缓存不刷新的问题。
 	// zone 探测走公共递归 DNS；传播检查改为自定义逻辑：仅向遵守 TTL 的公共
 	// 递归服务器校验 TXT 值，轮询直至出现或超时。
-	challengeOpts := []dns01.ChallengeOption{
-		dns01.AddRecursiveNameservers(dns01.ParseNameservers([]string{"223.5.5.5", "119.29.29.29", "1.1.1.1"})),
-		dns01.WrapPreCheck(txtPropagationCheck(ctx, []string{"1.1.1.1", "8.8.8.8"})),
+	resolvers := append([]string(nil), cert.DNSResolvers...)
+	if len(resolvers) == 0 {
+		resolvers = []string{"223.5.5.5", "119.29.29.29", "1.1.1.1"}
 	}
+	timeout := cert.PropagationTimeout
+	if timeout == 0 {
+		timeout = 120
+	}
+	interval := cert.PropagationInterval
+	if interval == 0 {
+		interval = 5
+	}
+	dnsProvider = timedDNSProvider{Provider: dnsProvider, timeout: time.Duration(timeout) * time.Second, interval: time.Duration(interval) * time.Second}
+	challengeOpts := []dns01.ChallengeOption{dns01.AddRecursiveNameservers(dns01.ParseNameservers(resolvers)), dns01.WrapPreCheck(txtPropagationCheckOptions(ctx, resolvers, time.Duration(timeout)*time.Second, time.Duration(interval)*time.Second))}
+
 	if err := client.Challenge.SetDNS01Provider(dnsProvider, challengeOpts...); err != nil {
 		return "", err
 	}
-	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+	var reg *registration.Resource
+	if cert.EABEnabled {
+		reg, err = client.Registration.RegisterWithExternalAccountBinding(registration.RegisterEABOptions{TermsOfServiceAgreed: true, Kid: cert.EABKeyID, HmacEncoded: strings.TrimRight(cert.EABHMAC, "=")})
+	} else {
+		reg, err = client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+	}
 	if err != nil {
 		return "", fmt.Errorf("注册 ACME 账户失败: %w", err)
 	}
@@ -635,7 +700,7 @@ func (m *Manager) scan() {
 			return
 		}
 		c := &certs[i]
-		if !c.Enabled {
+		if !c.Enabled || c.Source == "uploaded" {
 			continue
 		}
 		certFile, keyFile := m.certPath(c)
@@ -703,7 +768,7 @@ func (m *Manager) matchCert(name string) (config.CertConf, bool) {
 }
 
 // GetCertificate 供 tls.Config.GetCertificate 使用，按 SNI 返回证书。
-// 从磁盘加载并缓存，证书文件 mtime 变化时自动重载。
+// 从磁盘加载并缓存，证书或私钥内容变化时重新校验并重载。
 func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	name := strings.ToLower(strings.TrimSuffix(hello.ServerName, "."))
 	if name == "" {
@@ -727,31 +792,83 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 	return pair, nil
 }
 
-// loadCached 加载证书文件，缓存命中且 mtime 未变时直接返回缓存。
+// loadCached fingerprints both files under the shared publication lock.
 func (m *Manager) loadCached(c *config.CertConf) (*tls.Certificate, error) {
+	m.pairMu.RLock()
+	defer m.pairMu.RUnlock()
 	certFile, keyFile := m.certPath(c)
-	fi, err := os.Stat(certFile)
+	certPEM, err := os.ReadFile(certFile)
 	if err != nil {
 		return nil, fmt.Errorf("证书文件不可用: %w", err)
 	}
+	keyPEM, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("私钥文件不可用: %w", err)
+	}
+	fingerprint := pairFingerprint(certPEM, keyPEM)
 	m.mu.RLock()
 	cached := m.cache[c.ID]
 	m.mu.RUnlock()
-	if cached != nil && cached.modTime.Equal(fi.ModTime()) {
+	if cached != nil && cached.fingerprint == fingerprint {
 		return cached.cert, nil
 	}
-	pair, err := tls.LoadX509KeyPair(certFile, keyFile)
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, err
 	}
-	m.mu.Lock()
-	m.cache[c.ID] = &cachedCert{cert: &pair, modTime: fi.ModTime()}
-	m.mu.Unlock()
+	m.publishPair(c.ID, &pair, certPEM, keyPEM)
 	return &pair, nil
+}
+
+func pairFingerprint(certPEM, keyPEM []byte) [32]byte {
+	h := sha256.New()
+	h.Write(certPEM)
+	h.Write([]byte{0})
+	h.Write(keyPEM)
+	var result [32]byte
+	copy(result[:], h.Sum(nil))
+	return result
+}
+
+// Caller holds pairMu so a disk reader cannot publish an older pair afterward.
+func (m *Manager) publishPair(id string, pair *tls.Certificate, certPEM, keyPEM []byte) {
+	m.mu.Lock()
+	m.cache[id] = &cachedCert{cert: pair, fingerprint: pairFingerprint(certPEM, keyPEM)}
+	m.mu.Unlock()
+}
+
+// ReadPEM returns one part of the coherent on-disk pair for authenticated export.
+func (m *Manager) ReadPEM(c *config.CertConf, key bool) ([]byte, error) {
+	m.pairMu.RLock()
+	defer m.pairMu.RUnlock()
+	certFile, keyFile := m.certPath(c)
+	if key {
+		return os.ReadFile(keyFile)
+	}
+	return os.ReadFile(certFile)
+}
+
+func certificateKeyType(value string) (certcrypto.KeyType, error) {
+	switch value {
+	case "P256":
+		return certcrypto.EC256, nil
+	case "P384":
+		return certcrypto.EC384, nil
+	case "RSA2048":
+		return certcrypto.RSA2048, nil
+	case "RSA4096":
+		return certcrypto.RSA4096, nil
+	case "":
+		return "", nil // Leave lego's existing default untouched.
+	default:
+		return "", errors.New("证书算法必须为 P256、P384、RSA2048 或 RSA4096")
+	}
 }
 
 // RemoveFiles 删除证书对应的磁盘文件并清空缓存（删除配置时调用）。
 func (m *Manager) RemoveFiles(c *config.CertConf) {
+	m.pairMu.Lock()
+	defer m.pairMu.Unlock()
 	certFile, keyFile := m.certPath(c)
 	os.Remove(certFile)
 	os.Remove(keyFile)

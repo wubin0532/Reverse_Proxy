@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/mail"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -27,8 +26,10 @@ type handler struct {
 }
 
 var (
-	errCertNotFound = errors.New("证书不存在")
-	errCertInUse    = errors.New("证书正在使用")
+	errCertNotFound        = errors.New("证书不存在")
+	errCertInUse           = errors.New("证书正在使用")
+	errCertProviderMissing = errors.New("引用的服务商凭据不存在")
+	errCertSourceChange    = errors.New("证书来源不可通过普通编辑改变，请使用导入替换")
 )
 
 // RegisterRoutes 在已认证的 chi.Group 中挂载证书相关路由。
@@ -36,28 +37,63 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, m *Manager) {
 	h := &handler{cfg: cfg, m: m}
 	r.Get("/api/certs", h.listCerts)
 	r.Post("/api/certs", h.createCert)
+	r.Post("/api/certs/import", h.importCert)
 	r.Put("/api/certs/{id}", h.updateCert)
 	r.Delete("/api/certs/{id}", h.deleteCert)
 	r.Post("/api/certs/{id}/toggle", h.toggleCert)
 	r.Post("/api/certs/{id}/obtain", h.obtainCert)
 	r.Get("/api/certs/{id}/download", h.downloadCert)
+	r.Put("/api/certs/{id}/mappings", h.updateMappings)
+	r.Get("/api/certs/{id}/mappings", func(w http.ResponseWriter, q *http.Request) { api.OK(w, m.MappingResults(chi.URLParam(q, "id"))) })
+	r.Post("/api/certs/{id}/mappings/sync", func(w http.ResponseWriter, q *http.Request) {
+		results, err := m.SyncMappings(q.Context(), chi.URLParam(q, "id"))
+		if err != nil {
+			api.Fail(w, 500, err.Error())
+			return
+		}
+		api.OK(w, results)
+	})
 }
 
 // certView 证书视图：用户配置 + 运行状态（state.json）合成，保持 API 响应结构不变。
 type certView struct {
 	config.CertConf
-	CertFile  string `json:"certFile"`
-	KeyFile   string `json:"keyFile"`
-	NotAfter  string `json:"notAfter"`
-	LastError string `json:"lastError,omitempty"`
-	Status    string `json:"status"`    // pending / ok / expiring / expired / error
-	Obtaining bool   `json:"obtaining"` // 是否正在申请中
+	CertFile        string          `json:"certFile"`
+	KeyFile         string          `json:"keyFile"`
+	NotAfter        string          `json:"notAfter"`
+	LastError       string          `json:"lastError,omitempty"`
+	Status          string          `json:"status"` // pending / ok / expiring / expired / error
+	MappingRevision string          `json:"mappingRevision"`
+	MappingPaths    []string        `json:"mappingPaths"`
+	MappingResults  []MappingResult `json:"mappingResults"`
+	EABConfigured   bool            `json:"eabConfigured"`
+	RemainingDays   *int            `json:"remainingDays"`
+	UsingSites      []usingSite     `json:"usingSites"`
+	Obtaining       bool            `json:"obtaining"` // 是否正在申请中
+}
+
+type usingSite struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // viewOf 由配置与运行状态合成证书视图。
 func (h *handler) viewOf(c config.CertConf, now time.Time) certView {
 	st := h.cfg.State().Cert(c.ID)
+	eabConfigured := c.EABHMAC != ""
+	c.EABHMAC = ""
+	c.Source = certSource(c)
+	remaining := config.RemainingDays(st.NotAfter, now)
+	sites := []usingSite{}
+	h.cfg.RLock()
+	for _, site := range h.cfg.Sites {
+		if site.CertID == c.ID {
+			sites = append(sites, usingSite{ID: site.ID, Name: site.Name})
+		}
+	}
+	h.cfg.RUnlock()
 	return certView{
+		RemainingDays: remaining, UsingSites: sites, EABConfigured: eabConfigured, MappingRevision: mappingRevision(c.Mappings), MappingPaths: mappingPaths(h.cfg.Dir(), c), MappingResults: h.m.MappingResults(c.ID),
 		CertConf:  c,
 		CertFile:  st.CertFile,
 		KeyFile:   st.KeyFile,
@@ -103,6 +139,17 @@ func (h *handler) listCerts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) validateCert(c *config.CertConf) (int, string) {
+	if err := c.ValidateAdvanced(); err != nil {
+		return 400, err.Error()
+	}
+	if c.Source != "" && c.Source != "acme" && c.Source != "uploaded" {
+		return 400, "证书来源无效"
+	}
+	if c.Source != "uploaded" {
+		if _, err := certificateKeyType(c.KeyType); err != nil {
+			return 400, err.Error()
+		}
+	}
 	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" {
 		return 400, "证书名称不能为空"
@@ -150,6 +197,9 @@ func (h *handler) validateCert(c *config.CertConf) (int, string) {
 		}
 		c.CADirURL = u.String()
 	}
+	if c.Source == "uploaded" {
+		return 0, ""
+	}
 	h.cfg.RLock()
 	found := false
 	for _, p := range h.cfg.Providers {
@@ -165,6 +215,20 @@ func (h *handler) validateCert(c *config.CertConf) (int, string) {
 	return 0, ""
 }
 
+// Recheck references inside the configuration commit; an earlier form validation
+// cannot protect against a simultaneous provider deletion.
+func validateCertProviderLocked(c *config.Config, cert config.CertConf) error {
+	if certSource(cert) == "uploaded" {
+		return nil
+	}
+	for _, p := range c.Providers {
+		if p.ID == cert.ProviderID {
+			return nil
+		}
+	}
+	return errCertProviderMissing
+}
+
 func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 	var c config.CertConf
 	if err := api.DecodeBody(r, &c); err != nil {
@@ -172,12 +236,19 @@ func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.ID = ""
+	if c.Source == "uploaded" {
+		api.Fail(w, 400, "导入证书请使用导入接口")
+		return
+	}
 	if code, msg := h.validateCert(&c); code != 0 {
 		api.Fail(w, code, msg)
 		return
 	}
 	c.ID = ids.New()
 	if err := h.cfg.Update(func(cfg *config.Config) error {
+		if err := validateCertProviderLocked(cfg, c); err != nil {
+			return err
+		}
 		cfg.Certs = append(cfg.Certs, c)
 		return nil
 	}); err != nil {
@@ -197,15 +268,49 @@ func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.ID = id
+	keepHMAC := c.EABEnabled && c.EABHMAC == ""
+	if keepHMAC {
+		h.cfg.RLock()
+		for _, old := range h.cfg.Certs {
+			if old.ID == id && old.EABKeyID == c.EABKeyID {
+				c.EABHMAC = old.EABHMAC
+				break
+			}
+		}
+		h.cfg.RUnlock()
+	}
 	if code, msg := h.validateCert(&c); code != 0 {
 		api.Fail(w, code, msg)
 		return
 	}
 	domainsChanged := false
 	err := h.cfg.Update(func(cfg *config.Config) error {
+		if err := validateCertProviderLocked(cfg, c); err != nil {
+			return err
+		}
 		for i := range cfg.Certs {
 			if cfg.Certs[i].ID != id {
 				continue
+			}
+			if keepHMAC {
+				if c.EABKeyID != cfg.Certs[i].EABKeyID {
+					return errors.New("EAB Key ID变更时须提供新密钥")
+				}
+				c.EABHMAC = cfg.Certs[i].EABHMAC
+			}
+			if !c.EABEnabled {
+				c.EABHMAC = ""
+				c.EABKeyID = ""
+			}
+			if certSource(cfg.Certs[i]) != certSource(c) {
+				return errCertSourceChange
+			}
+			if c.Source == "uploaded" {
+				pair, err := h.m.loadCached(&c)
+				if err != nil || !coversDomains(pair, c.Domains) {
+					return errCertCoverage
+				}
+				c.KeyType = cfg.Certs[i].KeyType
 			}
 			// 运行状态按证书 ID 存于状态库，配置更新天然保留；域名变化时作废，等待重新申请
 			domainsChanged = !sameDomains(cfg.Certs[i].Domains, c.Domains)
@@ -219,11 +324,24 @@ func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		api.Fail(w, 500, "保存配置失败")
+		code := 500
+		message := "保存配置失败"
+		if errors.Is(err, errCertCoverage) || errors.Is(err, errCertSourceChange) || errors.Is(err, errCertProviderMissing) {
+			code = 400
+			message = err.Error()
+		}
+		api.Fail(w, code, message)
 		return
 	}
-	if domainsChanged {
-		h.cfg.State().Update(func(s *config.State) { delete(s.Certs, id) })
+	if domainsChanged && c.Source != "uploaded" {
+		h.cfg.RLock()
+		for _, current := range h.cfg.Certs {
+			if current.ID == id && certSource(current) == certSource(c) && sameDomains(current.Domains, c.Domains) && current.KeyType == c.KeyType {
+				h.cfg.State().Update(func(s *config.State) { delete(s.Certs, id) })
+				break
+			}
+		}
+		h.cfg.RUnlock()
 	}
 	h.m.invalidate(id)
 	h.m.Reload()
@@ -333,18 +451,17 @@ func (h *handler) downloadCert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	part := r.URL.Query().Get("part")
-	certFile, keyFile := h.m.certPath(&c)
-	var fp, ext string
+	var ext string
 	switch part {
 	case "cert":
-		fp, ext = certFile, ".crt"
+		ext = ".crt"
 	case "key":
-		fp, ext = keyFile, ".key"
+		ext = ".key"
 	default:
 		api.Fail(w, 400, "part 必须是 cert 或 key")
 		return
 	}
-	data, err := os.ReadFile(fp)
+	data, err := h.m.ReadPEM(&c, part == "key")
 	if err != nil {
 		api.Fail(w, 404, "证书文件不存在，请先申请")
 		return

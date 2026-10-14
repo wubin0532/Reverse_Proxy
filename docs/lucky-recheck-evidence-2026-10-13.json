@@ -1,0 +1,188 @@
+{
+  "date": "2026-10-13",
+  "constraint": {
+    "ddnsProviders": [
+      "aliyun",
+      "cloudflare",
+      "dnspod"
+    ],
+    "businessCodeChanges": false,
+    "productionChanges": false
+  },
+  "retainedEvidence": {
+    "main": "ev_11222bc46c039482f1b7de9ef9196faa7b9b041c82895dffae6b4a500405cd80",
+    "api": "ev_d42b0946e0bfadde8d731de1e46e9109342d548baa9346c938bd146e2494bbca",
+    "modulePage": "ev_961135c93e1a4992411aba4ff6dcd3e182922e638cde4d500320dfe60726196b",
+    "webAssetItem": "ev_33c79b824d7b42b58c6e05c1d7b50aa062eea7de024ceb29ecde312230e89c7e"
+  },
+  "unknown": {
+    "result": {
+      "unknown_id": "unk_b3a400f50b3c254c5585604144bf922c9c2b50f48740a7baa98625415b348ac3",
+      "revision": 1,
+      "previous_revision_digest": null,
+      "revision_digest": "74c7d0160d8dd912e11bd4fbf2bab506d510e69971191350687fa29ade586871",
+      "scope_digest": null,
+      "question": "For the Lucky.lucky 3.1.4 instance at 192.168.199.1:16601/andey, what backend code enforces DDNS forced reconciliation, certificate import/rotation consistency, default-route matching, shared IP policy and identity grants? Frontend contracts have been inspected; no matching backend artifact or controlled write scenario has been obtained.",
+      "status": "open",
+      "severity": "medium",
+      "domain": "lucky-backend-runtime",
+      "supporting_evidence_ids": [
+        "ev_11222bc46c039482f1b7de9ef9196faa7b9b041c82895dffae6b4a500405cd80",
+        "ev_d42b0946e0bfadde8d731de1e46e9109342d548baa9346c938bd146e2494bbca"
+      ],
+      "contradicting_evidence_ids": [],
+      "required_authority": "shipped-artifact",
+      "required_confidence": "observed",
+      "required_environment": null,
+      "recommended_probes": [
+        {
+          "operation": "open_binary",
+          "rationale": "Inspect the matching backend executable/package if provided; do not substitute an unrelated official version."
+        },
+        {
+          "operation": "capture_browser_scenario",
+          "rationale": "Use dedicated test records/services/certificates to observe effects only within an explicitly selected test environment."
+        }
+      ],
+      "relationships": [],
+      "resolution": null,
+      "mutation_evidence_ids": [
+        "ev_6fd19b71cb9cf9d18f35f57f6f12d07fb72d8bc98cafab102238fbd8726e192e"
+      ]
+    }
+  },
+  "onlineAssetRecheck": [
+    {
+      "file": "static/js/lucky_main-BQFh6eYp.js",
+      "sha256": "7564f8ab6bedb46b33fe73560d90de7a4e8e4349bebc3ce2b88a57c7be60dbd7",
+      "matchesPrevious": true
+    },
+    {
+      "file": "static/js/lucky_ddns-C9fpzoxT.js",
+      "sha256": "ed37657e2bc45abb92049e2e2f1b91fdf6dc3d55f91c8a539077703552b3b7cd",
+      "matchesPrevious": true
+    },
+    {
+      "file": "static/js/lucky_reverseproxy-5EzmUdDU.js",
+      "sha256": "a1484d9d9ef5f0f3516f65742665964dbe7058c4b9b3939312449191784155a5",
+      "matchesPrevious": true
+    },
+    {
+      "file": "static/js/lucky_dnsCredentialSources-Bj9NZhxI.js",
+      "sha256": "bb803b22d7edf7c8df55a6175f4065d35c9a4af58e05086981a0b70c7023595d",
+      "matchesPrevious": true
+    },
+    {
+      "file": "static/js/lucky_ipfilter-9lEji7bG.js",
+      "sha256": "39ea23e38ddb4b64f1ca79874b1ceaababce6a119dd258d100c12de95f8ce544",
+      "matchesPrevious": true
+    },
+    {
+      "file": "static/js/lucky_securitygroups-Ci2JMi73.js",
+      "sha256": "d43d858fed3d3d1f6fe5a7720b7a7ffccb702b05ab768f2cc292ce48e768f0e5",
+      "matchesPrevious": true
+    },
+    {
+      "file": "static/js/lucky_Status-KjjSmgW_.js",
+      "sha256": "66eb112d4d3d38fa4e2f035637b816210d8d2b2dc74005534a09455d852b8226",
+      "matchesPrevious": true
+    }
+  ],
+  "localVerification": {
+    "packageCommand": "go test ./internal/guard ./internal/webproxy ./internal/forward ./internal/config ./internal/dashboard",
+    "packageResult": {
+      "exitCode": 0,
+      "passed": [
+        "guard",
+        "webproxy",
+        "forward",
+        "config"
+      ],
+      "noTests": [
+        "dashboard"
+      ]
+    },
+    "overlayCommand": "go test -json -overlay /tmp/lucky-ddns-recheck-overlay.json ./internal/ddns ./internal/acme",
+    "overlayResult": {
+      "exitCode": 0,
+      "packages": {
+        "andey-proxy/internal/ddns": {
+          "topLevelTestsPassed": 30,
+          "testEntriesIncludingSubtests": 30
+        },
+        "andey-proxy/internal/acme": {
+          "topLevelTestsPassed": 24,
+          "testEntriesIncludingSubtests": 29
+        }
+      },
+      "ddnsTemporaryProbes": 2
+    },
+    "probeOutputs": [
+      "recheck_probe_test.go:44: CONFIRMED: after domain+TTL edit and Reload, same-IP run skipped provider; queries before=2 after=2",
+      "recheck_probe_test.go:62: CONFIRMED: remote TTL 60, desired TTL 300, same content; provider writes=0, result=记录 home.example.com 已是最新（203.0.113.9）"
+    ],
+    "interpretation": "Probe PASS means the current skip bug was reproduced, not repaired. All network endpoints were loopback fixtures; no production DNS or CA writes."
+  },
+  "sourceEvidence": [
+    {
+      "file": "internal/ddns/worker.go",
+      "sha256": "f026b982240c86cfebdddac853ebb5d14e76df9ac4bd4fd1c7fe614725fb6372"
+    },
+    {
+      "file": "internal/ddns/provider.go",
+      "sha256": "435720ac03d94e9edae61563e617e6846126f75c837b18ce7c18cec84680c010"
+    },
+    {
+      "file": "internal/ddns/cloudflare.go",
+      "sha256": "9b4351b0fb13564684fe9f56084a0b5b32c88f562218fef06e387a190c35c1f8"
+    },
+    {
+      "file": "internal/ddns/aliyun.go",
+      "sha256": "7283f310aa9128bc65883f57c6b261721806d46cc700d8dce7acac5f7187902e"
+    },
+    {
+      "file": "internal/ddns/dnspod.go",
+      "sha256": "c6039f7f26caae1e8c171e1ef6adb133c5d53d9c84534e63069a59c68ff36fdd"
+    },
+    {
+      "file": "internal/acme/request.go",
+      "sha256": "75a53f6c0f39689b20f6fb06576d677a4e37475cc1ddb1d9037c2b9b6e49c0eb"
+    },
+    {
+      "file": "internal/acme/manager.go",
+      "sha256": "7fa5afc3cd26019c29c1bc7145a24c60f6f1690392a6b37d3b01083f1d77ef52"
+    },
+    {
+      "file": "internal/acme/propagation.go",
+      "sha256": "cec5eaf4e8f2383e34ae1ef3d124b1f09c3bfc71e12ec589557630d94a0c8ee4"
+    },
+    {
+      "file": "internal/acme/coverage.go",
+      "sha256": "b004a3c7d4a580bf492a51f7357405b3aa798951d1bb8aace243d318f9f894c0"
+    },
+    {
+      "file": "internal/config/config.go",
+      "sha256": "3daa3f568a54139a23b568a27c420fb97f689cef349fa3b8799473cb0c8d8c39"
+    },
+    {
+      "file": "internal/webproxy/dispatch.go",
+      "sha256": "1743ad3280e3625a57464aeda0a7849ed271e156deb22e778abc679933f47e6d"
+    },
+    {
+      "file": "internal/webproxy/tunnel.go",
+      "sha256": "3ae51e739180bf0ce6910d035cbe8cb4c4e56ab16c94c864042cddf2709481c6"
+    },
+    {
+      "file": "internal/forward/forward.go",
+      "sha256": "0ada2d8e0a5c7849b6f5e9e9fec53d8b0b65b4aa5d10c8363ccb31944c8319b6"
+    },
+    {
+      "file": "web/src/components/webservice/RuleEditor.vue",
+      "sha256": "727699e1507daaee0329082b908d84e5590291515cf9c579492399926c007191"
+    },
+    {
+      "file": "web/src/views/Dashboard.vue",
+      "sha256": "0b2f7602fb5e0d12e0422b6857ab452d077e8cd634a7aefd9409efb18eedbe3b"
+    }
+  ]
+}

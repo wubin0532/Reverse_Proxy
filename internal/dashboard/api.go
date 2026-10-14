@@ -90,6 +90,7 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, ddnsWorker *ddns.Worker, w
 				"id":        site.ID,
 				"name":      site.Name,
 				"requests":  st.Requests,
+				"active":    st.Active,
 				"bytesIn":   st.BytesIn,
 				"bytesOut":  st.BytesOut,
 				"status1xx": st.Status1xx,

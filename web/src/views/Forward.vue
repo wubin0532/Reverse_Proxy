@@ -1,51 +1,53 @@
 <template>
-  <el-card>
-    <template #header>
-      <div class="card-header">
-        <span>{{ $t('forward.title') }}</span>
-        <el-button type="primary" size="small" @click="openDialog()">{{ $t('forward.addRule') }}</el-button>
-      </div>
-    </template>
-    <el-table :data="rules" v-loading="loading">
-      <el-table-column prop="name" :label="$t('forward.colName')" min-width="120" />
-      <el-table-column :label="$t('forward.colProto')" width="100">
-        <template #default="{ row }">
-          <el-tag size="small">{{ protoText(row.proto) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="listen" :label="$t('forward.colListen')" width="120" />
-      <el-table-column :label="$t('forward.colTargets')" min-width="180" show-overflow-tooltip>
-        <template #default="{ row }">{{ (row.targets || []).join(', ') }}</template>
-      </el-table-column>
-      <el-table-column :label="$t('forward.colEnabled')" width="70">
-        <template #default="{ row }">
-          <el-switch :model-value="row.enabled" @change="toggleRule(row)" />
-        </template>
-      </el-table-column>
-      <el-table-column
-        :label="$t('forward.colActions')"
-        :width="isMobile ? 140 : 220"
-        :fixed="isMobile ? false : 'right'"
+  <div class="page-grid workspace-page forward-page">
+    <WorkspaceHeader :title="$t('nav.forward')" :description="$t('forward.subtitle')" icon="forward">
+      <template #actions
+        ><el-button :loading="loading" @click="load">{{ $t('common.refresh') }}</el-button
+        ><el-button type="primary" @click="openDialog()">{{ $t('forward.addRule') }}</el-button></template
       >
-        <template #default="{ row }">
-          <div class="action-cell">
-            <el-button link type="primary" @click="openLogs(row)">{{ $t('common.logs') }}</el-button>
-            <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
-            <el-popconfirm :title="$t('forward.deleteConfirm')" @confirm="deleteRule(row)">
-              <template #reference>
-                <el-button link type="danger">{{ $t('common.delete') }}</el-button>
-              </template>
-            </el-popconfirm>
-          </div>
-        </template>
-      </el-table-column>
-      <template #empty><el-empty :description="$t('forward.empty')" :image-size="60" /></template>
-    </el-table>
-
+    </WorkspaceHeader>
+    <el-card>
+      <el-table :data="rules" v-loading="loading">
+        <el-table-column prop="name" :label="$t('forward.colName')" min-width="120" />
+        <el-table-column :label="$t('forward.colProto')" width="100">
+          <template #default="{ row }">
+            <el-tag size="small">{{ protoText(row.proto) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="listen" :label="$t('forward.colListen')" width="120" />
+        <el-table-column :label="$t('forward.colTargets')" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ (row.targets || []).join(', ') }}</template>
+        </el-table-column>
+        <el-table-column :label="$t('forward.colEnabled')" width="70">
+          <template #default="{ row }">
+            <el-switch :model-value="row.enabled" @change="toggleRule(row)" />
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="$t('forward.colActions')"
+          :width="isMobile ? 140 : 220"
+          :fixed="isMobile ? false : 'right'"
+        >
+          <template #default="{ row }">
+            <div class="action-cell">
+              <el-button link type="primary" @click="openLogs(row)">{{ $t('common.logs') }}</el-button>
+              <el-button link type="primary" @click="openDialog(row)">{{ $t('common.edit') }}</el-button>
+              <el-popconfirm :title="$t('forward.deleteConfirm')" @confirm="deleteRule(row)">
+                <template #reference>
+                  <el-button link type="danger">{{ $t('common.delete') }}</el-button>
+                </template>
+              </el-popconfirm>
+            </div>
+          </template>
+        </el-table-column>
+        <template #empty><el-empty :description="$t('forward.empty')" :image-size="60" /></template>
+      </el-table>
+    </el-card>
     <el-dialog
+      class="workspace-dialog"
       v-model="dialog.visible"
       :title="dialog.isEdit ? $t('forward.editRule') : $t('forward.addRuleTitle')"
-      width="520px"
+      width="min(520px, 94vw)"
       destroy-on-close
     >
       <el-form ref="formRef" :model="dialog.form" :rules="formRules" label-width="100px">
@@ -69,6 +71,25 @@
           <el-switch v-model="dialog.form.autoFw" />
           <span class="form-tip">{{ $t('forward.firewallTip') }}</span>
         </el-form-item>
+        <el-form-item :label="policyLabel"
+          ><el-select v-model="dialog.form.policyId" clearable style="width: 100%"
+            ><el-option
+              v-for="policy in policies"
+              :key="policy.id"
+              :value="policy.id"
+              :label="policy.name" /></el-select
+        ></el-form-item>
+        <el-form-item :label="locale.startsWith('zh') ? '安全组' : 'Access group'"
+          ><el-select v-model="dialog.form.accessGroupId" clearable style="width: 100%"
+            ><el-option v-for="g in accessGroups" :key="g.id" :label="g.name" :value="g.id" /></el-select
+        ></el-form-item>
+        <p v-if="dialog.form.accessGroupId" class="muted">
+          {{
+            locale.startsWith('zh')
+              ? '绑定后须在防护中心为此规则添加IP授权；Web登录不会自动放行转发。'
+              : 'Grant the source IP for this rule in Protection Center. Web sign-in does not automatically allow forwarding.'
+          }}
+        </p>
         <el-form-item :label="$t('forward.ipAccess')">
           <el-select v-model="dialog.form.ipListMode" style="width: 100%">
             <el-option value="" :label="$t('common.noLimit')" />
@@ -100,7 +121,7 @@
         <div v-for="(line, i) in logsDrawer.logs" :key="i" class="log-line">{{ line }}</div>
       </div>
     </el-drawer>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
@@ -108,12 +129,16 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
+import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import { ipListValidator, listenValidator, targetsValidator } from '../utils/validate'
 import { splitList } from '../utils/list'
 import { useCrudDialog } from '../composables/useCrudDialog'
 import { useIntervalFn } from '../composables/useIntervalFn'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const policyLabel = computed(() => (locale.value.startsWith('zh') ? '共享防护策略' : 'Shared protection policy'))
+const policies = ref([])
+const accessGroups = ref([])
 
 const isMobile = ref(window.innerWidth < 768)
 function onResize() {
@@ -135,6 +160,8 @@ const {
   submit: save
 } = useCrudDialog({
   emptyForm: () => ({
+    policyId: '',
+    accessGroupId: '',
     id: '',
     name: '',
     proto: 'tcp',
@@ -146,6 +173,8 @@ const {
     enabled: true
   }),
   fromRow: (row) => ({
+    policyId: row.policyId || '',
+    accessGroupId: row.accessGroupId || '',
     id: row.id,
     name: row.name,
     proto: row.proto || 'tcp',
@@ -158,6 +187,8 @@ const {
   }),
   onSubmit: (f, d) => {
     const body = {
+      policyId: f.policyId,
+      accessGroupId: f.accessGroupId,
       name: f.name,
       enabled: f.enabled,
       proto: f.proto,
@@ -246,6 +277,16 @@ async function load() {
 
 onMounted(() => {
   load()
+  request
+    .get('/api/protection/access/groups')
+    .then((res) => (accessGroups.value = res.data || []))
+    .catch(() => {})
+  request
+    .get('/api/protection/policies')
+    .then((res) => {
+      policies.value = res.data || []
+    })
+    .catch(() => {})
   window.addEventListener('resize', onResize)
 })
 onUnmounted(() => {

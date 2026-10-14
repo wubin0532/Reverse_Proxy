@@ -24,11 +24,19 @@ import (
 // reverseHandler 反向代理处理器：多后端轮询，连接类失败达阈值的后端进入冷却期被跳过。
 // 可选主动健康检查（见 healthcheck.go）：启用后探测结果为摘除/恢复的唯一依据。
 type reverseHandler struct {
-	ruleID   string
-	ruleName string
-	proxies  []*proxyEntry
-	counter  atomic.Uint64
-	logs     *forward.RingLog
+	lifecycleMu      sync.Mutex
+	requests         int
+	retired          bool
+	releaseAdmission func()
+	ruleID           string
+	ruleName         string
+	proxies          []*proxyEntry
+	counter          atomic.Uint64
+	pool             *config.BackendPool
+	errorBody        string
+	admission        *poolAdmission
+	scheduleMu       sync.Mutex
+	logs             *forward.RingLog
 
 	healthMu    sync.Mutex
 	healthConf  HealthCheckConf
@@ -37,13 +45,17 @@ type reverseHandler struct {
 }
 
 type proxyEntry struct {
-	proxy     *httputil.ReverseProxy
-	transport *http.Transport
-	target    *url.URL
-	backend   string // 脱敏后端地址（日志/事件/API 展示用）
-	handler   *reverseHandler
-	failures  atomic.Int32 // 连续连接类失败计数
-	coolUntil atomic.Int64 // 冷却截止时间（UnixNano），0 = 未冷却
+	proxy         *httputil.ReverseProxy
+	transport     *http.Transport
+	target        *url.URL
+	backend       string // 脱敏后端地址（日志/事件/API 展示用）
+	handler       *reverseHandler
+	weight        int
+	currentWeight int
+	maxConcurrent int
+	active        *atomic.Int64
+	failures      atomic.Int32 // 连续连接类失败计数
+	coolUntil     atomic.Int64 // 冷却截止时间（UnixNano），0 = 未冷却
 
 	up            atomic.Bool  // 主动检查视图：false = 摘除，仅探测成功可恢复
 	lastErr       atomic.Value // string，最近一次探测/被动失败原因
@@ -104,6 +116,8 @@ func (t *healthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // retriedKey 标记连接类错误已重试过一次，避免在多个后端间循环重试。
 type retriedKey struct{}
 
+var errPoolUnavailable = errors.New("后端池没有启用的节点")
+
 // originalRequestKey retains the unmodified incoming request for failover.
 type originalRequestKey struct{}
 
@@ -134,7 +148,20 @@ func (ss *siteServer) reverseHandlerFor(rule *config.SubRule) (http.Handler, err
 		return nil, err
 	}
 	if rh, ok := h.(*reverseHandler); ok {
-		rh.configureHealth(ss.healthConfFor(rule.ID), *rule)
+		conf := ss.healthConfFor(rule.ID)
+		if rule.ResolvedPool != nil {
+			conf = HealthCheckConf(rule.ResolvedPool.HealthCheck)
+			if ss.poolAdmissionFor != nil {
+				rh.admission = ss.poolAdmissionFor(rule.BackendPoolID)
+				urls := make([]string, 0, len(rh.proxies))
+				for _, e := range rh.proxies {
+					e.active = rh.admission.node(e.target.String())
+					urls = append(urls, e.target.String())
+				}
+				rh.releaseAdmission = func() { rh.admission.release(urls) }
+			}
+		}
+		rh.configureHealth(conf, *rule)
 	}
 	ss.revHandler[rule.ID] = h
 	return h, nil
@@ -145,9 +172,12 @@ func (ss *siteServer) reverseHandlerFor(rule *config.SubRule) (http.Handler, err
 // 该行为由 httputil.NewSingleHostReverseProxy 的 joinURLPath 完成。
 func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler, error) {
 	if len(rule.Backends) == 0 {
+		if rule.BackendPoolID != "" {
+			return nil, errPoolUnavailable
+		}
 		return nil, fmt.Errorf("reverse 规则未配置后端地址")
 	}
-	h := &reverseHandler{ruleID: rule.ID, ruleName: rule.Name, logs: logs}
+	h := &reverseHandler{ruleID: rule.ID, ruleName: rule.Name, logs: logs, pool: rule.ResolvedPool, errorBody: rule.ProxyErrorBody}
 	for _, b := range rule.Backends {
 		target, err := url.Parse(b)
 		if err != nil || target.Scheme == "" || target.Host == "" {
@@ -155,6 +185,16 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 			continue
 		}
 		entry := &proxyEntry{target: target, backend: backendURLForLog(target), handler: h}
+		entry.weight = 1
+		entry.active = &atomic.Int64{}
+		if rule.ResolvedPool != nil {
+			for _, n := range rule.ResolvedPool.Nodes {
+				if n.URL == b {
+					entry.weight = n.Weight
+					entry.maxConcurrent = n.MaxConcurrent
+				}
+			}
+		}
 		entry.up.Store(true)
 		proxy := &httputil.ReverseProxy{}
 		preserveHost := rule.PreserveHost
@@ -163,7 +203,10 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 		frontendPrefix := normalizedFrontendPrefix(rule.FrontendPath)
 		proxy.Rewrite = func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
-			if rule.StripPrefix {
+			if rule.PathRewritePrefix != "" {
+				rewritten := rewrittenURL(pr.In.URL, rule)
+				pr.Out.URL.Path, pr.Out.URL.RawPath = joinProxyURLPath(target, rewritten)
+			} else if rule.StripPrefix {
 				stripped := stripFrontendURL(pr.In.URL, frontendPrefix)
 				pr.Out.URL.Path, pr.Out.URL.RawPath = joinProxyURLPath(target, stripped)
 			}
@@ -176,6 +219,13 @@ func newReverseHandler(rule config.SubRule, logs *forward.RingLog) (http.Handler
 				pr.Out.Header.Del(k)
 			}
 			stripCookieHeader(pr.Out.Header, api.TokenCookie)
+			stripAccessCookies(pr.Out.Header)
+			if rule.BasicAuth || rule.AccessGroupID != "" {
+				pr.Out.Header.Del("Authorization")
+			}
+			if rule.AccessGroupID != "" {
+				stripCookieHeader(pr.Out.Header, "andey-access-"+rule.AccessGroupID)
+			}
 			if autoHeaders {
 				pr.SetXForwarded()
 				ip := clientIP(pr.In)
@@ -261,19 +311,47 @@ func (h *reverseHandler) onProxyError(entry *proxyEntry, target *url.URL, ruleID
 	original, _ := r.Context().Value(originalRequestKey{}).(*http.Request)
 	replayable := original != nil && (original.Method == http.MethodGet || original.Method == http.MethodHead || original.Method == http.MethodOptions) && original.ContentLength == 0 && (original.Body == nil || original.Body == http.NoBody)
 	if isBackendConnectError(err) && replayable && r.Context().Err() == nil && r.Context().Value(retriedKey{}) == nil && len(h.proxies) > 1 {
-		if alt := h.pick(entry); alt != entry {
+		if alt := h.pick(entry); alt != nil && alt != entry {
 			h.logs.Add(fmt.Sprintf("规则[%s] 后端连接失败，重试其他后端", ruleName))
 			ctx := context.WithValue(r.Context(), retriedKey{}, true)
-			alt.proxy.ServeHTTP(w, original.Clone(ctx))
+			h.serveEntry(alt, w, original.Clone(ctx))
 			return
 		}
 	}
-	http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
+	proxyError(w, http.StatusBadGateway, h.errorBody)
 }
 
 // pick 选一个可用后端（从轮询位置起向后找）；exclude 为重试时排除刚失败的节点。
 // 开启主动检查时跳过被摘除的后端；未开启时跳过冷却期后端。全部不可用时回退为轮询全部节点。
 func (h *reverseHandler) pick(exclude *proxyEntry) *proxyEntry {
+	if h.pool != nil {
+		h.scheduleMu.Lock()
+		defer h.scheduleMu.Unlock()
+		var best *proxyEntry
+		total := 0
+		now := time.Now().UnixNano()
+		for _, e := range h.proxies {
+			limit := e.maxConcurrent
+			if limit == 0 {
+				limit = h.pool.MaxConcurrent
+			}
+			if limit == 0 {
+				limit = 4096
+			}
+			if e == exclude || (h.activeCheck.Load() && !e.up.Load()) || e.coolUntil.Load() > now || e.active.Load() >= int64(limit) {
+				continue
+			}
+			e.currentWeight += e.weight
+			total += e.weight
+			if best == nil || e.currentWeight > best.currentWeight {
+				best = e
+			}
+		}
+		if best != nil {
+			best.currentWeight -= total
+		}
+		return best
+	}
 	n := len(h.proxies)
 	start := int((h.counter.Add(1) - 1) % uint64(n))
 	now := time.Now().UnixNano()
@@ -297,11 +375,61 @@ func (h *reverseHandler) pick(exclude *proxyEntry) *proxyEntry {
 }
 
 func (h *reverseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.lifecycleMu.Lock()
+	if h.retired {
+		h.lifecycleMu.Unlock()
+		proxyError(w, 503, h.errorBody)
+		return
+	}
+	h.requests++
+	h.lifecycleMu.Unlock()
+	defer func() {
+		h.lifecycleMu.Lock()
+		defer h.lifecycleMu.Unlock()
+		h.requests--
+		h.releaseRetiredAdmissionLocked()
+	}()
+	if h.pool != nil {
+		if h.admission == nil {
+			proxyError(w, 503, h.errorBody)
+			return
+		}
+		if !takeSlot(&h.admission.active, h.pool.MaxConcurrent) {
+			proxyError(w, 503, h.errorBody)
+			return
+		}
+		defer h.admission.active.Add(-1)
+	}
 	entry := h.pick(nil)
+	if entry == nil {
+		proxyError(w, 503, h.errorBody)
+		return
+	}
 	scheme := requestScheme(r)
 	ctx := context.WithValue(r.Context(), originalRequestKey{}, r.Clone(r.Context()))
 	ctx = context.WithValue(ctx, publicRequestKey{}, publicRequestInfo{scheme: scheme, host: r.Host})
-	entry.proxy.ServeHTTP(w, r.WithContext(ctx))
+	h.serveEntry(entry, w, r.WithContext(ctx))
+}
+func (h *reverseHandler) releaseRetiredAdmissionLocked() {
+	if h.retired && h.requests == 0 && h.releaseAdmission != nil {
+		h.releaseAdmission()
+		h.releaseAdmission = nil
+	}
+}
+
+func (h *reverseHandler) serveEntry(entry *proxyEntry, w http.ResponseWriter, r *http.Request) {
+	if h.pool != nil {
+		limit := entry.maxConcurrent
+		if limit == 0 {
+			limit = h.pool.MaxConcurrent
+		}
+		if !takeSlot(entry.active, limit) {
+			proxyError(w, 503, h.errorBody)
+			return
+		}
+		defer entry.active.Add(-1)
+	}
+	entry.proxy.ServeHTTP(w, r)
 }
 
 func (h *reverseHandler) closeIdleConnections() {
@@ -392,6 +520,29 @@ func joinProxyURLPath(a, b *url.URL) (path, rawPath string) {
 }
 
 func rewriteProxyResponse(res *http.Response, target *url.URL, rule config.SubRule) {
+	if c := rule.CORS; c != nil && c.Enabled {
+		for _, key := range []string{"Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers", "Access-Control-Max-Age", "Access-Control-Expose-Headers"} {
+			res.Header.Del(key)
+		}
+		res.Header.Add("Vary", "Origin")
+		if original, ok := res.Request.Context().Value(originalRequestKey{}).(*http.Request); ok {
+			origin := original.Header.Get("Origin")
+			if origin != "" && corsAllowed(c, origin, original.Method, nil) {
+				res.Header.Set("Access-Control-Allow-Origin", origin)
+				if c.Credentials {
+					res.Header.Set("Access-Control-Allow-Credentials", "true")
+				}
+			}
+		}
+	}
+
+	for k, v := range rule.ResponseHeaders {
+		if v == "" {
+			res.Header.Del(k)
+		} else {
+			res.Header.Set(k, v)
+		}
+	}
 	if rule.RewriteLocation {
 		if location, err := url.Parse(res.Header.Get("Location")); err == nil && location.IsAbs() && strings.EqualFold(location.Host, target.Host) {
 			if info, ok := res.Request.Context().Value(publicRequestKey{}).(publicRequestInfo); ok {
@@ -411,7 +562,7 @@ func rewriteProxyResponse(res *http.Response, target *url.URL, rule config.SubRu
 	rebuild := rule.CookieDomainFrom != "" || rule.CookiePathFrom != ""
 	if !rebuild {
 		for _, cookie := range cookies {
-			if cookie.Name == api.TokenCookie {
+			if cookie.Name == api.TokenCookie || strings.HasPrefix(cookie.Name, "andey-access-") {
 				rebuild = true
 				break
 			}
@@ -423,7 +574,7 @@ func rewriteProxyResponse(res *http.Response, target *url.URL, rule config.SubRu
 	res.Header.Del("Set-Cookie")
 	for _, cookie := range cookies {
 		// 丢弃后端种植的管理会话同名 Cookie，防止会话被代理后端劫持或覆盖。
-		if cookie.Name == api.TokenCookie {
+		if cookie.Name == api.TokenCookie || strings.HasPrefix(cookie.Name, "andey-access-") {
 			continue
 		}
 		if rule.CookieDomainFrom != "" && strings.EqualFold(strings.TrimPrefix(cookie.Domain, "."), strings.TrimPrefix(rule.CookieDomainFrom, ".")) {
@@ -463,5 +614,20 @@ func stripCookieHeader(header http.Header, name string) {
 	}
 	if len(kept) > 0 {
 		header.Set("Cookie", strings.Join(kept, "; "))
+	}
+}
+
+func stripAccessCookies(header http.Header) {
+	names := map[string]bool{}
+	for _, value := range header.Values("Cookie") {
+		for _, part := range strings.Split(value, ";") {
+			name := strings.TrimSpace(strings.SplitN(part, "=", 2)[0])
+			if strings.HasPrefix(name, "andey-access-") {
+				names[name] = true
+			}
+		}
+	}
+	for name := range names {
+		stripCookieHeader(header, name)
 	}
 }

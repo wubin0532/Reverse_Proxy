@@ -1,0 +1,59 @@
+{
+  "body": {
+    "clientWidth": 328,
+    "scrollWidth": 328
+  },
+  "dialog": {
+    "bottom": 687.1953125,
+    "height": 796,
+    "left": 12,
+    "right": 378,
+    "top": -108.8046875,
+    "width": 366,
+    "x": 12,
+    "y": -108.8046875
+  },
+  "footer": {
+    "bottom": 668.1953125,
+    "height": 63,
+    "left": 31,
+    "right": 359,
+    "top": 605.1953125,
+    "width": 328,
+    "x": 31,
+    "y": 605.1953125
+  },
+  "height": 844,
+  "helpButtons": [
+    {
+      "height": 44,
+      "width": 44
+    },
+    {
+      "height": 44,
+      "width": 44
+    },
+    {
+      "height": 44,
+      "width": 44
+    },
+    {
+      "height": 44,
+      "width": 44
+    },
+    {
+      "height": 44,
+      "width": 44
+    },
+    {
+      "height": 44,
+      "width": 44
+    },
+    {
+      "height": 44,
+      "width": 44
+    }
+  ],
+  "pageWidth": 390,
+  "width": 390
+}

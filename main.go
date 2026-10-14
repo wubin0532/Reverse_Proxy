@@ -26,14 +26,16 @@ import (
 	"andey-proxy/internal/ddns"
 	"andey-proxy/internal/firewall"
 	"andey-proxy/internal/forward"
+	"andey-proxy/internal/guard"
 	"andey-proxy/internal/logcenter"
+	"andey-proxy/internal/metrics"
 	"andey-proxy/internal/notify"
 	"andey-proxy/internal/tunnel"
 	"andey-proxy/internal/upgrade"
 	"andey-proxy/internal/webproxy"
 )
 
-var version = "0.3.7"
+var version = "1.0.0"
 
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
@@ -142,8 +144,16 @@ func main() {
 	// 模块服务
 	acmeMgr := acme.NewManager(cfg)
 	webSvc := webproxy.NewService(cfg, acmeMgr.GetCertificate)
+	webSvc.BoundCertGetter = acmeMgr.CertificateByID
 	fwdSvc := forward.NewService(cfg)
 	ddnsWorker := ddns.NewWorker(cfg)
+	protection := guard.NewEngine(cfg)
+	protection.Trap.AdminPort = *port
+	defer protection.Trap.Stop()
+	metricSampler := metrics.NewSampler(cfg)
+	defer metricSampler.Stop()
+	webSvc.Protection = protection
+	fwdSvc.Protection = protection
 	tunnelMgr := tunnel.NewManager(cfg, webSvc, *port)
 	updateMgr := upgrade.NewManager(version, cfg.Dir())
 
@@ -161,6 +171,9 @@ func main() {
 	acmeMgr.Start()
 	webSvc.Start()
 	fwdSvc.Start()
+	if err := protection.Trap.Reload(); err != nil {
+		log.Printf("启动TCP诱捕失败: %v", err)
+	}
 	ddnsWorker.Start()
 	tunnelMgr.Start()
 	updateMgr.MarkStarted()
@@ -169,17 +182,28 @@ func main() {
 	apiSrv.SetConfigRestoreGuard(tunnelMgr.LockForRestore)
 	// 备份导入后的热重载：webproxy/forward/acme 显式 Reload，DDNS worker 重排任务。
 	apiSrv.SetConfigRestore(version, func() {
+		protection.Trap.Stop()
+		metricSampler.ConfigurePersistence()
+		if err := protection.Reload(); err != nil {
+			log.Printf("导入配置后重载防护失败: %v", err)
+		}
 		if err := webSvc.Reload(); err != nil {
 			log.Printf("导入配置后重载 Web 服务失败: %v", err)
 		}
 		if err := fwdSvc.Reload(); err != nil {
 			log.Printf("导入配置后重载端口转发失败: %v", err)
 		}
+		if err := protection.Trap.Reload(); err != nil {
+			log.Printf("导入配置后重载诱捕失败: %v", err)
+		}
 		ddnsWorker.Reload()
 		acmeMgr.Reload()
 		tunnelMgr.Reload()
 	})
 	apiSrv.Mount(func(r chi.Router) { ddns.RegisterRoutes(r, cfg, ddnsWorker) })
+	apiSrv.Mount(func(r chi.Router) { guard.RegisterRoutes(r, cfg, protection) })
+	apiSrv.Mount(func(r chi.Router) { metrics.RegisterRoutes(r, metricSampler) })
+	apiSrv.Mount(func(r chi.Router) { dashboard.RegisterWorkspaceRoutes(r, cfg, ddnsWorker, protection) })
 	apiSrv.Mount(func(r chi.Router) { forward.RegisterRoutes(r, cfg, fwdSvc) })
 	apiSrv.Mount(func(r chi.Router) { webproxy.RegisterRoutes(r, cfg, webSvc) })
 	apiSrv.Mount(func(r chi.Router) { acme.RegisterRoutes(r, cfg, acmeMgr) })

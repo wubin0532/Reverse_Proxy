@@ -73,7 +73,7 @@ func TestCloudflareUpdate(t *testing.T) {
 			w.Write([]byte(`{"success":true,"result":[{"id":"z1"}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/zones/z1/dns_records":
 			w.Write([]byte(`{"success":true,"result":[{"id":"r1","name":"home.example.com","type":"A","content":"1.1.1.1"}]}`))
-		case r.Method == http.MethodPut && r.URL.Path == "/zones/z1/dns_records/r1":
+		case r.Method == http.MethodPatch && r.URL.Path == "/zones/z1/dns_records/r1":
 			w.Write([]byte(`{"success":true,"result":{"id":"r1"}}`))
 		default:
 			t.Errorf("未知请求: %s %s", r.Method, r.URL.Path)

@@ -1,0 +1,250 @@
+[
+  {
+    "path": "dashboard",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "ddns",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "web-service",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "certs",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "protection",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "forward",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "tunnels",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "logs",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "notifications",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "settings",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 390,
+    "mainWidth": 390,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "dashboard",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "ddns",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "web-service",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "certs",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "protection",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "forward",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "tunnels",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "logs",
+    "cards": [
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "notifications",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "settings",
+    "cards": [
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)",
+      "rgb(237, 245, 251)"
+    ],
+    "mainScroll": 1244,
+    "mainWidth": 1244,
+    "scrollWidth": 1440,
+    "width": 1440
+  }
+]

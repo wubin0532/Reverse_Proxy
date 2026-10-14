@@ -1,0 +1,128 @@
+[
+  {
+    "module": "dashboard",
+    "body": {
+      "bg": "rgb(248, 250, 252)",
+      "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+      "size": "16px"
+    },
+    "firstCard": {
+      "bg": "rgb(255, 255, 255)",
+      "radius": "8px",
+      "shadow": "rgba(0, 0, 0, 0.12) 0px 0px 12px 0px"
+    },
+    "headings": [
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "26px",
+        "text": "1 项需要处理",
+        "weight": "700"
+      },
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "24px",
+        "text": "系统资源",
+        "weight": "700"
+      }
+    ],
+    "scroll": 1280,
+    "width": 1280
+  },
+  {
+    "module": "ddns",
+    "body": {
+      "bg": "rgb(248, 250, 252)",
+      "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+      "size": "16px"
+    },
+    "firstCard": {
+      "bg": "rgb(255, 255, 255)",
+      "radius": "8px",
+      "shadow": "rgba(0, 0, 0, 0.12) 0px 0px 12px 0px"
+    },
+    "headings": [
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "26px",
+        "text": "动态域名",
+        "weight": "700"
+      }
+    ],
+    "scroll": 1280,
+    "width": 1280
+  },
+  {
+    "module": "web-service",
+    "body": {
+      "bg": "rgb(248, 250, 252)",
+      "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+      "size": "16px"
+    },
+    "firstCard": null,
+    "headings": [
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "22px",
+        "text": "Web 服务站点",
+        "weight": "700"
+      },
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "18px",
+        "text": "测试站点",
+        "weight": "700"
+      }
+    ],
+    "scroll": 1280,
+    "width": 1280
+  },
+  {
+    "module": "certs",
+    "body": {
+      "bg": "rgb(248, 250, 252)",
+      "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+      "size": "16px"
+    },
+    "firstCard": {
+      "bg": "rgb(255, 255, 255)",
+      "radius": "8px",
+      "shadow": "rgba(0, 0, 0, 0.12) 0px 0px 12px 0px"
+    },
+    "headings": [
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "16px",
+        "text": "证书管理",
+        "weight": "900"
+      }
+    ],
+    "scroll": 1280,
+    "width": 1280
+  },
+  {
+    "module": "protection",
+    "body": {
+      "bg": "rgb(248, 250, 252)",
+      "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+      "size": "16px"
+    },
+    "firstCard": null,
+    "headings": [
+      {
+        "family": "Inter, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", sans-serif",
+        "line": "normal",
+        "size": "24px",
+        "text": "防护中心",
+        "weight": "700"
+      }
+    ],
+    "scroll": 1280,
+    "width": 1280
+  }
+]

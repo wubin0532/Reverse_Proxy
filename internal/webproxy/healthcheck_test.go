@@ -299,21 +299,28 @@ func TestHealthAPI(t *testing.T) {
 		t.Fatalf("统计接口应附带后端健康: %s", res.Body.String())
 	}
 
-	// 删除后禁用并停止探测
-	res = callWebAPI(t, router, http.MethodDelete, "/api/sites/s1/rules/r1/health", "")
+	// Keep the previous handler: atomic mutations reload and replace the listener.
+	svc.mu.Lock()
+	ss := svc.sites["s1"]
+	svc.mu.Unlock()
+	ss.handlerMu.Lock()
+	rh, ok := ss.revHandler["r1"].(*reverseHandler)
+	ss.handlerMu.Unlock()
+	if !ok {
+		t.Fatal("expected active reverse handler")
+	}
+	res = callWebAPI(t, router, http.MethodDelete, "/api/sites/s1/rules/r1/health", "", "1")
 	if res.Code != http.StatusOK {
 		t.Fatalf("删除健康检查失败 %d", res.Code)
 	}
 	if svc.HealthConf("r1").Enabled {
 		t.Fatal("删除后配置应为关闭")
 	}
-	svc.mu.Lock()
-	ss := svc.sites["s1"]
-	svc.mu.Unlock()
-	ss.handlerMu.Lock()
-	rh := ss.revHandler["r1"].(*reverseHandler)
-	ss.handlerMu.Unlock()
-	if rh.activeCheck.Load() {
-		t.Fatal("删除后运行中的探测应已停止")
+	rh.healthMu.Lock()
+	stopped := rh.stopProbe == nil
+	rh.healthMu.Unlock()
+	if !stopped {
+		t.Fatal("删除后原处理器的探测应已停止")
 	}
+
 }

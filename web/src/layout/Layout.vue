@@ -1,9 +1,9 @@
 <template>
   <el-container class="layout">
-    <el-aside class="sidebar desktop-sidebar" :width="collapsed ? '72px' : '230px'"
+    <el-aside class="sidebar desktop-sidebar" :width="collapsed ? '72px' : '232px'"
       ><NavMenu :collapsed="collapsed"
     /></el-aside>
-    <el-drawer v-model="drawer" direction="ltr" :with-header="false" size="230px" class="nav-drawer"
+    <el-drawer v-model="drawer" direction="ltr" :with-header="false" size="248px" class="nav-drawer"
       ><NavMenu @navigate="drawer = false"
     /></el-drawer>
     <el-container class="content-shell">
@@ -14,7 +14,7 @@
           ></el-button>
           <div>
             <div class="header-title">{{ pageTitle }}</div>
-            <div class="header-sub">{{ $t('layout.headerSub') }}</div>
+            <div class="header-sub">andey-proxy / {{ pageTitle }}</div>
           </div>
         </div>
         <div class="header-actions">
@@ -23,7 +23,7 @@
             ><el-icon><Refresh /></el-icon
           ></el-button>
           <el-dropdown @command="setLocale">
-            <button class="user-info">
+            <button class="user-info" :aria-label="locale.startsWith('zh') ? '选择语言' : 'Select language'">
               <span class="user-name">{{ locale === 'zh-CN' ? '中文' : 'English' }}</span
               ><el-icon><ArrowDown /></el-icon>
             </button>
@@ -37,7 +37,10 @@
             >
           </el-dropdown>
           <el-dropdown @command="handleCommand">
-            <button class="user-info">
+            <button
+              class="user-info"
+              :aria-label="(locale.startsWith('zh') ? '账户菜单：' : 'Account menu: ') + auth.username"
+            >
               <span class="avatar">{{ auth.username?.slice(0, 1)?.toUpperCase() || 'A' }}</span
               ><span class="user-name">{{ auth.username }}</span
               ><el-icon><ArrowDown /></el-icon>
@@ -247,20 +250,9 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, provide, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElIcon, ElMenu, ElMenuItem, ElMessage, ElMessageBox } from 'element-plus'
-import {
-  ArrowDown,
-  Bell,
-  Compass,
-  Connection,
-  Document,
-  Lock,
-  Menu,
-  Monitor,
-  Odometer,
-  Refresh,
-  Setting
-} from '@element-plus/icons-vue'
+import { ElMenu, ElMenuItem, ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, Menu, Refresh } from '@element-plus/icons-vue'
+import NavIcon from '../components/NavIcon.vue'
 import { useI18n } from 'vue-i18n'
 import request from '../api'
 import { useAuthStore } from '../store/auth'
@@ -314,28 +306,29 @@ const securityRules = computed(() => ({
 }))
 const pageTitle = computed(() => (route.meta.titleKey ? t(route.meta.titleKey) : ''))
 const menuGroups = [
-  ['', [['/dashboard', 'nav.dashboard', Odometer]]],
   [
-    'nav.trafficGroup',
+    '',
     [
-      ['/web-service', 'nav.webService', Monitor],
-      ['/forward', 'nav.forward', Connection],
-      ['/tunnels', 'nav.tunnels', Connection]
+      ['/dashboard', 'nav.dashboard', 'overview'],
+      ['/ddns', 'nav.ddns', 'ddns'],
+      ['/web-service', 'nav.webService', 'web'],
+      ['/certs', 'nav.certs', 'cert'],
+      ['/protection', 'nav.protection', 'protection']
     ]
   ],
   [
-    'nav.domainGroup',
+    'nav.trafficGroup',
     [
-      ['/ddns', 'nav.ddns', Compass],
-      ['/certs', 'nav.certs', Lock]
+      ['/forward', 'nav.forward', 'forward'],
+      ['/tunnels', 'nav.tunnels', 'tunnel']
     ]
   ],
   [
     'nav.systemGroup',
     [
-      ['/logs', 'nav.logs', Document],
-      ['/notifications', 'nav.notifications', Bell],
-      ['/settings', 'nav.settings', Setting]
+      ['/logs', 'nav.logs', 'logs'],
+      ['/notifications', 'nav.notifications', 'notifications'],
+      ['/settings', 'nav.settings', 'settings']
     ]
   ]
 ]
@@ -346,8 +339,12 @@ const NavMenu = defineComponent({
     return () => {
       return h('div', { class: 'nav-wrap' }, [
         h('div', { class: 'logo' }, [
-          h('span', { class: 'logo-mark' }, 'A'),
-          !props.collapsed && h('span', 'andey-proxy')
+          h('span', { class: 'logo-mark' }, [h(NavIcon, { name: 'forward' })]),
+          !props.collapsed &&
+            h('div', { class: 'logo-copy' }, [
+              h('span', 'andey-proxy'),
+              h('small', locale.value.startsWith('zh') ? '网络服务控制台' : 'Network console')
+            ])
         ]),
 
         h(
@@ -357,7 +354,11 @@ const NavMenu = defineComponent({
             menuGroups.flatMap(([group, items]) => [
               ...(group && !props.collapsed ? [h('div', { class: 'nav-label', role: 'presentation' }, t(group))] : []),
               ...items.map(([path, label, icon]) =>
-                h(ElMenuItem, { index: path }, { default: () => [h(ElIcon, null, () => h(icon)), h('span', t(label))] })
+                h(
+                  ElMenuItem,
+                  { index: path, 'aria-label': t(label) },
+                  { default: () => [h(NavIcon, { name: icon }), h('span', t(label))] }
+                )
               )
             ])
         )
@@ -537,23 +538,30 @@ onMounted(() => {
   min-height: 100vh;
 }
 .sidebar {
-  background: var(--ap-card);
+  background: var(--ap-sidebar-from);
   border-right: 1px solid var(--ap-border);
   transition: width 0.22s;
   overflow: hidden;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  flex-shrink: 0;
 }
 .nav-wrap {
   height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 20px;
 }
 .logo {
-  height: 64px;
+  height: 80px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 17px;
+  padding: 0 19px;
   color: var(--ap-text);
   font-weight: 700;
-  font-size: 18px;
+  font-size: 16px;
   white-space: nowrap;
 }
 .logo-mark,
@@ -565,14 +573,25 @@ onMounted(() => {
   border-radius: 11px;
   background: var(--ap-primary);
   color: white;
-  box-shadow: 0 6px 18px var(--ap-shadow-dark);
+  box-shadow: none;
+}
+.logo-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.logo-copy small {
+  color: var(--ap-muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
 }
 .nav-label {
   min-height: 34px;
-  padding: 9px 20px;
+  padding: 18px 24px 6px;
   color: var(--ap-on-dark-faint);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
 }
 .sidebar .el-menu,
 .nav-drawer .el-menu {
@@ -581,7 +600,13 @@ onMounted(() => {
 }
 .sidebar .el-menu-item,
 .nav-drawer .el-menu-item {
-  margin: 5px 10px;
+  position: relative;
+  margin: 5px 12px;
+  padding-inline: 14px !important;
+  gap: 12px;
+  font-size: 14px;
+  height: 46px;
+  line-height: 46px;
   border-radius: 10px;
   color: var(--ap-on-dark-muted);
 }
@@ -591,6 +616,34 @@ onMounted(() => {
 .nav-drawer .el-menu-item.is-active {
   background: var(--ap-menu-active-bg);
   color: var(--ap-primary);
+}
+.sidebar .el-menu-item.is-active,
+.nav-drawer .el-menu-item.is-active {
+  font-weight: 600;
+}
+.sidebar .el-menu-item.is-active::before,
+.nav-drawer .el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 13px;
+  bottom: 13px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ap-primary);
+}
+.sidebar .el-menu--collapse .el-menu-item {
+  justify-content: center;
+  padding: 0 !important;
+}
+.sidebar .el-menu--collapse .el-menu-item > span {
+  display: none;
+}
+.sidebar .el-menu--collapse {
+  width: 72px;
+}
+.sidebar .el-menu--collapse .el-menu-item {
+  margin-inline: 8px;
 }
 .content-shell {
   min-width: 0;
@@ -615,8 +668,8 @@ onMounted(() => {
   gap: 10px;
 }
 .header-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 650;
 }
 .header-sub {
   margin-top: 2px;
@@ -636,9 +689,9 @@ onMounted(() => {
   border-radius: 50%;
 }
 .main {
-  padding: 22px;
+  padding: 24px;
   background: var(--ap-bg);
-  overflow-x: hidden;
+  min-width: 0;
 }
 .security-alert {
   margin-bottom: 16px;

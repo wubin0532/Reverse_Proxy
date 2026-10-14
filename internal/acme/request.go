@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 
@@ -62,6 +63,9 @@ func operationHTTPClient(ctx context.Context, client *http.Client) *http.Client 
 // Reserve both the certificate and its lifecycle before returning from an
 // asynchronous API call. Stop excludes new reservations and waits for all work.
 func (m *Manager) ObtainAsync(id string) error {
+	if cert, ok := m.findCert(id); ok && cert.Source == "uploaded" {
+		return errors.New("导入证书不支持 ACME 申请，请导入新证书替换")
+	}
 	if !m.beginObtain(id) {
 		return errors.New("该证书正在申请中或管理器已停止")
 	}
@@ -79,7 +83,10 @@ func (m *Manager) requestMatchesLocked(cert config.CertConf, provider config.DNS
 	for _, current := range m.cfg.Certs {
 		if current.ID == cert.ID {
 			certMatches = current.Enabled == cert.Enabled && sameDomains(current.Domains, cert.Domains) &&
-				current.Email == cert.Email && current.CADirURL == cert.CADirURL && current.ProviderID == cert.ProviderID
+				current.Email == cert.Email && current.CATrustPEM == cert.CATrustPEM && current.CADirURL == cert.CADirURL && current.ProviderID == cert.ProviderID &&
+				current.Source == cert.Source && current.KeyType == cert.KeyType &&
+				current.EABEnabled == cert.EABEnabled && current.EABKeyID == cert.EABKeyID && current.EABHMAC == cert.EABHMAC &&
+				reflect.DeepEqual(current.DNSResolvers, cert.DNSResolvers) && current.PropagationTimeout == cert.PropagationTimeout && current.PropagationInterval == cert.PropagationInterval
 			break
 		}
 	}
@@ -124,13 +131,15 @@ func (m *Manager) commitCertificate(ctx context.Context, cert config.CertConf, p
 	if !m.requestMatchesLocked(cert, provider) {
 		return "", errRequestChanged
 	}
+	m.pairMu.Lock()
+	defer m.pairMu.Unlock()
 	certFile, keyFile := m.certPath(&cert)
 	if err := writeCertificatePair(certFile, keyFile, certPEM, keyPEM); err != nil {
 		return "", err
 	}
 	result := notAfter.Format(time.RFC3339)
 	m.writeResult(cert.ID, result, "")
-	m.invalidate(cert.ID)
+	m.publishPair(cert.ID, &pair, certPEM, keyPEM)
 	return result, nil
 }
 

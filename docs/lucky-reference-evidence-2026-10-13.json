@@ -1,0 +1,539 @@
+{
+  "date": "2026-10-13",
+  "target": "http://192.168.199.1:16601/andey/",
+  "uiIdentity": "Lucky.lucky 3.1.4",
+  "sourceCommit": "180f365bd5031492a781c77bb141963aa20d9b05",
+  "scope": "Downloaded static frontend assets only; no backend artifact or credential payloads.",
+  "assets": [
+    {
+      "path": "static/js/lucky_About-BSqhpLM-.js",
+      "bytes": 31312,
+      "sha256": "bdf07c34dc4a479591409cd67827e03b5f0b8f5ae6f6ec407b776617032b88e1"
+    },
+    {
+      "path": "static/js/lucky_AuthUserAvatar-B_9P9b-F.js",
+      "bytes": 649,
+      "sha256": "d0885661c6af176d2a2779769a722a399dc5969e3a80158285c45d4d935ffb70"
+    },
+    {
+      "path": "static/js/lucky_CodeEditor-DS-fJy-A.js",
+      "bytes": 9761,
+      "sha256": "dc450572fe8dbf079ebe5219581ce353235f90afce57b48b20bfb2460832556c"
+    },
+    {
+      "path": "static/js/lucky_DDNSWebhookVariableHelp-DENpgV9K.js",
+      "bytes": 1236,
+      "sha256": "25b680b9ba5de918c832d6d4c03370dacec6d935dc65e5b23f762b546a451f49"
+    },
+    {
+      "path": "static/js/lucky_HelpTip-BGiOvDZP.js",
+      "bytes": 2581,
+      "sha256": "d48e54e04b7cafca6bbdc0e95ef1b3b8473b0f9aa7e2db1e1bf8b7fd48b4b25d"
+    },
+    {
+      "path": "static/js/lucky_IPv6SelectionSettings-BK5sMOMl.js",
+      "bytes": 3736,
+      "sha256": "5eee2ed2a43f0f74a9eeb4afa2815bf50153629070008ce4d2ff7ef06ef0615f"
+    },
+    {
+      "path": "static/js/lucky_IdentityEntryRuleStatus.vue_vue_type_script_setup_true_lang-hTMjiqdL.js",
+      "bytes": 687,
+      "sha256": "d68320b68e7339db312751a172d5d006e7e39828243a4f3a482dcf9dd6ccf356"
+    },
+    {
+      "path": "static/js/lucky_ListSurface.vue_vue_type_style_index_0_lang-Der5Z7He.js",
+      "bytes": 5130,
+      "sha256": "64bf578f0e63a56a58c3ab3c86e4314f43d6d705f083a3ce825165bdf38da93c"
+    },
+    {
+      "path": "static/js/lucky_LocalPathPicker-CR_W0d3v.js",
+      "bytes": 17510,
+      "sha256": "ac53f455ab93326b164ef485116726dc592f8aa384aac3281519b918a01fb38a"
+    },
+    {
+      "path": "static/js/lucky_LogStreamStorageSection-YU2mG-UG.js",
+      "bytes": 6661,
+      "sha256": "852a57d3d5ad66966568126e7d49c3426dcc8fa1a432f8d6bc5fad679a54d641"
+    },
+    {
+      "path": "static/js/lucky_Login-CpsKw18h.js",
+      "bytes": 50482,
+      "sha256": "25158e70ea87567cbd5a35db71aa8561ae60b469da2a5b54e8b149c5d107b854"
+    },
+    {
+      "path": "static/js/lucky_MaskedPasswordInput-f8zDmtkD.js",
+      "bytes": 1760,
+      "sha256": "268f1c17e8038173605f710a335db3611e446a5e875a5c94dab72860f69d951d"
+    },
+    {
+      "path": "static/js/lucky_ModuleListHeader-CD6Z5Z0l.js",
+      "bytes": 6206,
+      "sha256": "1ce8e9bc05b549a60c3dc286f17c621473622d8cc2a61260b1ccdc36df292083"
+    },
+    {
+      "path": "static/js/lucky_ModuleWorkspaceShell-DVYX9n3t.js",
+      "bytes": 2662,
+      "sha256": "8c4e0232c0d74502500e32c971b4a8fec0b8570a58c6efdf2a42f324b5da170d"
+    },
+    {
+      "path": "static/js/lucky_OIDCSettingsSync-D-7_EPwV.js",
+      "bytes": 9321,
+      "sha256": "053c26d2a9c4522d56690dc5eaaf44c31c4c09967f1db3aded404283f6b1ce38"
+    },
+    {
+      "path": "static/js/lucky_RecordEditor-CY8RXkpf.js",
+      "bytes": 1890,
+      "sha256": "055a4aa9f4f0c3fb8a3788c071112217c2b8a1a2f9c041085da29b0e9db0d6ef"
+    },
+    {
+      "path": "static/js/lucky_ResourceDetailSection.vue_vue_type_script_setup_true_lang-Dok1HSne.js",
+      "bytes": 416,
+      "sha256": "2b4e93ffbe6891da77e39e4c989cd289d22e04b81a5103c733393d65058c0378"
+    },
+    {
+      "path": "static/js/lucky_Setting-XF_krIuK.js",
+      "bytes": 218044,
+      "sha256": "32a9b2d321c8e2367a04b6a2ac9a341f1f2eb9c5a83a0e93e5381cc86e2156dd"
+    },
+    {
+      "path": "static/js/lucky_SettingDialog-Ds165OmM.js",
+      "bytes": 9030,
+      "sha256": "44963bdeda5e70bee887a5b21926ddde6e114dfa9d2d080b77b77922d1971b21"
+    },
+    {
+      "path": "static/js/lucky_SettingsItemList.vue_vue_type_style_index_0_lang-DfGh3POL.js",
+      "bytes": 2496,
+      "sha256": "42126ae105ab2b7b1c4316e0f8ad4bdf032a0898d40218e8bc49348b01518729"
+    },
+    {
+      "path": "static/js/lucky_SettingsSaveBar.vue_vue_type_style_index_0_lang-BaonE9-D.js",
+      "bytes": 1602,
+      "sha256": "86de796b88be66380a740fe112039c66f0ca4d8977351d618f1c60c5a06f7b58"
+    },
+    {
+      "path": "static/js/lucky_Status-KjjSmgW_.js",
+      "bytes": 85951,
+      "sha256": "66eb112d4d3d38fa4e2f035637b816210d8d2b2dc74005534a09455d852b8226"
+    },
+    {
+      "path": "static/js/lucky_TaskEditor-CACXKbAt.js",
+      "bytes": 3214,
+      "sha256": "164fda0a6cf4b8111f4f98afccdf25faed3a700bd8c8df012bf81c79c33357a2"
+    },
+    {
+      "path": "static/js/lucky_TextResultDialog-DC6YgiSF.js",
+      "bytes": 1182,
+      "sha256": "218530f2d0283819db044daf1c252ea04527885bb93e53e290219b4dc3cc6b6b"
+    },
+    {
+      "path": "static/js/lucky_TwoFADisplay-DQEhXm3y.js",
+      "bytes": 9504,
+      "sha256": "e22cfd8fcf17538094393c0df523d2eb89b0af9c6127ddccbb68485546394bb2"
+    },
+    {
+      "path": "static/js/lucky_UiActionMenu.vue_vue_type_style_index_0_lang-DfBY0sNM.js",
+      "bytes": 2053,
+      "sha256": "165579744052d311c327271f162e67a2dfe543c861969b107630765076627b84"
+    },
+    {
+      "path": "static/js/lucky_UiSurface-DcaoxEd_.js",
+      "bytes": 704,
+      "sha256": "9df96b4eb3cc3f60872ca6a5d40cfa2885022aa09cfb1b7db78ec987697bc440"
+    },
+    {
+      "path": "static/js/lucky_WebhookRows.vue_vue_type_style_index_0_lang-DoP-0g2-.js",
+      "bytes": 4880,
+      "sha256": "e63351f39ec55a65ae83b43895831fb35102f28e68466f2af5e17250255eb78a"
+    },
+    {
+      "path": "static/js/lucky_WebhookTestResultDialog-BY_ZEmFr.js",
+      "bytes": 2831,
+      "sha256": "32da179c0057296f17fb5ccf9ddc3b3e8750a6e053499548fa6564dd964f0ce0"
+    },
+    {
+      "path": "static/js/lucky_aes-Dd3qdIeq.js",
+      "bytes": 23573,
+      "sha256": "2cf575e3b8874c517a98015ec6bc6aac04e05e584422daca38c6bffbd86f50f4"
+    },
+    {
+      "path": "static/js/lucky_api-oCkUZ67x.js",
+      "bytes": 2636,
+      "sha256": "dcae52442d6142ceb22a9bfbd26b6136ddc37ffd9d812205514bde38228e35c7"
+    },
+    {
+      "path": "static/js/lucky_authenticationUsers-Bnq3ucuV.js",
+      "bytes": 1523,
+      "sha256": "52b12c619cec9d7f77f9fe3cd7fc46808a487c0d8ba206170f4284200ffc5c9d"
+    },
+    {
+      "path": "static/js/lucky_client-3r4W326w.js",
+      "bytes": 17764,
+      "sha256": "477e0af8b6f7831f9425a2b6ff7b14a39d0f980adcbe20eb5c509132e90b942c"
+    },
+    {
+      "path": "static/js/lucky_configureBackup-CknXh0G0.js",
+      "bytes": 531,
+      "sha256": "0060c5bd4640ce42cc68a95e760bdaf43040514176c93bf5807bc5441bea5f5e"
+    },
+    {
+      "path": "static/js/lucky_const-DHnN7JjQ.js",
+      "bytes": 5870,
+      "sha256": "081b73ef491ff08e4986d06317af7d498d604ac2fc64e77106a4cba128c3c772"
+    },
+    {
+      "path": "static/js/lucky_const-dq8vZkTN.js",
+      "bytes": 13311,
+      "sha256": "8cc3a9b0641bff57688057fe707efdf33304b45fab25dc5c53887dc6d3185800"
+    },
+    {
+      "path": "static/js/lucky_ddns-C9fpzoxT.js",
+      "bytes": 2713,
+      "sha256": "ed37657e2bc45abb92049e2e2f1b91fdf6dc3d55f91c8a539077703552b3b7cd"
+    },
+    {
+      "path": "static/js/lucky_dnsCredentialSources-Bj9NZhxI.js",
+      "bytes": 14774,
+      "sha256": "bb803b22d7edf7c8df55a6175f4065d35c9a4af58e05086981a0b70c7023595d"
+    },
+    {
+      "path": "static/js/lucky_edit-ChjwwPfs.js",
+      "bytes": 64998,
+      "sha256": "6e3e0701c5386796eac2e62498218cec6c884cac182ffeb6b69dbd14a22c8fec"
+    },
+    {
+      "path": "static/js/lucky_editrecord-DmKecV-L.js",
+      "bytes": 2658,
+      "sha256": "b61a16721ad016503b6ffc7f8450098e7603a5d7b26766dcc7218fe877970297"
+    },
+    {
+      "path": "static/js/lucky_ipfilter-9lEji7bG.js",
+      "bytes": 2772,
+      "sha256": "39ea23e38ddb4b64f1ca79874b1ceaababce6a119dd258d100c12de95f8ce544"
+    },
+    {
+      "path": "static/js/lucky_locale-core-BA5FebK7.js",
+      "bytes": 821,
+      "sha256": "c02aa037da21d48d0da2fb364d6a48050c856dd093a87f61cba3e1d3bef9c482"
+    },
+    {
+      "path": "static/js/lucky_locale-zh-cn-Dmuew6a6.js",
+      "bytes": 655697,
+      "sha256": "a2876f1d7547245f5db34ea906de8be6787e4d0f6ba098e5f6da7169fa47d340"
+    },
+    {
+      "path": "static/js/lucky_logtips-CB2VVMpu.js",
+      "bytes": 3348,
+      "sha256": "f34003a8f56a4a34362638498e04dcb554dd30f1a7756b740ae67bcc3821a03a"
+    },
+    {
+      "path": "static/js/lucky_main-BQFh6eYp.js",
+      "bytes": 342554,
+      "sha256": "7564f8ab6bedb46b33fe73560d90de7a4e8e4349bebc3ce2b88a57c7be60dbd7"
+    },
+    {
+      "path": "static/js/lucky_messages-DGqqayNR.js",
+      "bytes": 38230,
+      "sha256": "ec1ee118e38bf156244642058b52e27538ed7f354b1794970f8c32c928eeaffb"
+    },
+    {
+      "path": "static/js/lucky_moduleGuides-Bs77H9US.js",
+      "bytes": 14242,
+      "sha256": "fb6903a401cbc700682ef1352c16a564c7bc6f12701326192c9f63a95d434e24"
+    },
+    {
+      "path": "static/js/lucky_oauth-Df1wR7BV.js",
+      "bytes": 2758,
+      "sha256": "f23c4e64dee3e36f8ba5a1635eb2979c8fa3096fd4993e42c937a3702a693dab"
+    },
+    {
+      "path": "static/js/lucky_panel-5RIoZJzZ.js",
+      "bytes": 56893,
+      "sha256": "d732695057b87771d4d8147cfb8ab9c69c4460b54fba65109d663d1ecc4377d2"
+    },
+    {
+      "path": "static/js/lucky_panel-A6GKEdtq.js",
+      "bytes": 169182,
+      "sha256": "e0f98a7b7d0a6a7cba44ea1794862ca59a0f8a41fdbdc2e9aaba250dbc0a7ba1"
+    },
+    {
+      "path": "static/js/lucky_panel-B0k4EsWu.js",
+      "bytes": 73329,
+      "sha256": "c5a6c8182d337c603c096d12f42ecf372fc7762cd0c471548416ce44e36c2b3c"
+    },
+    {
+      "path": "static/js/lucky_panel-BPfijD2A.js",
+      "bytes": 9557,
+      "sha256": "2b0086d14dbc7641ad8b1dccc599003805674548e0464b92874ca5727240fc00"
+    },
+    {
+      "path": "static/js/lucky_panel-BjPKq8bU.js",
+      "bytes": 46438,
+      "sha256": "7568152f723bc6146f0ff201ed1cf9c38bd8abe3be35681b1399fae4914f6abd"
+    },
+    {
+      "path": "static/js/lucky_panel-Bq-QTFsR.js",
+      "bytes": 23611,
+      "sha256": "fa610626241fe0aea7c0a825afba7c759e4c5b346bb8a61053edb02e85f0ea15"
+    },
+    {
+      "path": "static/js/lucky_panel-Byp8-jnH.js",
+      "bytes": 83252,
+      "sha256": "be5d063b487e36b6f6569cc5de9e873ecc4b5e03ce64ec8b3f646cbd8b3ecd85"
+    },
+    {
+      "path": "static/js/lucky_panel-CVscrZpx.js",
+      "bytes": 77333,
+      "sha256": "1b385d1a14519d605ad74a8d6f727cd9dfc6153bd1d7a08b26f8d37ad39e5fc4"
+    },
+    {
+      "path": "static/js/lucky_panel-Ce0NxjjX.js",
+      "bytes": 28015,
+      "sha256": "002ba691731deb29d4def584fbf17f967aa116a835d34f491b1e55dc2b21dcbc"
+    },
+    {
+      "path": "static/js/lucky_panel-CkvJN4C2.js",
+      "bytes": 26885,
+      "sha256": "338461ea975e7076dab857d5b9effd6f66515c191d9a346a67e8f503007cd658"
+    },
+    {
+      "path": "static/js/lucky_panel-Cmo66Iyp.js",
+      "bytes": 44228,
+      "sha256": "bd7690be3baf1948e03a6cc139eb3267a28ce5817a0c5a7341f670517e345f7a"
+    },
+    {
+      "path": "static/js/lucky_panel-D3s7RzsX.js",
+      "bytes": 155442,
+      "sha256": "1a3cefb23f8ba7533a07fe257f0d987d776e508736ebb30f36b99d9eef84bc1b"
+    },
+    {
+      "path": "static/js/lucky_panel-DKqzURNz.js",
+      "bytes": 119416,
+      "sha256": "362745b492228586f4aad549f98c0c4ddf388902b401e78a412b2fec34b6164a"
+    },
+    {
+      "path": "static/js/lucky_panel-DX_B9Kyu.js",
+      "bytes": 78212,
+      "sha256": "56eb61c1fd8e892d8f568ee3e1724e578ac4b3e726e160ff1b75919d2c4e7470"
+    },
+    {
+      "path": "static/js/lucky_panel-Dl-9ekF7.js",
+      "bytes": 376502,
+      "sha256": "6997d7e5816586a8083822541a18177e78a539bf52f2cea9e0e4f8d079290572"
+    },
+    {
+      "path": "static/js/lucky_panel-Dp0fUigD.js",
+      "bytes": 52970,
+      "sha256": "cfd758efa567fdb2e5610377fca5641091d93eb8415bb067630dc3c8b7391719"
+    },
+    {
+      "path": "static/js/lucky_panel-GvTl6aH8.js",
+      "bytes": 6229,
+      "sha256": "833967dad6434145aee7bd0dc2ce6b8cc6b41e480d28923a9c60bec2cc48af58"
+    },
+    {
+      "path": "static/js/lucky_panel-fIzS74xP.js",
+      "bytes": 37801,
+      "sha256": "102fa93a0bf09aa5a4ea49f4d01669126f8fa1d990adf579b4c7eddb45d1d418"
+    },
+    {
+      "path": "static/js/lucky_panel-yjWHhvYi.js",
+      "bytes": 3858,
+      "sha256": "29bb37c83787f7636b5d595c04b8cefce1669823c8a9365c873f0d6d46f0290d"
+    },
+    {
+      "path": "static/js/lucky_reverseproxy-5EzmUdDU.js",
+      "bytes": 22102,
+      "sha256": "a1484d9d9ef5f0f3516f65742665964dbe7058c4b9b3939312449191784155a5"
+    },
+    {
+      "path": "static/js/lucky_securitygroups-Ci2JMi73.js",
+      "bytes": 1593,
+      "sha256": "d43d858fed3d3d1f6fe5a7720b7a7ffccb702b05ab768f2cc292ce48e768f0e5"
+    },
+    {
+      "path": "static/js/lucky_taskFormDefaults-UPYBtSZj.js",
+      "bytes": 16352,
+      "sha256": "b039f344722c772237f935f9cadd9027d49a3788eb2517bc30c6383fe0bcdb34"
+    },
+    {
+      "path": "static/js/lucky_themeFallbackPalettes-jwymXyKA.js",
+      "bytes": 978,
+      "sha256": "5123a9d6232a7cfe0ec9f71cd1c8fcc97aa43a9883881a46651e1c5406ea1811"
+    },
+    {
+      "path": "static/js/lucky_thirdPartyAuthManager-CCwMm-1T.js",
+      "bytes": 1460,
+      "sha256": "5502b963d2bb1b8e8b9105efb158e5a49e1c1e54f5ced0941693e836229216db"
+    },
+    {
+      "path": "static/js/lucky_thirdPartyAuthUserDisplay-b7So_WZp.js",
+      "bytes": 602,
+      "sha256": "bd436961f7c5d28130079a61a52c215277adf91fd87acad10596bc298351a054"
+    },
+    {
+      "path": "static/js/lucky_use-quickstart-launch-ClcxtkyM.js",
+      "bytes": 448,
+      "sha256": "3ca73bfe50fe0c879ff027cff2d0f60ef95199d78c180ede99ba8176ec39edc7"
+    },
+    {
+      "path": "static/js/lucky_useActionRegistry-B-6tYQ9S.js",
+      "bytes": 924,
+      "sha256": "ab8e174b0307b8bc5f2eeab95dae087565401a52b91d488e6fbfba19c75524ee"
+    },
+    {
+      "path": "static/js/lucky_useDDNSI18n-CPHi2cEt.js",
+      "bytes": 479,
+      "sha256": "5c47b177b899bb546c2e9376efd04a4480c2c86d65321a0e629f3a08f8790bce"
+    },
+    {
+      "path": "static/js/lucky_useDragPermission-CvN1e78l.js",
+      "bytes": 1003,
+      "sha256": "627fc59f86d1c16d317b291c3f3fb44ec7ab3dbbc56542c7c9421a3418bc3dc3"
+    },
+    {
+      "path": "static/js/lucky_useIPFilterI18n-Cr-VSfqh.js",
+      "bytes": 599,
+      "sha256": "2a861ffbd1751d39820cf809cfa7a8fb0921ba8070adaa16e1ba68d2f2ae42a5"
+    },
+    {
+      "path": "static/js/lucky_useLiveStatisticsPolling-CbZHpEmC.js",
+      "bytes": 1196,
+      "sha256": "06ac45a591beb3e6255285b4b20edc343fd974a5627e6ab278a74c41bb297e6b"
+    },
+    {
+      "path": "static/js/lucky_useLogLocations-uUYdYz93.js",
+      "bytes": 2029,
+      "sha256": "c06faac914fff9bf4c8b3085f2e6490596fa3cec847309d7cf5dc09dff21f7c9"
+    },
+    {
+      "path": "static/js/lucky_useLogStreamSettings-BFaet7l6.js",
+      "bytes": 169,
+      "sha256": "35b3dc7d5e1f4285331a7f6ee240b4163338dc967bab20a09bc06a70d5b6bfda"
+    },
+    {
+      "path": "static/js/lucky_useMountSourceOptions-BLtAqmU1.js",
+      "bytes": 29346,
+      "sha256": "2857d4b8d4e3036d9135eebc4a1d3f48a0e98c10b0b43a90c9655ca35d2f560e"
+    },
+    {
+      "path": "static/js/lucky_usePortForwardI18n-BmBsqCH6.js",
+      "bytes": 449,
+      "sha256": "520e85707fbdf1802dd9a965202c74ed4311762cab5be3f55d31736ad2f1359c"
+    },
+    {
+      "path": "static/js/lucky_useServerConfigI18n-cnKdkHaV.js",
+      "bytes": 6011,
+      "sha256": "52d3f6e83d767bf787ec63fc4b546195a06dd1891bb630f8bc8e3dabd8e32507"
+    },
+    {
+      "path": "static/js/lucky_useSettingsFormI18n-BIBE-XB9.js",
+      "bytes": 216,
+      "sha256": "965f7d50447e111e1eb5d07a4d00d1ce14dcda8316a1590b552e6402ca3faec3"
+    },
+    {
+      "path": "static/js/lucky_useStunI18n-Drrvv1Rx.js",
+      "bytes": 453,
+      "sha256": "b0830420ea7f21e0366574e0f11c707542ee14ec07d6aa3c38a538c5ebbf9125"
+    },
+    {
+      "path": "static/js/lucky_useThirdPartyAuthI18n-uxZlE6ii.js",
+      "bytes": 695,
+      "sha256": "40c03c953e0a199de573323c759fed120bee7a76998b8a0c8369505068fd42e5"
+    },
+    {
+      "path": "static/js/lucky_useVisualViewport-WzCxXSZE.js",
+      "bytes": 1086,
+      "sha256": "f9c31e518f109951119821c1ddf7d26ba5edbc80e9c3f8ec932760d97a5be194"
+    }
+  ],
+  "evidenceSummary": "lucky-rea-summary-2026-10-13.json",
+  "coverage": {
+    "ui": [
+      "DDNS list and new-task/record forms",
+      "Web list and new-subrule tabs",
+      "Certificate list/source/import/ACME forms",
+      "IP filter list/new-match form/guide",
+      "Security groups list/new-group form",
+      "Overview status and resources"
+    ],
+    "backend": "Not acquired or decompiled",
+    "effects": "No DNS/certificate/protection/scan mutations invoked"
+  },
+  "keySources": [
+    {
+      "file": "lucky_ddns-C9fpzoxT.js",
+      "locator": "T/L/g/k/y/x; full file",
+      "claims": "DDNS endpoints, numeric normalization"
+    },
+    {
+      "file": "lucky_panel-Dp0fUigD.js",
+      "locator": "4100-7150, 17700; character offsets",
+      "claims": "DDNS runtime model, statuses, polling"
+    },
+    {
+      "file": "lucky_dnsCredentialSources-Bj9NZhxI.js",
+      "locator": "0-1900, nt/rt/Te/at",
+      "claims": "Certificate API, credential mapping definitions"
+    },
+    {
+      "file": "lucky_panel-DKqzURNz.js",
+      "locator": "Kt/Cl/Rt/za/Qr; 34800-35600, 57800-60200, 68100-68700",
+      "claims": "Certificate sources, payload, renewal settings, polling"
+    },
+    {
+      "file": "lucky_reverseproxy-5EzmUdDU.js",
+      "locator": "11200-14500; Ee/ve/Be/me/ke/de/Se/we",
+      "claims": "Web rules, version contract, API surfaces"
+    },
+    {
+      "file": "lucky_panel-A6GKEdtq.js",
+      "locator": "115000-124300, jd at 131650-134000",
+      "claims": "Web polling, optimistic concurrency, discovery payload"
+    },
+    {
+      "file": "lucky_ipfilter-9lEji7bG.js",
+      "locator": "full file",
+      "claims": "IP filter /api/ipfliter and port trap APIs"
+    },
+    {
+      "file": "lucky_panel-DX_B9Kyu.js",
+      "locator": "pl at 6340; 5370-6030, 11800-12400, 30860, 39900-44300, 63100-64900",
+      "claims": "Filter models, expiry, keyword matching, trap settings/polling"
+    },
+    {
+      "file": "lucky_securitygroups-Ci2JMi73.js",
+      "locator": "full file",
+      "claims": "Security groups, users, grants APIs"
+    },
+    {
+      "file": "lucky_panel-Cmo66Iyp.js",
+      "locator": "18800-19400",
+      "claims": "Group TTL, IP bypass defaults, users/grants"
+    },
+    {
+      "file": "lucky_Status-KjjSmgW_.js",
+      "locator": "vn at 69600-72000; 6650-9000",
+      "claims": "gzip/protobuf WS, status polling, host queries"
+    },
+    {
+      "file": "lucky_edit-ChjwwPfs.js",
+      "locator": "21080-22700, 39800-43500; character offsets",
+      "claims": "Task validation, defaults, device-dependent IPv6 default selection"
+    },
+    {
+      "file": "lucky_editrecord-DmKecV-L.js",
+      "locator": "full file",
+      "claims": "Read entire task, modify record, PUT entire task"
+    },
+    {
+      "file": "lucky_taskFormDefaults-UPYBtSZj.js",
+      "locator": "4520-8000, 15000-16300; character offsets",
+      "claims": "Record fields/TTL-only client validation; task defaults"
+    }
+  ],
+  "verification": {
+    "proposalPreview": "Five module navigation checked in browser; Web layout checked at 320px iframe width. Illustrative data, no live API.",
+    "codeTests": "Not run: no application code changes.",
+    "production": "Not changed or deployed."
+  }
+}

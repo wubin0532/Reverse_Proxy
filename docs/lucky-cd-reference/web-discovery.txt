@@ -1,0 +1,277 @@
+Browser tab: 1, Title: "Lucky | Web服务", URL: "http://192.168.199.1:16601/andey/#/web".
+0 AXWebArea Lucky | Web服务, URL: 192.168.199.1:16601/andey/#/web
+	1 container
+		2 container app
+			3 container
+				4 container
+					5 button Lucky
+						6 image Lucky
+						7 text Lucky
+						8 text 3.1.4
+					9 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+					10 text Web服务 Lucky / Web服务
+					11 button 切换主题
+					12 button 切换语言
+					13 button L Lucky Admin
+						14 text L
+						15 text Lucky Admin
+				16 container desktop-sidebar-navigation
+					17 content list
+						18 container 总览
+							19 text 总览
+						20 container 日志中心
+							21 text 日志中心
+						22 container 快速上手
+							23 text 快速上手
+						24 container 动态域名
+							25 text 动态域名
+						26 container Web服务
+							27 text Web服务
+						28 container 端口转发
+							29 text 端口转发
+						30 container STUN穿透
+							31 text STUN穿透
+						32 container Web终端
+							33 text Web终端
+						34 container 计划任务
+							35 text 计划任务
+						36 container SSL/TLS证书
+							37 text SSL/TLS证书
+						38 container 防护中心
+							39 container
+								40 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+									41 text 防护中心
+								42 container
+									43 text IP过滤
+									44 text 安全组
+						45 container IP地址库
+							46 text IP地址库
+						47 container 第三方认证
+							48 text 第三方认证
+						49 container Passkey 管理
+							50 text Passkey 管理
+						51 container LuckyID
+							52 text LuckyID
+						53 container 更多功能
+							54 button (collapsed) Description: 扩张, Secondary Actions: Expand
+								55 text 更多功能
+					56 content list
+						57 container 设置
+							58 text 设置
+						59 container 关于
+							60 text 关于
+				61 container pageContent
+					62 container
+						63 heading Web 服务工作台, Value: 1
+							64 text Web 服务工作台
+						65 container
+							66 checkbox Description: 顶部标签, Value: 1
+							67 checkbox Description: 侧边导航, Value: 0
+						68 button 帮助
+						69 button 刷新数据
+						70 button 设置
+						71 button 日志
+						72 pop up button (collapsed) Description: 更多操作, ID: ui-action-menu-v-0, Secondary Actions: Expand
+						73 button 新增
+						74 container 筛选
+							75 checkbox 主规则 1, Value: 0
+							76 checkbox 网页认证会话 0, Value: 0
+							77 checkbox 分组 0, Value: 0
+							78 checkbox CGI 实例 0, Value: 0
+						79 container
+							80 text field (settable) Description: 搜索规则名称、监听地址、域名、路径或服务类型, ID: f_cf266b9b-9e4d-44fa-ab4c-d7e15e479470
+						81 container
+							82 tab group
+								83 tab (selected, settable, boolean) Description: ChineseChess · :8443 · HTTPS · 已启用, Value: 1
+							84 button 新增
+							85 heading ChineseChess, Value: 2
+								86 text ChineseChess
+							87 text :8443 IPv4 HTTPS 12/12 子规则已启用
+							88 button 日志
+							89 button 发现内网服务
+							90 button 添加子规则
+							91 switch Description: 启用, Value: 1
+							92 button 更多操作
+							93 tab group
+								94 tab (selected, settable, boolean) 全部 13, Value: 1
+								95 tab (selectable, settable, boolean) 未分组 12, Value: 0
+							96 container 累计接收 · 当前下行
+								97 text ↓ 4.18 MB
+								98 text 0 B/s
+							99 container 累计发送 · 当前上行
+								100 text ↑ 858 MB
+								101 text 0 B/s
+							102 button 0, Help: 当前连接
+							103 pop up button (collapsed) 默认规则 重定向 未匹配的域名 未设置 ↓ 0 B/s ↑ 0 B/s 0 编辑 更多操作, Secondary Actions: Expand
+								104 text 默认规则
+								105 text 重定向
+								106 text 未匹配的域名
+								107 text 未设置
+								108 text ↓ 0 B/s
+								109 text ↑ 0 B/s
+								110 button 0, Help: 当前连接
+								111 container
+									112 button 编辑
+									113 button 更多操作
+							114 pop up button (collapsed) Chess 反向代理 chess.wubin.ink http://192.168.199.5:5777 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								115 text Chess
+								116 text 反向代理
+								117 text chess.wubin.ink
+								118 text http://192.168.199.5:5777
+								119 text ↓ 0 B/s
+								120 text ↑ 0 B/s
+								121 button 0, Help: 当前连接
+								122 container
+									123 switch Description: 启用, Value: 1
+									124 button 更多操作
+							125 pop up button (collapsed) chessdbapi 反向代理 /chessapi http://www.chessdb.cn ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								126 text chessdbapi
+								127 text 反向代理
+								128 text /chessapi
+								129 text http://www.chessdb.cn
+								130 text ↓ 0 B/s
+								131 text ↑ 0 B/s
+								132 button 0, Help: 当前连接
+								133 container
+									134 switch Description: 启用, Value: 1
+									135 button 更多操作
+							136 pop up button (collapsed) Openwrt 反向代理 openwrt.wubin.ink http://192.168.199.1 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								137 text Openwrt
+								138 text 反向代理
+								139 text openwrt.wubin.ink
+								140 text http://192.168.199.1
+								141 text ↓ 0 B/s
+								142 text ↑ 0 B/s
+								143 button 0, Help: 当前连接
+								144 container
+									145 switch Description: 启用, Value: 1
+									146 button 更多操作
+							147 pop up button (collapsed) fnos 反向代理 fnos.wubin.ink http://192.168.199.5:5666 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								148 text fnos
+								149 text 反向代理
+								150 text fnos.wubin.ink
+								151 text http://192.168.199.5:5666
+								152 text ↓ 0 B/s
+								153 text ↑ 0 B/s
+								154 button 0, Help: 当前连接
+								155 container
+									156 switch Description: 启用, Value: 1
+									157 button 更多操作
+							158 pop up button (collapsed) NAS 反向代理 nas.wubin.ink https://192.168.199.199:44333 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								159 text NAS
+								160 text 反向代理
+								161 text nas.wubin.ink
+								162 text https://192.168.199.199:44333
+								163 text ↓ 0 B/s
+								164 text ↑ 0 B/s
+								165 button 0, Help: 当前连接
+								166 container
+									167 switch Description: 启用, Value: 1
+									168 button 更多操作
+							169 pop up button (collapsed) pve 反向代理 pve.wubin.ink http://192.168.199.2:8006 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								170 text pve
+								171 text 反向代理
+								172 text pve.wubin.ink
+								173 text http://192.168.199.2:8006
+								174 text ↓ 0 B/s
+								175 text ↑ 0 B/s
+								176 button 0, Help: 当前连接
+								177 container
+									178 switch Description: 启用, Value: 1
+									179 button 更多操作
+							180 pop up button (collapsed) asus 反向代理 asus.wubin.ink http://192.168.199.3 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								181 text asus
+								182 text 反向代理
+								183 text asus.wubin.ink
+								184 text http://192.168.199.3
+								185 text ↓ 0 B/s
+								186 text ↑ 0 B/s
+								187 button 0, Help: 当前连接
+								188 container
+									189 switch Description: 启用, Value: 1
+									190 button 更多操作
+							191 pop up button (collapsed) tesla 反向代理 tesla.wubin.ink http://192.168.199.199:3000 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								192 text tesla
+								193 text 反向代理
+								194 text tesla.wubin.ink
+								195 text http://192.168.199.199:3000
+								196 text ↓ 0 B/s
+								197 text ↑ 0 B/s
+								198 button 0, Help: 当前连接
+								199 container
+									200 switch Description: 启用, Value: 1
+									201 button 更多操作
+							202 pop up button (collapsed) MoomTV 反向代理 tv.wubin.ink http://192.168.199.5:3006 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								203 text MoomTV
+								204 text 反向代理
+								205 text tv.wubin.ink
+								206 text http://192.168.199.5:3006
+								207 text ↓ 0 B/s
+								208 text ↑ 0 B/s
+								209 button 0, Help: 当前连接
+								210 container
+									211 switch Description: 启用, Value: 1
+									212 button 更多操作
+							213 pop up button (collapsed) PVZ 反向代理 game.wubin.ink http://192.168.199.5:5888 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								214 text PVZ
+								215 text 反向代理
+								216 text game.wubin.ink
+								217 text http://192.168.199.5:5888
+								218 text ↓ 0 B/s
+								219 text ↑ 0 B/s
+								220 button 0, Help: 当前连接
+								221 container
+									222 switch Description: 启用, Value: 1
+									223 button 更多操作
+							224 pop up button (collapsed) HaYang-POS 反向代理 hypos.wubin.ink http://192.168.199.5:5910 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								225 text HaYang-POS
+								226 text 反向代理
+								227 text hypos.wubin.ink
+								228 text http://192.168.199.5:5910
+								229 text ↓ 0 B/s
+								230 text ↑ 0 B/s
+								231 button 0, Help: 当前连接
+								232 container
+									233 switch Description: 启用, Value: 1
+									234 button 更多操作
+							235 pop up button (collapsed) Passkey Passkey 认证服务 wubin.ink — ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								236 text Passkey
+								237 text Passkey 认证服务
+								238 text wubin.ink
+								239 text —
+								240 text ↓ 0 B/s
+								241 text ↑ 0 B/s
+								242 button 0, Help: 当前连接
+								243 container
+									244 switch Description: 启用, Value: 1
+									245 button 更多操作
+		246 container 发现内网服务
+			247 container 发现内网服务 关闭对话框 扫描目标 127.0.0.1 扫描端口 1-65535 域名后缀 wubin.ink 高级扫描选项 发现结果 显示已添加 全选可添加 取消全选 更多操作 暂无发现结果 设置扫描范围并开始扫描，或刷新本机服务。 取消 开始发现 添加为子规则
+				248 container
+					249 text 发现内网服务
+					250 button 关闭对话框
+					251 text 扫描目标
+					252 text entry area (settable) Value: 127.0.0.1, ID: f_52f77e20-8f68-4b52-92ba-2704c385032a
+					253 text 扫描端口
+					254 text entry area (settable) Value: 1-65535, ID: f_4c0ffcc0-f6f2-46d0-b8c7-d043100b5b64
+					255 text 域名后缀
+					256 text entry area (settable) Value: wubin.ink, ID: f_d75d01e3-1188-4d36-9e87-503f64319353
+					257 button (collapsed) 高级扫描选项, Secondary Actions: Expand
+						258 text 高级扫描选项
+					259 container
+						260 heading 发现结果, Value: 2
+							261 text 发现结果
+						262 switch Description: 显示已添加, Value: 0
+							263 text 显示已添加
+						264 button (disabled) 全选可添加
+						265 button (disabled) 取消全选
+						266 pop up button (collapsed) Description: 更多操作, ID: ui-action-menu-v-8-2, Secondary Actions: Expand
+					267 container
+						268 heading 暂无发现结果, Value: 3
+							269 text 暂无发现结果
+						270 text 设置扫描范围并开始扫描，或刷新本机服务。
+					271 button 取消
+					272 button 开始发现
+					273 button (disabled) 添加为子规则
+
+The focused UI element is 247 container 发现内网服务 关闭对话框 扫描目标 127.0.0.1 扫描端口 1-65535 域名后缀 wubin.ink 高级扫描选项 发现结果 显示已添加 全选可添加 取消全选 更多操作 暂无发现结果 设置扫描范围并开始扫描，或刷新本机服务。 取消 开始发现 添加为子规则

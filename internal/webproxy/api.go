@@ -36,6 +36,8 @@ var errRuleNotFound = errors.New("子规则不存在")
 // RegisterRoutes 挂载 Web 服务相关路由（由主控在鉴权分组内调用）。
 func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 	h := &apiHandler{cfg: cfg, svc: svc}
+	h.registerBackendPools(r)
+	h.registerDiscovery(r)
 	r.Get("/api/sites", h.list)
 	r.Get("/api/sites/stats", h.stats)
 	r.Post("/api/sites", h.create)
@@ -178,8 +180,15 @@ func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	site.ID = ids.New()
+	site.Revision = 1
+	for i := range site.Rules {
+		site.Rules[i].Revision = 1
+	}
 
 	if err := h.cfg.Update(func(c *config.Config) error {
+		if err := validateReferences(c, site); err != nil {
+			return err
+		}
 		c.Sites = append(c.Sites, site)
 		return nil
 	}); err != nil {
@@ -211,11 +220,12 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 	defer h.mutationMu.Unlock()
 
 	id := chi.URLParam(r, "id")
-	var site config.Site
-	if err := api.DecodeBody(r, &site); err != nil {
+	var input siteInput
+	if err := api.DecodeBody(r, &input); err != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
+	site := input.Site
 	site.ID = id
 	ensureRuleIDs(&site)
 	if err := h.validateSite(&site, true); err != nil {
@@ -237,14 +247,25 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 		api.Fail(w, 404, "站点不存在")
 		return
 	}
+	if err := checkRevision(input.ExpectedRevision, previous.Revision); err != nil {
+		api.Fail(w, 409, err.Error())
+		return
+	}
 	mergeRuleSecrets(&site, previous)
 	if err := h.validateSite(&site, false); err != nil {
 		api.Fail(w, 400, err.Error())
 		return
 	}
+	bumpSite(&site, previous)
 	err := h.cfg.Update(func(c *config.Config) error {
 		for i := range c.Sites {
 			if c.Sites[i].ID == id {
+				if c.Sites[i].Revision != previous.Revision {
+					return errRevisionConflict
+				}
+				if err := validateReferences(c, site); err != nil {
+					return err
+				}
 				c.Sites[i] = site
 				return nil
 			}
@@ -253,6 +274,10 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, errSiteNotFound) {
 		api.Fail(w, 404, errSiteNotFound.Error())
+		return
+	}
+	if errors.Is(err, errRevisionConflict) {
+		api.Fail(w, 409, err.Error())
 		return
 	}
 	if err != nil {
@@ -330,12 +355,20 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 	defer h.mutationMu.Unlock()
 
 	id := chi.URLParam(r, "id")
-	err := h.cfg.Update(func(c *config.Config) error {
+	expected, err := headerRevision(r)
+	if err != nil {
+		api.Fail(w, 400, err.Error())
+		return
+	}
+	err = h.cfg.Update(func(c *config.Config) error {
 		if c.TunnelReferencedSite(id) {
 			return errSiteInTunnel
 		}
 		for i := range c.Sites {
 			if c.Sites[i].ID == id {
+				if err := checkRevision(expected, c.Sites[i].Revision); err != nil {
+					return err
+				}
 				c.Sites = append(c.Sites[:i], c.Sites[i+1:]...)
 				return nil
 			}
@@ -343,6 +376,10 @@ func (h *apiHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return errSiteNotFound
 	})
 	if errors.Is(err, errSiteInTunnel) {
+		api.Fail(w, 409, err.Error())
+		return
+	}
+	if errors.Is(err, errRevisionConflict) {
 		api.Fail(w, 409, err.Error())
 		return
 	}
@@ -365,11 +402,22 @@ func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
 	defer h.mutationMu.Unlock()
 
 	id := chi.URLParam(r, "id")
+	expected, err := headerRevision(r)
+	if err != nil {
+		api.Fail(w, 400, err.Error())
+		return
+	}
 	enabled := false
 	previousEnabled := false
-	err := h.cfg.Update(func(c *config.Config) error {
+	var previousRevision uint64
+	err = h.cfg.Update(func(c *config.Config) error {
 		for i := range c.Sites {
 			if c.Sites[i].ID == id {
+				if err := checkRevision(expected, c.Sites[i].Revision); err != nil {
+					return err
+				}
+				previousRevision = c.Sites[i].Revision
+				c.Sites[i].Revision++
 				previousEnabled = c.Sites[i].Enabled
 				c.Sites[i].Enabled = !c.Sites[i].Enabled
 				enabled = c.Sites[i].Enabled
@@ -378,6 +426,10 @@ func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
 		}
 		return errSiteNotFound
 	})
+	if errors.Is(err, errRevisionConflict) {
+		api.Fail(w, 409, err.Error())
+		return
+	}
 	if errors.Is(err, errSiteNotFound) {
 		api.Fail(w, 404, errSiteNotFound.Error())
 		return
@@ -391,6 +443,7 @@ func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
 			for i := range c.Sites {
 				if c.Sites[i].ID == id {
 					c.Sites[i].Enabled = previousEnabled
+					c.Sites[i].Revision = previousRevision
 					return nil
 				}
 			}
@@ -409,16 +462,17 @@ func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) createRule(w http.ResponseWriter, r *http.Request) {
-	var rule config.SubRule
-	if err := api.DecodeBody(r, &rule); err != nil {
+	var input ruleInput
+	if err := api.DecodeBody(r, &input); err != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
+	rule := input.SubRule
 	rule.ID = ids.New()
-	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+	site, ok := h.mutateRules(w, r, chi.URLParam(r, "id"), func(site *config.Site) error {
 		site.Rules = append(site.Rules, rule)
 		return nil
-	})
+	}, ruleMutation{expected: input.ExpectedRevision, health: input.HealthCheck, ruleID: rule.ID})
 	if !ok {
 		return
 	}
@@ -427,14 +481,15 @@ func (h *apiHandler) createRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiHandler) updateRule(w http.ResponseWriter, r *http.Request) {
-	var rule config.SubRule
-	if err := api.DecodeBody(r, &rule); err != nil {
+	var input ruleInput
+	if err := api.DecodeBody(r, &input); err != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
+	rule := input.SubRule
 	ruleID := chi.URLParam(r, "ruleId")
 	rule.ID = ruleID
-	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+	site, ok := h.mutateRules(w, r, chi.URLParam(r, "id"), func(site *config.Site) error {
 		for i := range site.Rules {
 			if site.Rules[i].ID == ruleID {
 				site.Rules[i] = rule
@@ -442,7 +497,7 @@ func (h *apiHandler) updateRule(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return errRuleNotFound
-	})
+	}, ruleMutation{expected: input.ExpectedRevision, health: input.HealthCheck, ruleID: ruleID})
 	if !ok {
 		return
 	}
@@ -452,7 +507,7 @@ func (h *apiHandler) updateRule(w http.ResponseWriter, r *http.Request) {
 
 func (h *apiHandler) deleteRule(w http.ResponseWriter, r *http.Request) {
 	ruleID := chi.URLParam(r, "ruleId")
-	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+	site, ok := h.mutateRules(w, r, chi.URLParam(r, "id"), func(site *config.Site) error {
 		for i := range site.Rules {
 			if site.Rules[i].ID == ruleID {
 				site.Rules = append(site.Rules[:i], site.Rules[i+1:]...)
@@ -460,7 +515,7 @@ func (h *apiHandler) deleteRule(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return errRuleNotFound
-	})
+	}, ruleMutation{ruleID: ruleID})
 	if !ok {
 		return
 	}
@@ -471,7 +526,7 @@ func (h *apiHandler) deleteRule(w http.ResponseWriter, r *http.Request) {
 func (h *apiHandler) toggleRule(w http.ResponseWriter, r *http.Request) {
 	ruleID := chi.URLParam(r, "ruleId")
 	enabled := false
-	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+	site, ok := h.mutateRules(w, r, chi.URLParam(r, "id"), func(site *config.Site) error {
 		for i := range site.Rules {
 			if site.Rules[i].ID == ruleID {
 				site.Rules[i].Enabled = !site.Rules[i].Enabled
@@ -480,7 +535,7 @@ func (h *apiHandler) toggleRule(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return errRuleNotFound
-	})
+	}, ruleMutation{ruleID: ruleID})
 	if !ok {
 		return
 	}
@@ -490,13 +545,14 @@ func (h *apiHandler) toggleRule(w http.ResponseWriter, r *http.Request) {
 
 func (h *apiHandler) reorderRules(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		RuleIDs []string `json:"ruleIds"`
+		RuleIDs          []string `json:"ruleIds"`
+		ExpectedRevision *uint64  `json:"expectedRevision"`
 	}
 	if err := api.DecodeBody(r, &body); err != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
-	site, ok := h.mutateRules(w, chi.URLParam(r, "id"), func(site *config.Site) error {
+	site, ok := h.mutateRules(w, r, chi.URLParam(r, "id"), func(site *config.Site) error {
 		if len(body.RuleIDs) != len(site.Rules) {
 			return errors.New("排序必须包含该站点的全部子规则")
 		}
@@ -515,7 +571,7 @@ func (h *apiHandler) reorderRules(w http.ResponseWriter, r *http.Request) {
 		}
 		site.Rules = reordered
 		return nil
-	})
+	}, ruleMutation{expected: body.ExpectedRevision})
 	if !ok {
 		return
 	}
@@ -524,7 +580,7 @@ func (h *apiHandler) reorderRules(w http.ResponseWriter, r *http.Request) {
 }
 
 // mutateRules 对一个站点的子规则执行原子变更，并在热加载失败时恢复原配置。
-func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate func(*config.Site) error) (*config.Site, bool) {
+func (h *apiHandler) mutateRules(w http.ResponseWriter, req *http.Request, siteID string, mutate func(*config.Site) error, options ...ruleMutation) (*config.Site, bool) {
 	h.mutationMu.Lock()
 	defer h.mutationMu.Unlock()
 
@@ -544,6 +600,44 @@ func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate fu
 		return nil, false
 	}
 
+	opt := ruleMutation{}
+	if len(options) > 0 {
+		opt = options[0]
+	}
+	if opt.expected == nil {
+		var err error
+		opt.expected, err = headerRevision(req)
+		if err != nil {
+			api.Fail(w, 400, err.Error())
+			return nil, false
+		}
+	}
+	current := previous.Revision
+	// New rules use the site revision; existing rules use their own revision.
+	for _, r := range previous.Rules {
+		if r.ID == opt.ruleID {
+			current = r.Revision
+			break
+		}
+	}
+	if err := checkRevision(opt.expected, current); err != nil {
+		api.Fail(w, 409, err.Error())
+		return nil, false
+	}
+	if opt.health != nil {
+		if err := opt.health.validate(); err != nil {
+			api.Fail(w, 400, err.Error())
+			return nil, false
+		}
+	}
+	h.cfg.RLock()
+	oldHealth := make(map[string]config.HealthCheckConf)
+	for _, r := range previous.Rules {
+		if v, ok := h.cfg.RuleHealthChecks[r.ID]; ok {
+			oldHealth[r.ID] = v
+		}
+	}
+	h.cfg.RUnlock()
 	next := cloneSite(previous)
 	if err := mutate(&next); err != nil {
 		if errors.Is(err, errRuleNotFound) {
@@ -564,9 +658,51 @@ func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate fu
 		return nil, false
 	}
 
+	bumpSite(&next, previous)
+	if opt.health != nil {
+		for i := range next.Rules {
+			if next.Rules[i].ID == opt.ruleID {
+				for _, old := range previous.Rules {
+					if old.ID == opt.ruleID && next.Rules[i].Revision == old.Revision {
+						next.Rules[i].Revision++
+					}
+				}
+			}
+		}
+	}
 	err := h.cfg.Update(func(c *config.Config) error {
 		for i := range c.Sites {
 			if c.Sites[i].ID == siteID {
+				if c.Sites[i].Revision != previous.Revision {
+					return errRevisionConflict
+				}
+				if err := validateReferences(c, next); err != nil {
+					return err
+				}
+				if c.RuleHealthChecks == nil {
+					c.RuleHealthChecks = make(map[string]config.HealthCheckConf)
+				}
+				keep := map[string]bool{}
+				for _, r := range next.Rules {
+					if r.Type == "reverse" {
+						keep[r.ID] = true
+					}
+				}
+				for _, r := range previous.Rules {
+					if !keep[r.ID] {
+						delete(c.RuleHealthChecks, r.ID)
+					}
+				}
+				if opt.health != nil {
+					if !keep[opt.ruleID] {
+						return errors.New("仅反代支持健康检查")
+					}
+					if opt.health.Enabled {
+						c.RuleHealthChecks[opt.ruleID] = config.HealthCheckConf(*opt.health)
+					} else {
+						delete(c.RuleHealthChecks, opt.ruleID)
+					}
+				}
 				c.Sites[i] = next
 				return nil
 			}
@@ -574,6 +710,10 @@ func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate fu
 		return errSiteNotFound
 	})
 	if err != nil {
+		if errors.Is(err, errRevisionConflict) {
+			api.Fail(w, 409, err.Error())
+			return nil, false
+		}
 		if errors.Is(err, errSiteNotFound) {
 			api.Fail(w, 404, err.Error())
 		} else {
@@ -586,6 +726,12 @@ func (h *apiHandler) mutateRules(w http.ResponseWriter, siteID string, mutate fu
 			for i := range c.Sites {
 				if c.Sites[i].ID == siteID {
 					c.Sites[i] = previous
+					for _, r := range next.Rules {
+						delete(c.RuleHealthChecks, r.ID)
+					}
+					for id, v := range oldHealth {
+						c.RuleHealthChecks[id] = v
+					}
 					return nil
 				}
 			}
@@ -659,43 +805,38 @@ func (h *apiHandler) getRuleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *apiHandler) putRuleHealth(w http.ResponseWriter, r *http.Request) {
 	siteID, ruleID := chi.URLParam(r, "id"), chi.URLParam(r, "ruleId")
 	var conf HealthCheckConf
-	if err := api.DecodeBody(r, &conf); err != nil {
+	if api.DecodeBody(r, &conf) != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
-	if err := conf.validate(); err != nil {
-		api.Fail(w, 400, err.Error())
+	if _, ok := h.mutateRules(w, r, siteID, func(site *config.Site) error {
+		for _, rule := range site.Rules {
+			if rule.ID == ruleID {
+				if rule.Type != "reverse" {
+					return errors.New("仅反代支持健康检查")
+				}
+				return nil
+			}
+		}
+		return errRuleNotFound
+	}, ruleMutation{ruleID: ruleID, health: &conf}); !ok {
 		return
 	}
-	rule, ok := h.findRule(siteID, ruleID)
-	if !ok {
-		api.Fail(w, 404, errRuleNotFound.Error())
-		return
-	}
-	if rule.Type != "reverse" {
-		api.Fail(w, 400, "仅反向代理规则支持健康检查")
-		return
-	}
-	if err := h.svc.SetRuleHealth(siteID, rule, conf); err != nil {
-		api.Fail(w, 500, "保存健康检查配置失败")
-		return
-	}
-	log.Printf("[security] 设置 Web 子规则健康检查，站点 ID: %s，规则 ID: %s，启用: %t", siteID, ruleID, conf.Enabled)
 	api.OK(w, h.svc.HealthConf(ruleID))
 }
-
 func (h *apiHandler) deleteRuleHealth(w http.ResponseWriter, r *http.Request) {
 	siteID, ruleID := chi.URLParam(r, "id"), chi.URLParam(r, "ruleId")
-	rule, ok := h.findRule(siteID, ruleID)
-	if !ok {
-		api.Fail(w, 404, errRuleNotFound.Error())
+	conf := HealthCheckConf{}
+	if _, ok := h.mutateRules(w, r, siteID, func(site *config.Site) error {
+		for _, rule := range site.Rules {
+			if rule.ID == ruleID {
+				return nil
+			}
+		}
+		return errRuleNotFound
+	}, ruleMutation{ruleID: ruleID, health: &conf}); !ok {
 		return
 	}
-	if err := h.svc.DeleteRuleHealth(siteID, rule); err != nil {
-		api.Fail(w, 500, "删除健康检查配置失败")
-		return
-	}
-	log.Printf("[security] 删除 Web 子规则健康检查，站点 ID: %s，规则 ID: %s", siteID, ruleID)
 	api.OK(w, nil)
 }
 
@@ -760,6 +901,15 @@ func ensureRuleIDs(site *config.Site) {
 }
 
 func (h *apiHandler) validateSite(site *config.Site, allowOmittedSecrets bool) error {
+	if err := validateWorkspace(site); err != nil {
+		return err
+	}
+	h.cfg.RLock()
+	refErr := validateReferences(h.cfg, *site)
+	h.cfg.RUnlock()
+	if refErr != nil {
+		return refErr
+	}
 	site.Name = strings.TrimSpace(site.Name)
 	if site.Name == "" {
 		return fmt.Errorf("站点名称不能为空")
@@ -797,6 +947,9 @@ func (h *apiHandler) validateSite(site *config.Site, allowOmittedSecrets bool) e
 		}
 		if rule.FrontendPath != "" && !strings.HasPrefix(rule.FrontendPath, "/") {
 			rule.FrontendPath = "/" + rule.FrontendPath
+		}
+		if err := rule.ValidateAdvanced(); err != nil {
+			return err
 		}
 		if err := validateRuleLists(rule); err != nil {
 			return err
@@ -851,7 +1004,7 @@ func (h *apiHandler) validateSite(site *config.Site, allowOmittedSecrets bool) e
 			if rule.CookiePathFrom == "" {
 				rule.CookiePathTo = ""
 			}
-			if len(rule.Backends) == 0 || len(rule.Backends) > 32 {
+			if (len(rule.Backends) == 0 && rule.BackendPoolID == "") || len(rule.Backends) > 32 {
 				return fmt.Errorf("反向代理后端数量必须为 1 到 32 个")
 			}
 			for j, raw := range rule.Backends {
@@ -876,7 +1029,7 @@ func (h *apiHandler) validateSite(site *config.Site, allowOmittedSecrets bool) e
 			if rule.RedirectCode != 0 && rule.RedirectCode != http.StatusMovedPermanently && rule.RedirectCode != http.StatusFound && rule.RedirectCode != http.StatusTemporaryRedirect && rule.RedirectCode != http.StatusPermanentRedirect {
 				return fmt.Errorf("重定向状态码必须是 301、302、307 或 308")
 			}
-		case "fileserver":
+		case "fileserver", "webdav", "cgi":
 			if strings.TrimSpace(rule.RootDir) == "" {
 				return fmt.Errorf("文件服务根目录不能为空")
 			}

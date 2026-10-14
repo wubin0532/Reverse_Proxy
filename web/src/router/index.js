@@ -16,6 +16,12 @@ const routes = [
     redirect: '/dashboard',
     children: [
       {
+        path: 'protection',
+        name: 'Protection',
+        component: () => import('../views/Protection.vue'),
+        meta: { titleKey: 'nav.protection' }
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/Dashboard.vue'),

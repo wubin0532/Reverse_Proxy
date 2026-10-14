@@ -355,9 +355,9 @@ func TestReloadConcurrentAndAfterStop(t *testing.T) {
 		}()
 	}
 	m.Stop()
-	wg.Wait() // 并发 Reload 与 Stop 不应死锁
-	m.Reload()  // Stop 后 Reload 为 no-op
-	m.Stop()    // 重复 Stop 安全
+	wg.Wait()  // 并发 Reload 与 Stop 不应死锁
+	m.Reload() // Stop 后 Reload 为 no-op
+	m.Stop()   // 重复 Stop 安全
 }
 
 func TestNeedRenew(t *testing.T) {

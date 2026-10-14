@@ -1,0 +1,351 @@
+Browser tab: 8, Title: "Lucky | Web服务", URL: "http://192.168.199.1:16601/andey/#/web".
+0 AXWebArea Lucky | Web服务, URL: 192.168.199.1:16601/andey/#/web
+	1 container
+		2 container app
+			3 container
+				4 container
+					5 button Lucky
+						6 image Lucky
+						7 text Lucky
+						8 text 3.1.4
+					9 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+					10 text Web服务 Lucky / Web服务
+					11 button 切换主题
+					12 button 切换语言
+					13 button L Lucky Admin
+						14 text L
+						15 text Lucky Admin
+				16 container desktop-sidebar-navigation
+					17 content list
+						18 container 总览
+							19 text 总览
+						20 container 日志中心
+							21 text 日志中心
+						22 container 快速上手
+							23 text 快速上手
+						24 container 动态域名
+							25 text 动态域名
+						26 container Web服务
+							27 text Web服务
+						28 container 端口转发
+							29 text 端口转发
+						30 container STUN穿透
+							31 text STUN穿透
+						32 container Web终端
+							33 text Web终端
+						34 container 计划任务
+							35 text 计划任务
+						36 container SSL/TLS证书
+							37 text SSL/TLS证书
+						38 container 防护中心
+							39 container
+								40 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+									41 text 防护中心
+								42 container
+									43 text IP过滤
+									44 text 安全组
+						45 container IP地址库
+							46 text IP地址库
+						47 container 第三方认证
+							48 text 第三方认证
+						49 container Passkey 管理
+							50 text Passkey 管理
+						51 container LuckyID
+							52 text LuckyID
+						53 container 更多功能
+							54 button (collapsed) Description: 扩张, Secondary Actions: Expand
+								55 text 更多功能
+					56 content list
+						57 container 设置
+							58 text 设置
+						59 container 关于
+							60 text 关于
+				61 container pageContent
+					62 container
+						63 heading Web 服务工作台, Value: 1
+							64 text Web 服务工作台
+						65 container
+							66 checkbox Description: 顶部标签, Value: 1
+							67 checkbox Description: 侧边导航, Value: 0
+						68 button 帮助
+						69 button 刷新数据
+						70 button 设置
+						71 button 日志
+						72 pop up button (collapsed) Description: 更多操作, ID: ui-action-menu-v-49, Secondary Actions: Expand
+						73 button 新增
+						74 container 筛选
+							75 checkbox 主规则 1, Value: 0
+							76 checkbox 网页认证会话 0, Value: 0
+							77 checkbox 分组 0, Value: 0
+							78 checkbox CGI 实例 0, Value: 0
+						79 container
+							80 text field (settable) Description: 搜索规则名称、监听地址、域名、路径或服务类型, ID: f_a5de44ea-180b-44d7-b5eb-feb508f33922
+						81 container
+							82 tab group
+								83 tab (selected, settable, boolean) Description: ChineseChess · :8443 · HTTPS · 已启用, Value: 1
+							84 button 新增
+							85 heading ChineseChess, Value: 2
+								86 text ChineseChess
+							87 text :8443 IPv4 HTTPS 12/12 子规则已启用
+							88 button 日志
+							89 button 发现内网服务
+							90 button 添加子规则
+								91 text 添加子规则
+							92 switch Description: 启用, Value: 1
+							93 button 更多操作
+							94 tab group
+								95 tab (selected, settable, boolean) 全部 13, Value: 1
+								96 tab (selectable, settable, boolean) 未分组 12, Value: 0
+							97 container 累计接收 · 当前下行
+								98 text ↓ 3.34 MB
+								99 text 0 B/s
+							100 container 累计发送 · 当前上行
+								101 text ↑ 850 MB
+								102 text 0 B/s
+							103 button 0, Help: 当前连接
+							104 pop up button (collapsed) 默认规则 重定向 未匹配的域名 未设置 黑名单 ↓ 0 B/s ↑ 0 B/s 0 编辑 更多操作, Secondary Actions: Expand
+								105 text 默认规则
+								106 text 重定向
+								107 text 未匹配的域名
+								108 text 未设置
+								109 button 黑名单
+								110 text ↓ 0 B/s
+								111 text ↑ 0 B/s
+								112 button 0, Help: 当前连接
+								113 container
+									114 button 编辑
+									115 button 更多操作
+							116 pop up button (collapsed) Chess 反向代理 chess.wubin.ink http://192.168.199.5:5777 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								117 text Chess
+								118 text 反向代理
+								119 text chess.wubin.ink
+								120 text http://192.168.199.5:5777
+								121 button 黑名单
+								122 text ↓ 0 B/s
+								123 text ↑ 0 B/s
+								124 button 0, Help: 当前连接
+								125 container
+									126 switch Description: 启用, Value: 1
+									127 button 更多操作
+							128 pop up button (collapsed) chessdbapi 反向代理 /chessapi http://www.chessdb.cn 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								129 text chessdbapi
+								130 text 反向代理
+								131 text /chessapi
+								132 text http://www.chessdb.cn
+								133 button 黑名单
+								134 text ↓ 0 B/s
+								135 text ↑ 0 B/s
+								136 button 0, Help: 当前连接
+								137 container
+									138 switch Description: 启用, Value: 1
+									139 button 更多操作
+							140 pop up button (collapsed) Openwrt 反向代理 openwrt.wubin.ink http://192.168.199.1 黑名单 基本认证 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								141 text Openwrt
+								142 text 反向代理
+								143 text openwrt.wubin.ink
+								144 text http://192.168.199.1
+								145 button 黑名单
+								146 button 基本认证
+								147 text ↓ 0 B/s
+								148 text ↑ 0 B/s
+								149 button 0, Help: 当前连接
+								150 container
+									151 switch Description: 启用, Value: 1
+									152 button 更多操作
+							153 pop up button (collapsed) fnos 反向代理 fnos.wubin.ink http://192.168.199.5:5666 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								154 text fnos
+								155 text 反向代理
+								156 text fnos.wubin.ink
+								157 text http://192.168.199.5:5666
+								158 button 黑名单
+								159 text ↓ 0 B/s
+								160 text ↑ 0 B/s
+								161 button 0, Help: 当前连接
+								162 container
+									163 switch Description: 启用, Value: 1
+									164 button 更多操作
+							165 pop up button (collapsed) NAS 反向代理 nas.wubin.ink https://192.168.199.199:44333 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								166 text NAS
+								167 text 反向代理
+								168 text nas.wubin.ink
+								169 text https://192.168.199.199:44333
+								170 button 黑名单
+								171 text ↓ 0 B/s
+								172 text ↑ 0 B/s
+								173 button 0, Help: 当前连接
+								174 container
+									175 switch Description: 启用, Value: 1
+									176 button 更多操作
+							177 pop up button (collapsed) pve 反向代理 pve.wubin.ink http://192.168.199.2:8006 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								178 text pve
+								179 text 反向代理
+								180 text pve.wubin.ink
+								181 text http://192.168.199.2:8006
+								182 button 黑名单
+								183 text ↓ 0 B/s
+								184 text ↑ 0 B/s
+								185 button 0, Help: 当前连接
+								186 container
+									187 switch Description: 启用, Value: 1
+									188 button 更多操作
+							189 pop up button (collapsed) asus 反向代理 asus.wubin.ink http://192.168.199.3 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								190 text asus
+								191 text 反向代理
+								192 text asus.wubin.ink
+								193 text http://192.168.199.3
+								194 button 黑名单
+								195 text ↓ 0 B/s
+								196 text ↑ 0 B/s
+								197 button 0, Help: 当前连接
+								198 container
+									199 switch Description: 启用, Value: 1
+									200 button 更多操作
+							201 pop up button (collapsed) tesla 反向代理 tesla.wubin.ink http://192.168.199.199:3000 黑名单 基本认证 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								202 text tesla
+								203 text 反向代理
+								204 text tesla.wubin.ink
+								205 text http://192.168.199.199:3000
+								206 button 黑名单
+								207 button 基本认证
+								208 text ↓ 0 B/s
+								209 text ↑ 0 B/s
+								210 button 0, Help: 当前连接
+								211 container
+									212 switch Description: 启用, Value: 1
+									213 button 更多操作
+							214 pop up button (collapsed) MoomTV 反向代理 tv.wubin.ink http://192.168.199.5:3006 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								215 text MoomTV
+								216 text 反向代理
+								217 text tv.wubin.ink
+								218 text http://192.168.199.5:3006
+								219 button 黑名单
+								220 text ↓ 0 B/s
+								221 text ↑ 0 B/s
+								222 button 0, Help: 当前连接
+								223 container
+									224 switch Description: 启用, Value: 1
+									225 button 更多操作
+							226 pop up button (collapsed) PVZ 反向代理 game.wubin.ink http://192.168.199.5:5888 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								227 text PVZ
+								228 text 反向代理
+								229 text game.wubin.ink
+								230 text http://192.168.199.5:5888
+								231 button 黑名单
+								232 text ↓ 0 B/s
+								233 text ↑ 0 B/s
+								234 button 0, Help: 当前连接
+								235 container
+									236 switch Description: 启用, Value: 1
+									237 button 更多操作
+							238 pop up button (collapsed) HaYang-POS 反向代理 hypos.wubin.ink http://192.168.199.5:5910 黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								239 text HaYang-POS
+								240 text 反向代理
+								241 text hypos.wubin.ink
+								242 text http://192.168.199.5:5910
+								243 button 黑名单
+								244 text ↓ 0 B/s
+								245 text ↑ 0 B/s
+								246 button 0, Help: 当前连接
+								247 container
+									248 switch Description: 启用, Value: 1
+									249 button 更多操作
+							250 pop up button (collapsed) Passkey Passkey 认证服务 wubin.ink — 全局黑名单 ↓ 0 B/s ↑ 0 B/s 0 启用 更多操作, Secondary Actions: Expand
+								251 text Passkey
+								252 text Passkey 认证服务
+								253 text wubin.ink
+								254 text —
+								255 button 全局黑名单
+								256 text ↓ 0 B/s
+								257 text ↑ 0 B/s
+								258 button 0, Help: 当前连接
+								259 container
+									260 switch Description: 启用, Value: 1
+									261 button 更多操作
+		262 container 添加子规则
+			263 container
+				264 text 添加子规则
+				265 button 关闭对话框
+				266 container
+					267 text 子规则名称
+					268 text field (settable) f_5ffb6e26-5280-4cbc-9620-78dcad60832f
+					269 text 子规则开关
+					270 switch 1
+					271 tab group
+						272 container
+							273 tab (selected, settable, boolean) 基础设置, Value: 1
+基础设置
+							274 tab (selectable, settable, boolean) 认证设置, Value: 0
+认证设置
+							275 tab (selectable, settable, boolean) 安全设置, Value: 0
+安全设置
+							276 tab (selectable, settable, boolean) 日志设置, Value: 0
+日志设置
+							277 tab (selectable, settable, boolean) 高级设置, Value: 0
+高级设置
+					278 container
+						279 text 服务类型 反向代理 自定义错误响应
+						280 container
+							281 container 自定义错误响应
+								282 text 跟随全局默认（系统内置）
+								283 combo box (collapsed, settable) 自定义错误响应 在 Web 服务设置中管理响应组；后端已有错误正文仍透传。, Value: 跟随全局默认（系统内置）, ID: f_e181021e-7fc8-47d5-9c95-e23ba85a723d, Secondary Actions: Expand
+							284 text 在 Web 服务设置中管理响应组；后端已有错误正文仍透传。
+						285 text 分组
+						286 container
+							287 text 未分组
+							288 combo box (collapsed, settable) 未分组 清空, Value: 未分组, ID: f_130ba219-e7ee-4098-970f-ba7d3d003aec, Secondary Actions: Expand
+							289 button 清空
+						290 button 分组操作/排序
+						291 text 服务类型
+						292 text field Value: 反向代理, ID: f_97f94539-0d07-4b44-b5b0-263ef146e817
+						293 text 前端地址
+						294 text entry area (settable) f_1f63f7ef-0641-4a95-9e50-14ee6978dc0e
+						295 text 后端地址
+						296 button (expanded) Description: 折叠"后端负载均衡", Secondary Actions: Collapse
+							298 text 后端负载均衡
+						317 container f_69608139-4146-4474-9153-308dee979aa0
+							318 container
+								319 text 调度策略 加权轮询
+								320 combo box (collapsed, settable) Description: 调度策略, Value: 加权轮询, ID: f_84b4e676-ebff-4dd7-a7a3-cb7b70af1e7d, Secondary Actions: Expand
+							321 container
+								322 text 池并发请求上限
+								323 stepper (settable, integer) Description: 池并发请求上限, Value: 0, ID: f_511d843e-9e67-4807-b1bc-fd26f94fe3a8
+							324 text 0 表示池默认 4096、节点继承池上限。
+							325 container
+								326 text 后端地址 1
+								327 text field (settable) Description: 后端地址 1, ID: f_e0b59977-f11d-417f-bb9c-1231e42afe75
+							328 container
+								329 text 权重
+								330 stepper (settable, integer) Description: 权重, Value: 1, ID: f_32c2c233-eb36-461b-8753-ccc777cff019
+							331 container
+								332 text 节点并发上限
+								333 stepper (settable, integer) Description: 节点并发上限, Value: 0, ID: f_3639f2cc-d69c-4ecb-ab78-c5427d210f0a
+							334 switch Description: 启用, Value: 1
+								335 text 启用
+							336 button (disabled) 上移优先级
+							337 button (disabled) 删除节点
+							338 button 添加节点
+								339 text 添加节点
+							340 switch Description: Cookie 会话保持, Value: 0
+								341 text Cookie 会话保持
+							342 text 首次按所选策略分配后端，浏览器携带 Cookie 后优先使用同一节点。节点故障、停用、排空或满载时重新分配并更新绑定。需要客户端接受 Cookie；不能同步后端登录状态，首次并发请求仍可能分配到不同节点。
+							343 switch Description: 启用后端故障重试, Value: 0
+								344 text 启用后端故障重试
+							345 text 仅对可重放的直连 HTTP 请求，在明确连接故障且响应尚未开始时尝试其他节点；不重试 POST、PATCH、升级协议或 gRPC，不缓存请求正文。预算在收到最终响应头后结束，不限制后续正文下载时长。
+							346 switch Description: 请求失败被动摘除, Value: 0
+								347 text 请求失败被动摘除
+							348 text 当前统计 HTTP 和 SNI 直连后端的连接拒绝、拨号超时，以及 HTTPS/gRPC TLS 证书验证失败、后端正文意外截断；不包含出口代理及 gRPC 普通拨号、应用状态。是否重试当前请求由独立的重试配置决定，冷却期间后续请求选择其他可用节点。
+							349 switch Description: 启用健康检查, Value: 0
+								350 text 启用健康检查
+							351 text 请检查节点地址、数量、权重、并发上限，以及健康检查、被动摘除和重试参数。
+						352 text 万事大吉
+						308 switch 1
+						309 text 忽略后端TLS证书验证
+						310 switch 1
+						311 text 使用目标地址Host请求头
+						312 switch 0
+						313 text 禁用长连接
+						314 switch 0
+				315 button 取消
+				316 button 添加子规则
+
+The focused UI element is 0 AXWebArea Lucky | Web服务, URL: 192.168.199.1:16601/andey/#/web

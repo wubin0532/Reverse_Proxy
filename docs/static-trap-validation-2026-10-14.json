@@ -1,0 +1,808 @@
+{
+  "date": "2026-10-14",
+  "scope": [
+    "DDNS static CNAME/TXT for aliyun, cloudflare and dnspod",
+    "TCP port trap with automatic ban, expiry and manual release"
+  ],
+  "excludedByUser": [
+    "GeoIP",
+    "cross-device certificate synchronization",
+    "other new enhancements"
+  ],
+  "build": {
+    "version": "0.3.7-cd-pve-test9",
+    "targets": [
+      {
+        "target": "amd64",
+        "size": 25235616,
+        "sha256": "e59dcf2c3c66c261f8b461331905ac8a27bf6845f25005389a88aac83431d5ff"
+      },
+      {
+        "target": "arm64",
+        "size": 23724192,
+        "sha256": "b242af74d2f8c2aa2fa319cd487658c1e946a3656808d4009b8a434eff612bf9"
+      },
+      {
+        "target": "armv7",
+        "size": 24379552,
+        "sha256": "2e4dd785d6f80cd16bc0cbc698b2c748224319149218206cbfdd7d3c3600aaa4"
+      },
+      {
+        "target": "mips",
+        "size": 27132095,
+        "sha256": "ea399b6f4eb342aef3f448f2e6e2d05198239aaf71ae787a8553927e82fec915"
+      },
+      {
+        "target": "mipsle",
+        "size": 27132095,
+        "sha256": "f1823a8518c23460798c7538397d0f43b139f0f8623e66c6a297ed3b6fc56738"
+      }
+    ]
+  },
+  "frontend": {
+    "files": 24,
+    "tests": 79,
+    "formatCheck": true,
+    "productionBuild": true
+  },
+  "go": {
+    "fullRacePassed": true,
+    "changedPackagesRacePassedAfterFinalEdit": true,
+    "vetPassed": true
+  },
+  "device": {
+    "version": "0.3.7-cd-pve-test9",
+    "checks": [
+      "Three provider adapters: static CNAME/TXT create, literal preservation, value/TTL edit, disable, local record removal and history on PVE (mock provider endpoints).",
+      "Remote TCP handshake captured actual LAN source; Web business returns 403 while authenticated admin stays accessible; manual unban restores 200.",
+      "Three-second automatic ban expires; Web access recovers without manual intervention.",
+      "LAN source exemption prevents captures and bans.",
+      "Business/busy port conflicts reject atomically; original listener stays running.",
+      "Disabling trap releases listening port immediately.",
+      "Same installed binary on PVE: isolated copied configuration retains trap settings and resumes actual listener after process restart."
+    ],
+    "apiCalls": [
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/records/499a5bd870c6b1e1f6eabbdca9194479",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/records/1a31403269d29408e9ccaba1f3b4f60d/toggle",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/history",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402/records/1a31403269d29408e9ccaba1f3b4f60d",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/records/89a49abfd9f8850ac48b1566ab4b2548",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/records/75894ea6d3ea328d362a49238123da0e/toggle",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/history",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60/records/75894ea6d3ea328d362a49238123da0e",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/records/89af2ffdec9349d95c8b7f944afcf988",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/records/f541d3b1fa6a066d0ef1025940dfb696/toggle",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/history",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde/records/f541d3b1fa6a066d0ef1025940dfb696",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/summary",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/protection/bans/192.168.199.1",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/trap",
+        "status": 400
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/trap",
+        "status": 400
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/protection/bans/192.168.199.1",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/sites/024f8c82634a5a99f0e4337c66399591",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/2bb4e6c0de4ca39e13a7c34b8ca71402",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/d0833f0ccb8284f7b128193e161abb60",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/36d6aefe48782308a4d40a59f65e1bde",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/providers/cloudflare-ab4b4fff0c2d078440406abee89c431c",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/providers/aliyun-4257efa88fa9de9c8c8978cfe18ef6dc",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/providers/dnspod-7b498530170dbe001d342d50dc760cbc",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/trap",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/bans",
+        "status": 200
+      }
+    ],
+    "realPublicDNSWrites": false,
+    "realTCPTrapOnPVE": true,
+    "testObjectsRemoved": true,
+    "existingObjectIDsPreserved": true,
+    "tlsFingerprintVerifiedViaSSH": true,
+    "tlsHostnameVerified": true,
+    "tlsFingerprint": "C1:F9:87:AA:0C:76:EF:1E:4E:70:2A:19:B5:A6:90:7C:F9:C8:A1:5B:E3:05:96:66:6A:AF:C6:79:71:CD:CB:65",
+    "isolatedPVERestartVerified": true
+  },
+  "browser": {
+    "realPVEUIVerified": true,
+    "browser": "Chrome",
+    "desktopViewport": {
+      "width": 1920,
+      "height": 907
+    },
+    "narrowViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "realPhysicalPhoneVerified": false,
+    "checked": [
+      "TCP trap view and edit form",
+      "TXT literal text including leading and trailing spaces",
+      "CNAME target input",
+      "Task editor with CNAME/TXT only (IP source tab hidden)",
+      "Seven-record long task body scroll with fixed dialog heading/footer",
+      "Help text and narrow tooltip boundaries",
+      "Narrow save/cancel buttons at least 44px high"
+    ],
+    "checksUsedUnsavedDraftsOnly": true,
+    "consoleErrors": [],
+    "screenshotsDirectory": "docs/screenshots/static-trap-2026-10-14",
+    "measurements": [
+      {
+        "name": "pve-txt-mobile",
+        "documentWidth": 390,
+        "footer": {
+          "bottom": 793,
+          "height": 63,
+          "left": 31,
+          "right": 359,
+          "top": 730,
+          "width": 328,
+          "x": 31,
+          "y": 730
+        },
+        "height": 844,
+        "target": {
+          "bottom": 812,
+          "height": 796,
+          "left": 12,
+          "right": 378,
+          "top": 16,
+          "width": 366,
+          "x": 12,
+          "y": 16
+        },
+        "width": 390
+      },
+      {
+        "name": "pve-cname-mobile",
+        "documentWidth": 390,
+        "footer": {
+          "bottom": 793,
+          "height": 63,
+          "left": 31,
+          "right": 359,
+          "top": 730,
+          "width": 328,
+          "x": 31,
+          "y": 730
+        },
+        "height": 844,
+        "target": {
+          "bottom": 812,
+          "height": 796,
+          "left": 12,
+          "right": 378,
+          "top": 16,
+          "width": 366,
+          "x": 12,
+          "y": 16
+        },
+        "width": 390
+      },
+      {
+        "name": "pve-cname-desktop",
+        "documentWidth": 1920,
+        "footer": {
+          "bottom": 632,
+          "height": 63,
+          "left": 705,
+          "right": 1215,
+          "top": 569,
+          "width": 510,
+          "x": 705,
+          "y": 569
+        },
+        "height": 907,
+        "target": {
+          "bottom": 657,
+          "height": 633,
+          "left": 680,
+          "right": 1240,
+          "top": 24,
+          "width": 560,
+          "x": 680,
+          "y": 24
+        },
+        "width": 1920
+      },
+      {
+        "name": "pve-txt-desktop",
+        "documentWidth": 1920,
+        "footer": {
+          "bottom": 665,
+          "height": 63,
+          "left": 705,
+          "right": 1215,
+          "top": 602,
+          "width": 510,
+          "x": 705,
+          "y": 602
+        },
+        "height": 907,
+        "target": {
+          "bottom": 690,
+          "height": 666,
+          "left": 680,
+          "right": 1240,
+          "top": 24,
+          "width": 560,
+          "x": 680,
+          "y": 24
+        },
+        "width": 1920
+      },
+      {
+        "name": "pve-static-task-desktop",
+        "documentWidth": 1920,
+        "footer": {
+          "bottom": 620,
+          "height": 63,
+          "left": 605,
+          "right": 1315,
+          "top": 557,
+          "width": 710,
+          "x": 605,
+          "y": 557
+        },
+        "height": 907,
+        "target": {
+          "bottom": 645,
+          "height": 621,
+          "left": 580,
+          "right": 1340,
+          "top": 24,
+          "width": 760,
+          "x": 580,
+          "y": 24
+        },
+        "width": 1920
+      },
+      {
+        "name": "pve-static-task-mobile",
+        "documentWidth": 390,
+        "footer": {
+          "bottom": 733.78125,
+          "height": 63,
+          "left": 31,
+          "right": 359,
+          "top": 670.78125,
+          "width": 328,
+          "x": 31,
+          "y": 670.78125
+        },
+        "height": 844,
+        "target": {
+          "bottom": 752.78125,
+          "height": 736.78125,
+          "left": 12,
+          "right": 378,
+          "top": 16,
+          "width": 366,
+          "x": 12,
+          "y": 16
+        },
+        "width": 390
+      },
+      {
+        "name": "pve-long-task-mobile",
+        "documentWidth": 390,
+        "footer": {
+          "bottom": 793,
+          "height": 63,
+          "left": 31,
+          "right": 359,
+          "top": 730,
+          "width": 328,
+          "x": 31,
+          "y": 730
+        },
+        "height": 844,
+        "target": {
+          "bottom": 812,
+          "height": 796,
+          "left": 12,
+          "right": 378,
+          "top": 16,
+          "width": 366,
+          "x": 12,
+          "y": 16
+        },
+        "width": 390
+      },
+      {
+        "name": "pve-trap-help-desktop",
+        "documentWidth": 1920,
+        "height": 907,
+        "target": {
+          "bottom": 976.53125,
+          "height": 756.34375,
+          "left": 277,
+          "right": 1875,
+          "top": 220.1875,
+          "width": 1598,
+          "x": 277,
+          "y": 220.1875
+        },
+        "width": 1920
+      },
+      {
+        "name": "pve-trap-desktop",
+        "documentWidth": 1920,
+        "height": 907,
+        "target": {
+          "bottom": 976.53125,
+          "height": 756.34375,
+          "left": 277,
+          "right": 1875,
+          "top": 220.1875,
+          "width": 1598,
+          "x": 277,
+          "y": 220.1875
+        },
+        "width": 1920
+      },
+      {
+        "name": "pve-trap-mobile",
+        "documentWidth": 390,
+        "height": 844,
+        "target": {
+          "bottom": 1368.0859375,
+          "height": 1054.4921875,
+          "left": 25,
+          "right": 365,
+          "top": 313.59375,
+          "width": 340,
+          "x": 25,
+          "y": 313.59375
+        },
+        "width": 390
+      },
+      {
+        "name": "pve-trap-mobile-footer",
+        "documentWidth": 390,
+        "height": 844,
+        "target": {
+          "bottom": 819.0859375,
+          "height": 1054.4921875,
+          "left": 25,
+          "right": 365,
+          "top": -235.40625,
+          "width": 340,
+          "x": 25,
+          "y": -235.40625
+        },
+        "width": 390
+      },
+      {
+        "name": "pve-trap-help-mobile",
+        "documentWidth": 390,
+        "height": 844,
+        "target": {
+          "bottom": 819.0859375,
+          "height": 1054.4921875,
+          "left": 25,
+          "right": 365,
+          "top": -235.40625,
+          "width": 340,
+          "x": 25,
+          "y": -235.40625
+        },
+        "width": 390
+      },
+      {
+        "name": "trap-footer-buttons-mobile",
+        "buttons": [
+          {
+            "bottom": 741.7890625,
+            "height": 44,
+            "left": 220,
+            "right": 280,
+            "text": "取消",
+            "top": 697.7890625,
+            "width": 60,
+            "x": 220,
+            "y": 697.7890625
+          },
+          {
+            "bottom": 741.7890625,
+            "height": 44,
+            "left": 292,
+            "right": 352,
+            "text": "保存",
+            "top": 697.7890625,
+            "width": 60,
+            "x": 292,
+            "y": 697.7890625
+          }
+        ],
+        "documentWidth": 390,
+        "width": 390
+      }
+    ]
+  },
+  "preservation": {
+    "originalDDNSTasks": 3,
+    "originalSites": 2,
+    "originalCertificates": 1,
+    "originalForwardRules": 2,
+    "testObjectsRemoved": true,
+    "trapEnabledAfterTests": false,
+    "networkSHA256": "b3bbd83e76c33aac5ce3a13cb23cd90503f022bc617ad7eaeac0c7738415562e",
+    "firewallSHA256": "6dd761129990dbd4af74f9e886737dd07399f159a49457b61cace2d4da432dee"
+  },
+  "rollback": {
+    "directory": "/root/andey-proxy-test-backups/20261014-static-trap-test9",
+    "previousVersion": "0.3.7-cd-pve-test8"
+  },
+  "formalRelease": false
+}

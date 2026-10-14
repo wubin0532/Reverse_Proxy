@@ -36,46 +36,74 @@ type DNSProviderConf struct {
 
 // DDNSTask 一条动态域名任务。
 type DDNSTask struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Enabled    bool     `json:"enabled"`
-	ProviderID string   `json:"providerId"` // 引用 DNSProviderConf.ID
-	Domains    []string `json:"domains"`    // 完整域名列表，如 home.example.com
-	IPType     string   `json:"ipType"`     // ipv4 / ipv6
-	IPSource   string   `json:"ipSource"`   // interface / api
-	Interface  string   `json:"interface"`  // IPSource=interface 时的网卡名，如 pppoe-wan
-	APIURL     string   `json:"apiUrl"`     // IPSource=api 时的查询地址
-	Interval   int      `json:"interval"`   // 检测间隔秒
-	TTL        int      `json:"ttl"`        // DNS 记录 TTL，0=默认
+	Records       []DDNSRecord    `json:"records,omitempty"`
+	IPv4Source    *IPSourceConfig `json:"ipv4Source,omitempty"`
+	IPv6Source    *IPSourceConfig `json:"ipv6Source,omitempty"`
+	ForceInterval int             `json:"forceInterval,omitempty"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Enabled       bool            `json:"enabled"`
+	ProviderID    string          `json:"providerId"` // 引用 DNSProviderConf.ID
+	Domains       []string        `json:"domains"`    // 完整域名列表，如 home.example.com
+	IPType        string          `json:"ipType"`     // ipv4 / ipv6
+	IPSource      string          `json:"ipSource"`   // interface / api
+	Interface     string          `json:"interface"`  // IPSource=interface 时的网卡名，如 pppoe-wan
+	APIURL        string          `json:"apiUrl"`     // IPSource=api 时的查询地址
+	Interval      int             `json:"interval"`   // 检测间隔秒
+	TTL           int             `json:"ttl"`        // DNS 记录 TTL，0=默认
 }
 
 // CertConf 一张 ACME 证书。申请结果（证书路径、到期时间、最近错误）属运行状态，
 // 存于 StateStore（state.json），不落加密配置。
 type CertConf struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Enabled    bool     `json:"enabled"`
-	Domains    []string `json:"domains"` // 支持泛域名 *.example.com
-	ProviderID string   `json:"providerId"`
-	Email      string   `json:"email"`
-	CADirURL   string   `json:"caDirUrl"`  // 空=Let's Encrypt 生产
-	RenewDays  int      `json:"renewDays"` // 到期前多少天续签，默认 30
+	CATrustPEM          string               `json:"caTrustPem,omitempty"`
+	EABEnabled          bool                 `json:"eabEnabled,omitempty"`
+	EABKeyID            string               `json:"eabKeyId,omitempty"`
+	EABHMAC             string               `json:"eabHmac,omitempty"`
+	DNSResolvers        []string             `json:"dnsResolvers,omitempty"`
+	PropagationTimeout  int                  `json:"propagationTimeoutSeconds,omitempty"`
+	PropagationInterval int                  `json:"propagationIntervalSeconds,omitempty"`
+	Mappings            []CertificateMapping `json:"mappings,omitempty"`
+	Source              string               `json:"source,omitempty"` // empty/acme or uploaded
+	KeyType             string               `json:"keyType,omitempty"`
+	ID                  string               `json:"id"`
+	Name                string               `json:"name"`
+	Enabled             bool                 `json:"enabled"`
+	Domains             []string             `json:"domains"` // 支持泛域名 *.example.com
+	ProviderID          string               `json:"providerId"`
+	Email               string               `json:"email"`
+	CADirURL            string               `json:"caDirUrl"`  // 空=Let's Encrypt 生产
+	RenewDays           int                  `json:"renewDays"` // 到期前多少天续签，默认 30
 }
 
 // SubRule Web 服务子规则。
 type SubRule struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Type         string            `json:"type"` // reverse / redirect / fileserver
-	Enabled      bool              `json:"enabled"`
-	FrontendHost string            `json:"frontendHost"` // 匹配的前端域名，空=任意
-	FrontendPath string            `json:"frontendPath"` // 路径前缀，空=/
-	Backends     []string          `json:"backends"`     // reverse 类型：后端地址 http://ip:port
-	RedirectURL  string            `json:"redirectUrl"`  // redirect 类型：目标地址
-	RedirectCode int               `json:"redirectCode"` // 301/302，默认 302
-	RootDir      string            `json:"rootDir"`      // fileserver 类型：目录
-	Headers      map[string]string `json:"headers"`      // reverse 附加请求头
-	PreserveHost bool              `json:"preserveHost"` // 透传原始 Host
+	WebDAVWritable    bool              `json:"webdavWritable,omitempty"`
+	CGIEntry          string            `json:"cgiEntry,omitempty"`
+	CGITimeoutSeconds int               `json:"cgiTimeoutSeconds,omitempty"`
+	AccessGroupID     string            `json:"accessGroupId,omitempty"`
+	ResponseHeaders   map[string]string `json:"responseHeaders,omitempty"`
+	PathRewritePrefix string            `json:"pathRewritePrefix,omitempty"`
+	CORS              *CORSConfig       `json:"cors,omitempty"`
+	ProxyErrorBody    string            `json:"proxyErrorBody,omitempty"`
+	DisableAccessLog  bool              `json:"disableAccessLog,omitempty"`
+	BackendPoolID     string            `json:"backendPoolId,omitempty"`
+	ResolvedPool      *BackendPool      `json:"-"`
+	Revision          uint64            `json:"revision,omitempty"`
+	Group             string            `json:"group,omitempty"`
+	PolicyID          string            `json:"policyId,omitempty"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	Type              string            `json:"type"` // reverse / redirect / fileserver
+	Enabled           bool              `json:"enabled"`
+	FrontendHost      string            `json:"frontendHost"` // 匹配的前端域名，空=任意
+	FrontendPath      string            `json:"frontendPath"` // 路径前缀，空=/
+	Backends          []string          `json:"backends"`     // reverse 类型：后端地址 http://ip:port
+	RedirectURL       string            `json:"redirectUrl"`  // redirect 类型：目标地址
+	RedirectCode      int               `json:"redirectCode"` // 301/302，默认 302
+	RootDir           string            `json:"rootDir"`      // fileserver 类型：目录
+	Headers           map[string]string `json:"headers"`      // reverse 附加请求头
+	PreserveHost      bool              `json:"preserveHost"` // 透传原始 Host
 	// AutoProxyHeaders 为 nil 时按开启处理，以兼容旧配置。
 	AutoProxyHeaders      *bool    `json:"autoProxyHeaders,omitempty"`
 	SkipBackendTLSVerify  bool     `json:"skipBackendTlsVerify,omitempty"`
@@ -101,33 +129,39 @@ type SubRule struct {
 
 // Site 一个 Web 服务站点（监听端口）。
 type Site struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Enabled    bool      `json:"enabled"`
-	Listen     string    `json:"listen"`     // 如 :8080
-	TLS        bool      `json:"tls"`        // 是否 HTTPS
-	CertID     string    `json:"certId"`     // 引用 CertConf.ID，空=自签
-	ForceHTTPS bool      `json:"forceHttps"` // 强制 HTTPS：绑定证书后同端口明文请求 301 跳转到 HTTPS
-	AutoFW     bool      `json:"autoFw"`     // OpenWrt 下自动放行 WAN 防火墙
-	Rules      []SubRule `json:"rules"`
+	Revision        uint64           `json:"revision,omitempty"`
+	PolicyID        string           `json:"policyId,omitempty"`
+	DefaultResponse *DefaultResponse `json:"defaultResponse,omitempty"`
+	ID              string           `json:"id"`
+	Name            string           `json:"name"`
+	Enabled         bool             `json:"enabled"`
+	Listen          string           `json:"listen"`     // 如 :8080
+	TLS             bool             `json:"tls"`        // 是否 HTTPS
+	CertID          string           `json:"certId"`     // 引用 CertConf.ID，空=自签
+	ForceHTTPS      bool             `json:"forceHttps"` // 强制 HTTPS：绑定证书后同端口明文请求 301 跳转到 HTTPS
+	AutoFW          bool             `json:"autoFw"`     // OpenWrt 下自动放行 WAN 防火墙
+	Rules           []SubRule        `json:"rules"`
 }
 
 // ForwardRule TCP/UDP 端口转发规则。
 type ForwardRule struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Enabled     bool     `json:"enabled"`
-	Proto       string   `json:"proto"`       // tcp / udp / tcpudp
-	Listen      string   `json:"listen"`      // 监听地址 :13389
-	Targets     []string `json:"targets"`     // 目标地址 ip:port
-	AutoFW      bool     `json:"autoFw"`      // OpenWrt 下自动放行 WAN 防火墙
-	IdleTimeout int      `json:"idleTimeout"` // TCP 空闲超时秒数，0=默认 600
-	IPListMode  string   `json:"ipListMode"`
-	IPList      []string `json:"ipList"`
+	AccessGroupID string   `json:"accessGroupId,omitempty"`
+	PolicyID      string   `json:"policyId,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Enabled       bool     `json:"enabled"`
+	Proto         string   `json:"proto"`       // tcp / udp / tcpudp
+	Listen        string   `json:"listen"`      // 监听地址 :13389
+	Targets       []string `json:"targets"`     // 目标地址 ip:port
+	AutoFW        bool     `json:"autoFw"`      // OpenWrt 下自动放行 WAN 防火墙
+	IdleTimeout   int      `json:"idleTimeout"` // TCP 空闲超时秒数，0=默认 600
+	IPListMode    string   `json:"ipListMode"`
+	IPList        []string `json:"ipList"`
 }
 
 // Settings 全局设置。
 type Settings struct {
+	MetricsHistory     bool                 `json:"metricsHistory,omitempty"`
 	AdminUser          string               `json:"adminUser"`
 	AdminPassHash      string               `json:"adminPassHash"` // bcrypt
 	AdminPort          int                  `json:"adminPort"`
@@ -155,15 +189,21 @@ type TelegramNotification struct {
 
 // Config 根配置。
 type Config struct {
-	TunnelAccounts   []TunnelAccount            `json:"tunnelAccounts,omitempty"`
-	Tunnels          []TunnelInstance           `json:"tunnels,omitempty"`
-	Settings         Settings                   `json:"settings"`
-	Providers        []DNSProviderConf          `json:"providers"`
-	DDNS             []DDNSTask                 `json:"ddns"`
-	Certs            []CertConf                 `json:"certs"`
-	Sites            []Site                     `json:"sites"`
-	Forwards         []ForwardRule              `json:"forwards"`
-	RuleHealthChecks map[string]HealthCheckConf `json:"ruleHealthChecks"`
+	TCPTrap            *TCPTrap                   `json:"tcpTrap,omitempty"`
+	AccessGroups       []AccessGroup              `json:"accessGroups,omitempty"`
+	AccessUsers        []AccessUser               `json:"accessUsers,omitempty"`
+	BackendPools       []BackendPool              `json:"backendPools,omitempty"`
+	SchemaVersion      int                        `json:"schemaVersion,omitempty"`
+	ProtectionPolicies []ProtectionPolicy         `json:"protectionPolicies,omitempty"`
+	TunnelAccounts     []TunnelAccount            `json:"tunnelAccounts,omitempty"`
+	Tunnels            []TunnelInstance           `json:"tunnels,omitempty"`
+	Settings           Settings                   `json:"settings"`
+	Providers          []DNSProviderConf          `json:"providers"`
+	DDNS               []DDNSTask                 `json:"ddns"`
+	Certs              []CertConf                 `json:"certs"`
+	Sites              []Site                     `json:"sites"`
+	Forwards           []ForwardRule              `json:"forwards"`
+	RuleHealthChecks   map[string]HealthCheckConf `json:"ruleHealthChecks"`
 
 	mu        sync.RWMutex
 	saveMu    sync.Mutex
@@ -222,6 +262,9 @@ func Load(dir string) (*Config, error) {
 		return nil, fmt.Errorf("解析配置失败: %w", err)
 	}
 	if err := c.migrateRuleHealth(plain); err != nil {
+		return nil, err
+	}
+	if err := c.NormalizeWorkspace(); err != nil {
 		return nil, err
 	}
 	// 历史版本曾接受但从未实现 webhook IP 来源。迁移时安全禁用，避免
@@ -288,6 +331,10 @@ func (c *Config) Update(fn func(*Config) error) error {
 		c.rollbackLocked(before)
 		return err
 	}
+	if err := c.NormalizeWorkspace(); err != nil {
+		c.rollbackLocked(before)
+		return err
+	}
 	plain, err := json.Marshal(c)
 	if err != nil {
 		c.rollbackLocked(before)
@@ -344,6 +391,11 @@ func (c *Config) rollbackLocked(snapshot []byte) {
 	c.Settings, c.Providers, c.DDNS, c.Certs, c.Sites, c.Forwards = stable.Settings, stable.Providers, stable.DDNS, stable.Certs, stable.Sites, stable.Forwards
 	c.TunnelAccounts, c.Tunnels = stable.TunnelAccounts, stable.Tunnels
 	c.RuleHealthChecks = stable.RuleHealthChecks
+	c.ProtectionPolicies = stable.ProtectionPolicies
+	c.TCPTrap = stable.TCPTrap
+	c.BackendPools = stable.BackendPools
+	c.AccessGroups, c.AccessUsers = stable.AccessGroups, stable.AccessUsers
+	c.SchemaVersion = stable.SchemaVersion
 }
 
 // Dir 返回配置目录。
@@ -372,6 +424,9 @@ func (c *Config) Restore(plain []byte) error {
 	if err := incoming.normalizeRuleHealth(); err != nil {
 		return err
 	}
+	if err := incoming.NormalizeWorkspace(); err != nil {
+		return err
+	}
 	if current, err := os.ReadFile(c.filePath); err == nil {
 		if err := os.WriteFile(c.filePath+".bak", current, 0o600); err != nil {
 			return fmt.Errorf("备份当前配置失败: %w", err)
@@ -387,6 +442,11 @@ func (c *Config) Restore(plain []byte) error {
 		cur.TunnelAccounts = incoming.TunnelAccounts
 		cur.Tunnels = incoming.Tunnels
 		cur.RuleHealthChecks = incoming.RuleHealthChecks
+		cur.ProtectionPolicies = incoming.ProtectionPolicies
+		cur.TCPTrap = incoming.TCPTrap
+		cur.BackendPools = incoming.BackendPools
+		cur.AccessGroups, cur.AccessUsers = incoming.AccessGroups, incoming.AccessUsers
+		cur.SchemaVersion = incoming.SchemaVersion
 		for i := range cur.Tunnels {
 			cur.Tunnels[i].Enabled = false
 		}

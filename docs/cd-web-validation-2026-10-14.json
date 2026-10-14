@@ -1,0 +1,162 @@
+{
+  "date": "2026-10-14",
+  "scope": "Web focused C/D increment; remaining C/D work is not complete",
+  "build": {
+    "version": "0.3.7-cd-pve-test7",
+    "targets": [
+      {
+        "target": "amd64",
+        "size": 25186464,
+        "sha256": "2d83eef55c98a5e2e74cb5c30017653aaa5c88b6441228160f91213c857b41ab"
+      },
+      {
+        "target": "arm64",
+        "size": 23724192,
+        "sha256": "39944c4c4db1a8773cab448b9f405138e4036e84b2af2ce7289616828e0400db"
+      },
+      {
+        "target": "armv7",
+        "size": 24379552,
+        "sha256": "28d1727836ae18a2721121fa8fe9bd81c1b635ee8c14837d8db823af6bcba8ed"
+      },
+      {
+        "target": "mips",
+        "size": 27132095,
+        "sha256": "8da536ce438614be1558fab1d06cb699cb62e9abe5e90189f243bac3c1d06b2d"
+      },
+      {
+        "target": "mipsle",
+        "size": 27132095,
+        "sha256": "58745afff97cf8d71b866a0d823febd5a43be11eb2d27dbbfef4c7738451bbb0"
+      }
+    ]
+  },
+  "device": {
+    "tlsCertificateSHA256": "98f8620d618e051a8d788bc2358dd21b5f35ec6696d33ec2be2b4e7e6ad8a052",
+    "checks": [
+      {
+        "path": "/api/me",
+        "ok": true
+      },
+      {
+        "path": "/api/sites",
+        "ok": true,
+        "sites": [
+          {
+            "id": "6c49e8f4c723f5f9cdb4bff49d268429",
+            "name": "PVE 真实 Web 服务",
+            "enabled": false,
+            "rules": 1
+          },
+          {
+            "id": "4b40cdc6db2d078594a3b0194c8bf164",
+            "name": "PVE 真实 TLS",
+            "enabled": false,
+            "rules": 1
+          }
+        ]
+      },
+      {
+        "path": "/api/ddns/tasks",
+        "ok": true,
+        "tasks": 3
+      },
+      {
+        "path": "/api/certs",
+        "ok": true,
+        "certs": [
+          {
+            "id": "5a629e426b3bbbaf16f769cdb37e79ba",
+            "source": "uploaded",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "path": "/api/protection/summary",
+        "ok": true
+      },
+      {
+        "path": "/api/metrics",
+        "ok": true
+      },
+      {
+        "path": "/api/system/info",
+        "ok": true,
+        "info": {
+          "goarch": "amd64",
+          "goos": "linux",
+          "uptime": 51,
+          "version": "0.3.7-cd-pve-test7"
+        }
+      },
+      {
+        "path": "/api/backend-pools",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/access/groups",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/access/users",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/access/sessions",
+        "ok": true
+      },
+      {
+        "path": "/api/metrics/history/settings",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/policies",
+        "ok": true
+      }
+    ]
+  },
+  "tests": {
+    "frontendFiles": 22,
+    "frontendTests": 72,
+    "webPveTests": 13,
+    "authenticatedReadOnlyChecks": 13,
+    "fullRace": "18 tested packages passed, followed by updated webproxy/acme/metrics/config/guard checks",
+    "goVet": true,
+    "formatCheck": true
+  },
+  "networkSHA256": "b3bbd83e76c33aac5ce3a13cb23cd90503f022bc617ad7eaeac0c7738415562e",
+  "firewallSHA256": "6dd761129990dbd4af74f9e886737dd07399f159a49457b61cace2d4da432dee",
+  "remaining": [
+    "GeoIP",
+    "TCP trap",
+    "remote certificate synchronization",
+    "static CNAME/TXT DDNS records"
+  ],
+  "notVerified": [
+    "real cloud DNS write",
+    "public ACME issuance",
+    "VM full reboot",
+    "physical phone",
+    "external certificate reload service",
+    "other build architectures running on hardware"
+  ],
+  "ui": {
+    "report": "ui-ux-acceptance-2026-10-14.md",
+    "realRouterDesktopPages": 10,
+    "realRouterNarrowPages": 10,
+    "narrowWidth": 390,
+    "measurementFile": "screenshots/ui-2026-10-14/pve-layout-measurements.json",
+    "physicalPhoneTested": false,
+    "fullPageMeasurementVersion": "0.3.7-cd-pve-test6",
+    "latestLongDialogRealBrowserVerified": true,
+    "localFixedDialog": {
+      "width": 390,
+      "pageWidth": 390,
+      "top": 16,
+      "footerBottom": 793,
+      "outerScrollTop": 0
+    },
+    "realFixedDialogMeasurement": "screenshots/ui-2026-10-14/pve-site-dialog-mobile.json"
+  }
+}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/guard"
 	"andey-proxy/internal/logcenter"
 )
 
@@ -27,6 +28,8 @@ func compose(base http.Handler, mws ...middleware) http.Handler {
 
 // matchedRuleKey 命中的子规则（ruleMatchMiddleware 注入请求上下文）。
 type matchedRuleKey struct{}
+type ruleSnapshotKey struct{}
+type ruleSnapshot struct{ rule *config.SubRule }
 
 // matchedRule 取上下文中的命中规则；链上 ruleMatchMiddleware 之后必有值。
 func matchedRule(r *http.Request) *config.SubRule {
@@ -52,14 +55,23 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			path = "/"
 		}
 		message := fmt.Sprintf("%s %s %d %dms", clientIP(r), path, sw.status, time.Since(start).Milliseconds())
-		h.ss.logs.Add(message)
-		level := "info"
-		if sw.status >= 500 {
-			level = "error"
-		} else if sw.status >= 400 {
-			level = "warn"
+		accessLog := true
+		for _, rule := range h.ss.siteSnapshot().Rules {
+			if rule.ID == sw.matchedRuleID {
+				accessLog = !rule.DisableAccessLog
+				break
+			}
 		}
-		logcenter.Add("webproxy", ruleID, clientIP(r), level, message)
+		if accessLog {
+			h.ss.logs.Add(message)
+			level := "info"
+			if sw.status >= 500 {
+				level = "error"
+			} else if sw.status >= 400 {
+				level = "warn"
+			}
+			logcenter.Add("webproxy", ruleID, clientIP(r), level, message)
+		}
 		// 站点级流量统计：入字节取 ContentLength（未知 -1 记 0），出字节由 statusWriter 累计。
 		// Hijack（WebSocket）后的流量绕过 ResponseWriter，不计入。
 		bytesIn := r.ContentLength
@@ -67,6 +79,15 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			bytesIn = 0
 		}
 		h.ss.finishStats(sw.matchedRuleID, sw.status, bytesIn, sw.bytes)
+		site := h.ss.siteSnapshot()
+		policies := []string{site.PolicyID}
+		for _, rule := range site.Rules {
+			if rule.ID == sw.matchedRuleID {
+				policies = append(policies, rule.PolicyID)
+				break
+			}
+		}
+		h.ss.protection.ObserveHTTPStatus(clientIP(r), ruleID, sw.status, policies)
 	}()
 
 	h.ss.dispatchChain().ServeHTTP(sw, r)
@@ -77,11 +98,13 @@ func (h *siteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (ss *siteServer) dispatchChain() http.Handler {
 	ss.chainOnce.Do(func() {
 		ss.chain = compose(&ruleDispatch{ss: ss},
+			ss.globalProtectionMiddleware(),
 			pathSanityMiddleware(),
 			ss.ruleMatchMiddleware(),
 			ss.rateLimitMiddleware(),
 			ss.forceHTTPSMiddleware(),
 			ss.guardMiddleware(),
+			ss.advancedMiddleware(),
 		)
 	})
 	return ss.chain
@@ -105,15 +128,21 @@ func pathSanityMiddleware() middleware {
 func (ss *siteServer) ruleMatchMiddleware() middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			rule := matchRule(ss.siteSnapshot().Rules, r.Host, r.URL.Path)
+			snapshot, matchedEarlier := r.Context().Value(ruleSnapshotKey{}).(ruleSnapshot)
+			rule := snapshot.rule
+			if !matchedEarlier {
+				rule = matchRule(ss.siteSnapshot().Rules, r.Host, r.URL.Path)
+			}
 			if rule == nil {
-				writeNotFound(w, r)
+				writeDefaultResponse(w, r, ss.siteSnapshot().DefaultResponse)
 				return
 			}
 			if sw, ok := w.(*statusWriter); ok {
 				sw.matchedRuleID = rule.ID
 			}
-			ss.beginRuleStats(rule.ID)
+			if !matchedEarlier {
+				ss.beginRuleStats(rule.ID)
+			}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), matchedRuleKey{}, rule)))
 		})
 	}
@@ -124,6 +153,7 @@ func (ss *siteServer) rateLimitMiddleware() middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if allowed, retryAfter := ss.limiter.allow(matchedRule(r), clientIP(r), time.Now()); !allowed {
+				ss.protection.RecordRejection(clientIP(r), "web", matchedRule(r).ID, "请求限速")
 				w.Header().Set("Retry-After", fmt.Sprint(retryAfter))
 				http.Error(w, "429 Too Many Requests", http.StatusTooManyRequests)
 				return
@@ -157,7 +187,23 @@ func (ss *siteServer) guardMiddleware() middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rule := matchedRule(r)
-			if !checkRuleGuard(w, r, rule, ss.logs, ss.ipGuardFor(rule)) {
+			if !ss.protection.CheckPolicy(rule.PolicyID, clientIP(r), r.UserAgent(), "web", rule.ID) {
+				http.Error(w, "403 Forbidden", http.StatusForbidden)
+				return
+			}
+			guardRule := *rule
+			if corsPreflight(r, rule.CORS) {
+				guardRule.BasicAuth = false
+			}
+			if !checkRuleGuard(w, r, &guardRule, ss.logs, ss.ipGuardFor(rule)) {
+				if !ss.ipGuardFor(rule).Allow(clientIP(r)) {
+					ss.protection.RecordRejection(clientIP(r), "web", rule.ID, "本地IP名单拒绝")
+				} else if !guard.AllowUA(rule.UAListMode, rule.UAList, r.UserAgent()) {
+					ss.protection.RecordRejection(clientIP(r), "web", rule.ID, "本地UA名单拒绝")
+				}
+				return
+			}
+			if !corsPreflight(r, rule.CORS) && rule.AccessGroupID != "" && !ss.protection.AuthorizeHTTP(w, r, rule.AccessGroupID, clientIP(r), rule.ID, requestScheme(r) == "https") {
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -185,17 +231,21 @@ func (d *ruleDispatch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		rh, err := d.ss.reverseHandlerFor(rule)
+		if errors.Is(err, errPoolUnavailable) {
+			proxyError(w, http.StatusServiceUnavailable, rule.ProxyErrorBody)
+			return
+		}
 		if errors.Is(err, errRuleUpdated) {
-			http.Error(w, "503 Service Unavailable", http.StatusServiceUnavailable)
+			proxyError(w, http.StatusServiceUnavailable, rule.ProxyErrorBody)
 			return
 		}
 		if err != nil {
 			d.ss.logs.Add(fmt.Sprintf("%s 规则[%s] 反代不可用: %v", clientIP(r), rule.Name, err))
-			http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
+			proxyError(w, http.StatusBadGateway, rule.ProxyErrorBody)
 			return
 		}
 		rh.ServeHTTP(w, r)
-	case "redirect", "fileserver":
+	case "redirect", "fileserver", "webdav", "cgi":
 		d.ss.staticHandlerFor(rule).ServeHTTP(w, r)
 	default:
 		writeNotFound(w, r)
@@ -222,6 +272,10 @@ func (ss *siteServer) staticHandlerFor(rule *config.SubRule) http.Handler {
 	var handler http.Handler
 	if rule.Type == "redirect" {
 		handler = redirectHandler(*rule)
+	} else if rule.Type == "webdav" {
+		handler = webDAVHandler(*rule)
+	} else if rule.Type == "cgi" {
+		handler = cgiHandler(*rule)
 	} else {
 		handler = fileServerHandler(*rule)
 	}
@@ -392,4 +446,45 @@ func writeNotFound(w http.ResponseWriter, r *http.Request) {
 <body style="font-family:sans-serif;text-align:center;padding:60px 20px">
 <h1>404</h1><p>没有匹配该请求的子规则</p><hr style="width:240px"><p>andey-proxy</p>
 </body></html>`)
+}
+
+func (ss *siteServer) globalProtectionMiddleware() middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			site := ss.siteSnapshot()
+			rule := matchRule(site.Rules, r.Host, r.URL.Path)
+			r = r.WithContext(context.WithValue(r.Context(), ruleSnapshotKey{}, ruleSnapshot{rule}))
+			if rule != nil {
+				if sw, ok := w.(*statusWriter); ok {
+					sw.matchedRuleID = rule.ID
+				}
+				ss.beginRuleStats(rule.ID)
+			}
+			if !ss.protection.CheckGlobal(clientIP(r), r.UserAgent(), "web", site.ID) || !ss.protection.CheckPolicy(site.PolicyID, clientIP(r), r.UserAgent(), "web", site.ID) {
+				http.Error(w, "403 Forbidden", http.StatusForbidden)
+				return
+			}
+			entity := site.ID
+			policyIDs := []string{site.PolicyID}
+			if rule != nil {
+				entity = rule.ID
+				policyIDs = append(policyIDs, rule.PolicyID)
+			}
+			if !ss.protection.InspectHTTP(w, r, clientIP(r), entity, policyIDs) {
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+func writeDefaultResponse(w http.ResponseWriter, r *http.Request, conf *config.DefaultResponse) {
+	if conf == nil {
+		writeNotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(conf.StatusCode)
+	if r.Method != http.MethodHead {
+		fmt.Fprint(w, conf.Body)
+	}
 }

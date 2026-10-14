@@ -1,0 +1,205 @@
+{
+  "date": "2026-10-13",
+  "baseSHA": "180f365bd5031492a781c77bb141963aa20d9b05",
+  "branch": "codex/lucky-workspaces",
+  "scope": "A+B",
+  "ddnsProviders": [
+    "aliyun",
+    "cloudflare",
+    "dnspod"
+  ],
+  "frontend": {
+    "files": 12,
+    "tests": 35,
+    "build": "pass"
+  },
+  "goRace": {
+    "includingSubtests": 376,
+    "topLevelTests": 290,
+    "packages": 17
+  },
+  "vet": "pass",
+  "diffCheck": "pass",
+  "api": {
+    "results": [
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics/history",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/dashboard/workspace",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/policies",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/dual/records/v4/toggle",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/dual/records/v4/toggle",
+        "status": 409
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 400
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/sites/site/rules",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/site/rules/8a6b037109cc9bd58df701d7e4388c56",
+        "status": 400
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/site/rules/8a6b037109cc9bd58df701d7e4388c56",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/site/rules/8a6b037109cc9bd58df701d7e4388c56",
+        "status": 409
+      },
+      {
+        "method": "POST",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/protection/bans/127.0.0.1",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/summary",
+        "status": 200
+      }
+    ],
+    "checks": [
+      "Three providers only",
+      "Record toggle and stale revision rejection",
+      "PEM import and failed replacement preservation",
+      "Rule plus health atomic validation and conflict",
+      "Business ban leaves admin accessible; release restores site"
+    ],
+    "businessRequests": [
+      403,
+      200
+    ],
+    "productionWrites": false
+  },
+  "browser": {
+    "widths": [
+      390,
+      1440
+    ],
+    "modules": [
+      "dashboard",
+      "ddns",
+      "web-service",
+      "certs",
+      "protection"
+    ],
+    "pageOverflow": false,
+    "realPhone": false
+  },
+  "verifiedTLSRequests": 80,
+  "crossCompiledArtifacts": [
+    {
+      "path": "dist/andey-proxy_v0.3.7_linux_arm64",
+      "size": 13762720,
+      "sha256": "f1af42dcad787dce072d0d1aa86a13142414185fc96de9df373572056ab8303a"
+    },
+    {
+      "path": "dist/andey-proxy_v0.3.7_linux_armv7",
+      "size": 14352544,
+      "sha256": "8b7f4100479a903ebf0e4366c38840ec8c508ac009238da0d0ffa074b2074694"
+    },
+    {
+      "path": "dist/andey-proxy_v0.3.7_linux_mips",
+      "size": 15990975,
+      "sha256": "7bb05a4f5e17d2245ffdccc7dbe31cd1ce115e8856d9453d79dc86f8640dde17"
+    },
+    {
+      "path": "dist/andey-proxy_v0.3.7_linux_mipsle",
+      "size": 15990975,
+      "sha256": "92a1463e61d0cf30a44ef3116c8ec909eeade26c824e3721ea3ca02d341b7cb2"
+    },
+    {
+      "path": "dist/andey-proxy_v0.3.7_linux_x86_64",
+      "size": 14733472,
+      "sha256": "7e2116cd2b70862011c2ec2133d257ca68f3432cbd7f78d5f70357b3b945af32"
+    }
+  ],
+  "productionDeployed": false,
+  "publicDNSWrites": false,
+  "publicCAIssuance": false
+}

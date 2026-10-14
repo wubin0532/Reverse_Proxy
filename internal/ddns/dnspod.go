@@ -40,6 +40,8 @@ type dnspodRecord struct {
 	Name  string      `json:"name"`
 	Type  string      `json:"type"`
 	Value string      `json:"value"`
+	TTL   json.Number `json:"ttl"`
+	Line  string      `json:"line"`
 }
 
 // do 发起一次 DNSPod 调用（form 编码 POST），action 如 Record.List。
@@ -73,6 +75,9 @@ func (p *dnspodProvider) do(ctx context.Context, action string, form url.Values,
 	if err := json.Unmarshal(body, &head); err != nil {
 		return fmt.Errorf("DNSPod 响应解析失败")
 	}
+	if head.Status.Code == "10" && action == "Record.List" {
+		return nil
+	}
 	if head.Status.Code != "1" {
 		return fmt.Errorf("DNSPod 错误 %s: %s", head.Status.Code, redactProviderMessage(head.Status.Message, p.tokenID, p.token))
 	}
@@ -91,17 +96,27 @@ func (p *dnspodProvider) findRecord(ctx context.Context, root, rr, recordType st
 		"domain":      {root},
 		"sub_domain":  {rr},
 		"record_type": {recordType},
+		"length":      {"100"},
 	}, &out)
 	if err != nil {
 		return nil, err
 	}
+	if (recordType == "TXT" || recordType == "CNAME") && len(out.Records) >= 100 {
+		return nil, fmt.Errorf("远程查询结果超过安全核查范围，请先在服务商控制台整理记录")
+	}
+	var match *dnspodRecord
 	for i := range out.Records {
 		r := &out.Records[i]
 		if strings.EqualFold(r.Name, rr) && strings.EqualFold(r.Type, recordType) {
-			return r, nil
+			if match != nil && (recordType == "TXT" || recordType == "CNAME") {
+				return nil, fmt.Errorf("同名同类型存在多条远程记录，请先在服务商控制台明确要管理的记录")
+			}
+			if match == nil {
+				match = r
+			}
 		}
 	}
-	return nil, nil
+	return match, nil
 }
 
 func (p *dnspodProvider) QueryRecord(ctx context.Context, domain, recordType string) (string, error) {
@@ -144,7 +159,8 @@ func (p *dnspodProvider) UpsertRecord(ctx context.Context, domain, recordType, i
 		}
 		return fmt.Sprintf("新增记录 %s %s -> %s", domain, recordType, ip), nil
 	}
-	if rec.Value == ip {
+	remoteTTL, _ := rec.TTL.Int64()
+	if recordValuesEqual(recordType, rec.Value, ip) && (ttl <= 0 || remoteTTL == int64(ttl)) {
 		return fmt.Sprintf("记录 %s 已是最新（%s）", domain, ip), nil
 	}
 	form := url.Values{
@@ -154,6 +170,9 @@ func (p *dnspodProvider) UpsertRecord(ctx context.Context, domain, recordType, i
 		"record_type": {recordType},
 		"record_line": {"默认"},
 		"value":       {ip},
+	}
+	if rec.Line != "" {
+		form.Set("record_line", rec.Line)
 	}
 	if ttl > 0 {
 		form.Set("ttl", fmt.Sprintf("%d", ttl))

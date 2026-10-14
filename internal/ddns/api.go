@@ -39,6 +39,11 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, w *Worker) {
 	r.Delete("/api/ddns/tasks/{id}", h.deleteTask)
 	r.Post("/api/ddns/tasks/{id}/toggle", h.toggleTask)
 	r.Post("/api/ddns/tasks/{id}/run", h.runTask)
+	r.Get("/api/ddns/tasks/{id}/history", h.taskHistory)
+	r.Post("/api/ddns/tasks/{id}/records", h.createRecord)
+	r.Put("/api/ddns/tasks/{id}/records/{recordId}", h.updateRecord)
+	r.Delete("/api/ddns/tasks/{id}/records/{recordId}", h.deleteRecord)
+	r.Post("/api/ddns/tasks/{id}/records/{recordId}/toggle", h.toggleRecord)
 
 	r.Get("/api/providers", h.listProviders)
 	r.Post("/api/providers", h.createProvider)
@@ -52,7 +57,9 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, w *Worker) {
 
 type taskView struct {
 	config.DDNSTask
-	Status *TaskStatus `json:"status,omitempty"`
+	Status           *TaskStatus         `json:"status,omitempty"`
+	Revision         string              `json:"revision"`
+	EffectiveRecords []config.DDNSRecord `json:"effectiveRecords"`
 }
 
 func (h *handler) listTasks(w http.ResponseWriter, r *http.Request) {
@@ -62,67 +69,26 @@ func (h *handler) listTasks(w http.ResponseWriter, r *http.Request) {
 	h.cfg.RUnlock()
 	views := make([]taskView, 0, len(tasks))
 	for _, t := range tasks {
-		views = append(views, taskView{DDNSTask: t, Status: h.w.Status(t.ID)})
+		views = append(views, h.taskView(t))
 	}
 	api.OK(w, views)
 }
 
 func (h *handler) validateTask(t *config.DDNSTask) (int, string) {
-	t.Name = strings.TrimSpace(t.Name)
-	if t.Name == "" {
-		return 400, "任务名称不能为空"
-	}
-	if len(t.Domains) == 0 || len(t.Domains) > 100 {
-		return 400, "域名数量必须为 1 到 100 个"
-	}
-	for i, domain := range t.Domains {
-		domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domain), "."))
-		// 仅允许完整通配符前缀（如 *.example.com），拒绝 foo*bar 这类非法形式
-		if strings.Contains(domain, "*") && (!strings.HasPrefix(domain, "*.") || strings.Contains(domain[2:], "*")) {
-			return 400, "DDNS 域名的通配符只能是完整前缀（如 *.example.com）: " + domain
-		}
-		if _, _, err := splitDomain(domain); err != nil {
-			return 400, err.Error()
-		}
-		t.Domains[i] = domain
-	}
-	if t.IPType != "ipv4" && t.IPType != "ipv6" {
-		return 400, "IP 类型必须是 ipv4 或 ipv6"
-	}
-	if t.Interval <= 0 {
-		t.Interval = 300
-	}
-	if t.Interval < 30 || t.Interval > 86400 {
-		return 400, "检测间隔必须为 30 到 86400 秒"
-	}
-	if t.TTL < 0 || t.TTL > 86400 {
-		return 400, "TTL 必须为 0 到 86400 秒"
-	}
-	switch t.IPSource {
-	case "interface":
-		// 空或 auto 表示自动识别 WAN 口，均合法
-	case "api":
-		u, err := validateHTTPURL(t.APIURL, true)
-		if err != nil {
-			return 400, "IP 查询地址无效: " + err.Error()
-		}
-		t.APIURL = u.String()
-	default:
-		return 400, "IP 来源必须是 interface 或 api"
+	if code, msg := validateTaskShape(t); code != 0 {
+		return code, msg
 	}
 	h.cfg.RLock()
-	found := false
-	for _, p := range h.cfg.Providers {
-		if p.ID == t.ProviderID {
-			found = true
-			break
-		}
-	}
+	found := providerExistsLocked(h.cfg, t.ProviderID)
 	h.cfg.RUnlock()
 	if !found {
 		return 400, "引用的服务商凭据不存在"
 	}
 	return 0, ""
+}
+
+func (h *handler) taskView(task config.DDNSTask) taskView {
+	return taskView{DDNSTask: task, Status: h.w.Status(task.ID), Revision: taskRevision(task), EffectiveRecords: effectiveRecords(task)}
 }
 
 func (h *handler) createTask(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +104,9 @@ func (h *handler) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t.ID = ids.New()
 	if err := h.cfg.Update(func(c *config.Config) error {
+		if !providerExistsLocked(c, t.ProviderID) {
+			return errProviderNotFound
+		}
 		c.DDNS = append(c.DDNS, t)
 		return nil
 	}); err != nil {
@@ -146,86 +115,124 @@ func (h *handler) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 	h.w.Reload()
 	log.Printf("[security] 新增 DDNS 任务，ID: %s", t.ID)
-	api.OK(w, t)
+	api.OK(w, h.taskView(t))
 }
 
 func (h *handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var t config.DDNSTask
-	if err := api.DecodeBody(r, &t); err != nil {
+	var body struct {
+		config.DDNSTask
+		Revision string `json:"revision"`
+	}
+	if err := api.DecodeBody(r, &body); err != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
-	t.ID = id
-	if code, msg := h.validateTask(&t); code != 0 {
-		api.Fail(w, code, msg)
-		return
-	}
-	err := h.cfg.Update(func(c *config.Config) error {
-		for i := range c.DDNS {
-			if c.DDNS[i].ID == id {
-				c.DDNS[i] = t
-				return nil
+	task := body.DDNSTask
+	task.ID = id
+	err := h.cfg.Update(func(cfg *config.Config) error {
+		for i, current := range cfg.DDNS {
+			if current.ID != id {
+				continue
 			}
+			if body.Revision != "" && body.Revision != taskRevision(current) {
+				return errTaskConflict
+			}
+			if (len(task.Records) > 0 || len(current.Records) > 0) && body.Revision == "" {
+				return errTaskConflict
+			}
+			if task.Records != nil && len(task.Records) == 0 && len(current.Records) > 0 {
+				return fmt.Errorf("validation:400:任务至少保留一条记录，可停用最后一条记录")
+			}
+			// Legacy-only clients may still edit legacy tasks; record tasks require a revision.
+			if task.Records == nil && len(current.Records) > 0 {
+				task.Records = append([]config.DDNSRecord(nil), current.Records...)
+				task.IPv4Source, task.IPv6Source, task.ForceInterval = current.IPv4Source, current.IPv6Source, current.ForceInterval
+			}
+			if code, msg := validateTaskShape(&task); code != 0 {
+				return fmt.Errorf("validation:%d:%s", code, msg)
+			}
+			if !providerExistsLocked(cfg, task.ProviderID) {
+				return errProviderNotFound
+			}
+			cfg.DDNS[i] = task
+			return nil
 		}
 		return errTaskNotFound
 	})
-	if errors.Is(err, errTaskNotFound) {
-		api.Fail(w, 404, "任务不存在")
-		return
-	}
-	if err != nil {
-		api.Fail(w, 500, "保存配置失败")
+	if h.taskMutationError(w, err) {
 		return
 	}
 	h.w.Reload()
 	log.Printf("[security] 修改 DDNS 任务，ID: %s", id)
-	api.OK(w, t)
+	api.OK(w, h.taskView(task))
 }
 
+func taskActionRevision(r *http.Request) (string, error) {
+	var body struct {
+		Revision string `json:"revision"`
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := api.DecodeBody(r, &body); err != nil {
+			return "", err
+		}
+	}
+	return body.Revision, nil
+}
+func checkTaskActionRevision(task config.DDNSTask, revision string) error {
+	if revision != "" && revision != taskRevision(task) || len(task.Records) > 0 && revision == "" {
+		return errTaskConflict
+	}
+	return nil
+}
 func (h *handler) deleteTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	err := h.cfg.Update(func(c *config.Config) error {
-		for i := range c.DDNS {
-			if c.DDNS[i].ID == id {
+	revision, err := taskActionRevision(r)
+	if err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
+	err = h.cfg.Update(func(c *config.Config) error {
+		for i, task := range c.DDNS {
+			if task.ID == id {
+				if err := checkTaskActionRevision(task, revision); err != nil {
+					return err
+				}
 				c.DDNS = append(c.DDNS[:i], c.DDNS[i+1:]...)
 				return nil
 			}
 		}
 		return errTaskNotFound
 	})
-	if errors.Is(err, errTaskNotFound) {
-		api.Fail(w, 404, "任务不存在")
-		return
-	}
-	if err != nil {
-		api.Fail(w, 500, "保存配置失败")
+	if h.taskMutationError(w, err) {
 		return
 	}
 	h.w.Reload()
 	log.Printf("[security] 删除 DDNS 任务，ID: %s", id)
 	api.OK(w, nil)
 }
-
 func (h *handler) toggleTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	revision, err := taskActionRevision(r)
+	if err != nil {
+		api.Fail(w, 400, "请求格式错误")
+		return
+	}
 	var enabled bool
-	err := h.cfg.Update(func(c *config.Config) error {
-		for i := range c.DDNS {
-			if c.DDNS[i].ID == id {
-				c.DDNS[i].Enabled = !c.DDNS[i].Enabled
+	err = h.cfg.Update(func(c *config.Config) error {
+		for i, task := range c.DDNS {
+			if task.ID == id {
+				if err := checkTaskActionRevision(task, revision); err != nil {
+					return err
+				}
+				c.DDNS[i].Enabled = !task.Enabled
 				enabled = c.DDNS[i].Enabled
 				return nil
 			}
 		}
 		return errTaskNotFound
 	})
-	if errors.Is(err, errTaskNotFound) {
-		api.Fail(w, 404, "任务不存在")
-		return
-	}
-	if err != nil {
-		api.Fail(w, 500, "保存配置失败")
+	if h.taskMutationError(w, err) {
 		return
 	}
 	h.w.Reload()
@@ -478,12 +485,13 @@ func (h *handler) listInterfaces(w http.ResponseWriter, r *http.Request) {
 // previewIP 预览 IP 来源取到的地址，返回实际网卡名与 IP。
 func (h *handler) previewIP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		IPType    string `json:"ipType"`
-		IPSource  string `json:"ipSource"`
-		Interface string `json:"interface"`
-		APIURL    string `json:"apiUrl"`
+		IPType    string                  `json:"ipType"`
+		IPSource  string                  `json:"ipSource"`
+		Interface string                  `json:"interface"`
+		APIURL    string                  `json:"apiUrl"`
+		Fallbacks []config.IPSourceConfig `json:"fallbacks"`
 	}
-	if err := api.DecodeBody(r, &body); err != nil {
+	if api.DecodeBody(r, &body) != nil {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}
@@ -491,28 +499,17 @@ func (h *handler) previewIP(w http.ResponseWriter, r *http.Request) {
 		body.IPType = "ipv4"
 	}
 	if body.IPType != "ipv4" && body.IPType != "ipv6" {
-		api.Fail(w, 400, "IP 类型必须是 ipv4 或 ipv6")
+		api.Fail(w, 400, "IP类型无效")
 		return
 	}
-	if body.IPSource == "api" {
-		u, err := validateHTTPURL(body.APIURL, true)
-		if err != nil {
-			api.Fail(w, 400, "IP 查询地址无效: "+err.Error())
-			return
-		}
-		body.APIURL = u.String()
-	} else if body.IPSource != "interface" {
-		api.Fail(w, 400, "IP 来源必须是 interface 或 api")
+	source := config.IPSourceConfig{Source: body.IPSource, Interface: body.Interface, APIURL: body.APIURL, Fallbacks: body.Fallbacks}
+	if err := config.ValidateIPSource(source, body.IPType == "ipv6"); err != nil {
+		api.Fail(w, 400, err.Error())
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	ip, iface, err := GetIPDetail(ctx, config.DDNSTask{
-		IPType:    body.IPType,
-		IPSource:  body.IPSource,
-		Interface: body.Interface,
-		APIURL:    body.APIURL,
-	})
+	ip, iface, err := resolveSource(ctx, source, body.IPType == "ipv6")
 	if err != nil {
 		api.Fail(w, 500, err.Error())
 		return

@@ -2,6 +2,7 @@ package ddns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -12,144 +13,210 @@ import (
 	"andey-proxy/internal/notify"
 )
 
-// TaskStatus 任务最近一次运行状态。
-type TaskStatus struct {
-	TaskID    string    `json:"taskId"`
-	IP        string    `json:"ip"`
-	Interface string    `json:"interface,omitempty"` // 实际使用的网卡名（自动识别时为识别结果）
-	Success   bool      `json:"success"`
-	Message   string    `json:"message"`
-	LastTime  time.Time `json:"lastTime"`
+var errTaskChanged = errors.New("任务配置已变更，已丢弃旧运行结果")
+
+type RecordStatus struct {
+	RecordID      string    `json:"recordId"`
+	Domain        string    `json:"domain"`
+	Type          string    `json:"type"`
+	IP            string    `json:"ip"`
+	Interface     string    `json:"interface,omitempty"`
+	Success       bool      `json:"success"`
+	Message       string    `json:"message"`
+	LastTime      time.Time `json:"lastTime"`
+	RemoteChecked bool      `json:"remoteChecked"`
+	Changed       bool      `json:"changed"`
 }
 
-// Worker DDNS 调度器，每个启用的任务一个 goroutine。
+type TaskStatus struct {
+	TaskID    string         `json:"taskId"`
+	IP        string         `json:"ip"`
+	Interface string         `json:"interface,omitempty"`
+	Success   bool           `json:"success"`
+	Message   string         `json:"message"`
+	LastTime  time.Time      `json:"lastTime"`
+	Records   []RecordStatus `json:"records,omitempty"`
+}
+
+type HistoryEntry struct {
+	Time       time.Time `json:"time"`
+	RecordID   string    `json:"recordId"`
+	Domain     string    `json:"domain"`
+	Type       string    `json:"type"`
+	Kind       string    `json:"kind"` // changed, synced, failed
+	IP         string    `json:"ip"`
+	PreviousIP string    `json:"previousIp,omitempty"`
+	Message    string    `json:"message"`
+}
+
+type recordCache struct {
+	IP, Fingerprint string
+	Checked         time.Time
+}
+
+// Worker serializes lifecycle changes and each task's execution. Config locks
+// cover an individual provider operation, so an edit cannot overtake that write.
 type Worker struct {
-	cfg *config.Config
-
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-
-	smu    sync.Mutex
-	lastIP map[string]string
-	status map[string]*TaskStatus
-	taskMu map[string]*sync.Mutex // 任务级互斥锁，防手动执行与调度并发
+	cfg     *config.Config
+	mu      sync.Mutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	started bool
+	wg      sync.WaitGroup
+	smu     sync.Mutex
+	lastIP  map[string]string
+	status  map[string]*TaskStatus
+	cache   map[string]recordCache
+	history map[string][]HistoryEntry
+	taskMu  map[string]*sync.Mutex
 }
 
 func NewWorker(cfg *config.Config) *Worker {
-	return &Worker{
-		cfg:    cfg,
-		lastIP: make(map[string]string),
-		status: make(map[string]*TaskStatus),
-		taskMu: make(map[string]*sync.Mutex),
-	}
+	return &Worker{cfg: cfg, lastIP: map[string]string{}, status: map[string]*TaskStatus{}, cache: map[string]recordCache{}, history: map[string][]HistoryEntry{}, taskMu: map[string]*sync.Mutex{}}
 }
-
-// lockTask 取任务级互斥锁并加锁。
-func (w *Worker) lockTask(taskID string) *sync.Mutex {
+func (w *Worker) lockTask(id string) *sync.Mutex {
 	w.smu.Lock()
-	m, ok := w.taskMu[taskID]
-	if !ok {
+	m := w.taskMu[id]
+	if m == nil {
 		m = &sync.Mutex{}
-		w.taskMu[taskID] = m
+		w.taskMu[id] = m
 	}
 	w.smu.Unlock()
 	m.Lock()
 	return m
 }
-
-// Start 启动所有已启用任务的调度。
-func (w *Worker) Start() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.startLocked()
+func (w *Worker) lifecycleLocked() {
+	if w.cancel == nil {
+		w.ctx, w.cancel = context.WithCancel(context.Background())
+	}
 }
-
+func (w *Worker) Start() { w.mu.Lock(); defer w.mu.Unlock(); w.startLocked() }
 func (w *Worker) startLocked() {
-	if w.cancel != nil {
+	if w.started {
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	w.cancel = cancel
+	w.lifecycleLocked()
+	w.started = true
 	w.cfg.RLock()
-	tasks := make([]config.DDNSTask, 0, len(w.cfg.DDNS))
-	for _, t := range w.cfg.DDNS {
-		if t.Enabled {
-			tasks = append(tasks, t)
+	var tasks []config.DDNSTask
+	for _, task := range w.cfg.DDNS {
+		if task.Enabled {
+			tasks = append(tasks, task)
 		}
 	}
 	w.cfg.RUnlock()
-	for _, t := range tasks {
+	for _, task := range tasks {
 		w.wg.Add(1)
-		go w.loop(ctx, t)
+		go w.loop(w.ctx, task)
 	}
 	log.Printf("[DDNS] 调度器已启动，共 %d 个任务", len(tasks))
 }
-
-// Stop 停止全部任务并等待退出。
-func (w *Worker) Stop() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.stopLocked()
-}
-
+func (w *Worker) Stop() { w.mu.Lock(); defer w.mu.Unlock(); w.stopLocked() }
 func (w *Worker) stopLocked() {
-	cancel := w.cancel
-	w.cancel = nil
-	if cancel != nil {
-		cancel()
+	if w.cancel != nil {
+		w.cancel()
 	}
 	w.wg.Wait()
+	w.ctx, w.cancel, w.started = nil, nil, false
 }
-
-// Reload 任务配置变更后重启调度。
 func (w *Worker) Reload() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.stopLocked()
+	w.prune()
 	w.startLocked()
 }
-
-// Status 查询单个任务状态，未运行过返回 nil。
-func (w *Worker) Status(taskID string) *TaskStatus {
+func (w *Worker) prune() {
+	w.cfg.RLock()
+	tasks, records := map[string]bool{}, map[string]bool{}
+	for _, task := range w.cfg.DDNS {
+		tasks[task.ID] = true
+		for _, record := range effectiveRecords(task) {
+			records[task.ID+"|"+record.ID] = true
+		}
+	}
+	w.cfg.RUnlock()
 	w.smu.Lock()
 	defer w.smu.Unlock()
-	if st, ok := w.status[taskID]; ok {
-		cp := *st
-		return &cp
+	// Reload has already waited for all executions, so retired task locks are safe to discard.
+	for id := range w.status {
+		delete(w.status, id)
+	}
+	for id := range w.history {
+		if !tasks[id] {
+			delete(w.history, id)
+		}
+	}
+	for id := range w.taskMu {
+		if !tasks[id] {
+			delete(w.taskMu, id)
+		}
+	}
+	for key := range w.cache {
+		if !records[key] {
+			delete(w.cache, key)
+		}
+	}
+	for key := range w.lastIP {
+		if !tasks[strings.SplitN(key, "|", 2)[0]] {
+			delete(w.lastIP, key)
+		}
+	}
+}
+
+func (w *Worker) Status(id string) *TaskStatus {
+	w.smu.Lock()
+	defer w.smu.Unlock()
+	if st := w.status[id]; st != nil {
+		out := *st
+		out.Records = append([]RecordStatus(nil), st.Records...)
+		return &out
 	}
 	return nil
 }
-
-// RunNow 手动立即执行一次任务，同步返回结果。
-func (w *Worker) RunNow(taskID string) error {
+func (w *Worker) History(id string) []HistoryEntry {
+	w.smu.Lock()
+	defer w.smu.Unlock()
+	entries := w.history[id]
+	out := make([]HistoryEntry, len(entries))
+	for i := range entries {
+		out[i] = entries[len(entries)-i-1]
+	}
+	return out
+}
+func (w *Worker) RunNow(id string) error {
+	w.mu.Lock()
+	w.lifecycleLocked()
+	ctx, cancel := context.WithTimeout(w.ctx, 60*time.Second)
+	w.wg.Add(1)
+	w.mu.Unlock()
+	defer w.wg.Done()
+	defer cancel()
 	w.cfg.RLock()
-	var task *config.DDNSTask
-	for i := range w.cfg.DDNS {
-		if w.cfg.DDNS[i].ID == taskID {
-			t := w.cfg.DDNS[i]
-			task = &t
+	var task config.DDNSTask
+	found := false
+	for _, current := range w.cfg.DDNS {
+		if current.ID == id {
+			task = current
+			found = true
 			break
 		}
 	}
 	w.cfg.RUnlock()
-	if task == nil {
-		return fmt.Errorf("任务不存在")
+	if !found {
+		return errTaskNotFound
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	return w.runTask(ctx, *task, true)
+	return w.runTask(ctx, task, true)
 }
-
 func (w *Worker) loop(ctx context.Context, task config.DDNSTask) {
 	defer w.wg.Done()
-	if err := w.runTask(ctx, task, false); err != nil {
-		log.Printf("[DDNS] 任务 %s 首次执行失败: %v", task.Name, err)
+	run := func() {
+		if err := w.runTask(ctx, task, false); err != nil && ctx.Err() == nil && !errors.Is(err, errTaskChanged) {
+			log.Printf("[DDNS] 任务 %s 执行失败: %v", task.Name, err)
+		}
 	}
+	run()
 	interval := task.Interval
-	if interval <= 0 {
-		interval = 60
-	}
 	if interval < 30 {
 		interval = 30
 	}
@@ -160,99 +227,170 @@ func (w *Worker) loop(ctx context.Context, task config.DDNSTask) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := w.runTask(ctx, task, false); err != nil {
-				log.Printf("[DDNS] 任务 %s 执行失败: %v", task.Name, err)
+			run()
+		}
+	}
+}
+
+// Caller holds cfg.RLock. The private fingerprint detects credential changes
+// as well as domains, TTL, sources, flags and task identity.
+func (w *Worker) matchesLocked(task config.DDNSTask, provider config.DNSProviderConf) bool {
+	for _, current := range w.cfg.DDNS {
+		if current.ID != task.ID {
+			continue
+		}
+		for _, saved := range w.cfg.Providers {
+			if saved.ID == current.ProviderID {
+				return targetFingerprint(current, saved) == targetFingerprint(task, provider)
 			}
 		}
 	}
+	return false
 }
-
-// setStatus 记录最近一次运行状态，返回上一次状态（首次运行返回 nil）。
-func (w *Worker) setStatus(taskID, ip, iface string, success bool, msg string) *TaskStatus {
-	w.smu.Lock()
-	defer w.smu.Unlock()
-	var prev *TaskStatus
-	if p, ok := w.status[taskID]; ok {
-		cp := *p
-		prev = &cp
-	}
-	w.status[taskID] = &TaskStatus{
-		TaskID:    taskID,
-		IP:        ip,
-		Interface: iface,
-		Success:   success,
-		Message:   msg,
-		LastTime:  time.Now(),
-	}
-	return prev
-}
-
-// failTask 记录任务失败状态并上报事件总线。
-func (w *Worker) failTask(task config.DDNSTask, ip, iface, errMsg string) {
-	w.setStatus(task.ID, ip, iface, false, errMsg)
-	notify.Publish(notify.Event{Type: notify.TypeDDNSUpdateFailed, Entity: task.Name, Level: notify.LevelError, Message: fmt.Sprintf("DDNS 任务 %s 更新失败: %s", task.Name, errMsg)})
-}
-
-func (w *Worker) providerFor(providerID string) (Provider, error) {
+func (w *Worker) snapshotProvider(task config.DDNSTask) (config.DNSProviderConf, error) {
 	w.cfg.RLock()
-	var conf *config.DNSProviderConf
-	for i := range w.cfg.Providers {
-		if w.cfg.Providers[i].ID == providerID {
-			c := w.cfg.Providers[i]
-			conf = &c
-			break
+	defer w.cfg.RUnlock()
+	for _, provider := range w.cfg.Providers {
+		if provider.ID == task.ProviderID {
+			if !w.matchesLocked(task, provider) {
+				return config.DNSProviderConf{}, errTaskChanged
+			}
+			return provider, nil
 		}
 	}
-	w.cfg.RUnlock()
-	if conf == nil {
-		return nil, fmt.Errorf("服务商凭据不存在: %s", providerID)
-	}
-	return NewProvider(*conf)
+	return config.DNSProviderConf{}, fmt.Errorf("服务商凭据不存在")
 }
-
-// runTask 执行一次任务。force 为 true 时忽略 IP 缓存强制更新。
 func (w *Worker) runTask(ctx context.Context, task config.DDNSTask, force bool) error {
-	m := w.lockTask(task.ID)
-	defer m.Unlock()
-
-	ip, iface, err := GetIPDetail(ctx, task)
-	if err != nil {
-		w.failTask(task, "", "", err.Error())
+	lock := w.lockTask(task.ID)
+	defer lock.Unlock()
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-	cacheKey := task.ID + "|" + task.IPType
-	w.smu.Lock()
-	oldIP := w.lastIP[cacheKey]
-	changed := oldIP != ip
-	w.smu.Unlock()
-	if !changed && !force {
-		w.setStatus(task.ID, ip, iface, true, "IP 未变化，跳过更新")
-		return nil
-	}
-
-	recordType := "A"
-	if task.IPType == "ipv6" {
-		recordType = "AAAA"
-	}
-	provider, err := w.providerFor(task.ProviderID)
+	providerConf, err := w.snapshotProvider(task)
 	if err != nil {
-		w.failTask(task, ip, iface, err.Error())
 		return err
 	}
-	var msgs []string
-	for _, d := range task.Domains {
-		msg, err := provider.UpsertRecord(ctx, d, recordType, ip, task.TTL)
-		if err != nil {
-			w.failTask(task, ip, iface, fmt.Sprintf("%s: %v", d, err))
-			return fmt.Errorf("更新 %s 失败: %w", d, err)
+	provider, err := NewProvider(providerConf)
+	if err != nil {
+		return err
+	}
+	fingerprint := targetFingerprint(task, providerConf)
+	forceInterval := task.ForceInterval
+	if forceInterval <= 0 {
+		forceInterval = defaultForceInterval
+	}
+	now := time.Now()
+	status := &TaskStatus{TaskID: task.ID, Success: true, LastTime: now}
+	var entries []HistoryEntry
+	var firstErr error
+	type ipResult struct {
+		ip, iface string
+		err       error
+	}
+	sources := map[string]ipResult{}
+	for _, record := range effectiveRecords(task) {
+		if !record.Enabled {
+			continue
 		}
-		log.Printf("[DDNS] 任务 %s: %s", task.Name, msg)
-		msgs = append(msgs, msg)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		ip, ok := sources[record.Type]
+		if record.Type == "CNAME" || record.Type == "TXT" {
+			ip = ipResult{ip: record.Value}
+		} else if !ok {
+			ip.ip, ip.iface, ip.err = GetIPDetail(ctx, sourceTask(task, record.Type))
+			sources[record.Type] = ip
+		}
+		rs := RecordStatus{RecordID: record.ID, Domain: record.Domain, Type: record.Type, IP: ip.ip, Interface: ip.iface, LastTime: now, Success: ip.err == nil}
+		key := task.ID + "|" + record.ID
+		w.smu.Lock()
+		previous := w.cache[key]
+		w.smu.Unlock()
+		if ip.err != nil {
+			rs.Message = ip.err.Error()
+			if firstErr == nil {
+				firstErr = ip.err
+			}
+		} else {
+			if status.IP == "" {
+				status.IP, status.Interface = ip.ip, ip.iface
+			}
+			due := force || previous.Fingerprint != fingerprint || previous.IP != ip.ip || previous.Checked.IsZero() || now.Sub(previous.Checked) >= time.Duration(forceInterval)*time.Second
+			if !due {
+				rs.Message = "记录值与配置未变化，跳过更新"
+			} else {
+				w.cfg.RLock()
+				if !w.matchesLocked(task, providerConf) {
+					w.cfg.RUnlock()
+					return errTaskChanged
+				}
+				if err := ctx.Err(); err != nil {
+					w.cfg.RUnlock()
+					return err
+				}
+				rs.RemoteChecked = true
+				rs.Message, err = provider.UpsertRecord(ctx, record.Domain, record.Type, ip.ip, record.TTL)
+				if err == nil {
+					rs.Changed = strings.HasPrefix(rs.Message, "新增记录") || strings.HasPrefix(rs.Message, "更新记录")
+					w.smu.Lock()
+					w.cache[key] = recordCache{IP: ip.ip, Fingerprint: fingerprint, Checked: now}
+					w.smu.Unlock()
+				} else {
+					rs.Success = false
+					rs.Message = err.Error()
+					if firstErr == nil {
+						firstErr = err
+					}
+				}
+				w.cfg.RUnlock()
+			}
+		}
+		if !rs.Success {
+			status.Success = false
+		}
+		status.Records = append(status.Records, rs)
+		if rs.RemoteChecked || !rs.Success {
+			kind := "synced"
+			if rs.Changed {
+				kind = "changed"
+			}
+			if !rs.Success {
+				kind = "failed"
+			}
+			entries = append(entries, HistoryEntry{Time: now, RecordID: record.ID, Domain: record.Domain, Type: record.Type, Kind: kind, IP: ip.ip, PreviousIP: previous.IP, Message: rs.Message})
+		}
 	}
-	result := strings.Join(msgs, "；")
+	if len(status.Records) == 0 {
+		status.Message = "没有启用的记录"
+	} else {
+		var messages []string
+		for _, rs := range status.Records {
+			messages = append(messages, rs.Domain+" "+rs.Type+": "+rs.Message)
+		}
+		status.Message = strings.Join(messages, "；")
+	}
+	w.cfg.RLock()
+	defer w.cfg.RUnlock()
+	if !w.matchesLocked(task, providerConf) {
+		return errTaskChanged
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	w.smu.Lock()
-	w.lastIP[cacheKey] = ip
+	w.status[task.ID] = status
+	history := append(w.history[task.ID], entries...)
+	if len(history) > 100 {
+		history = append([]HistoryEntry(nil), history[len(history)-100:]...)
+	}
+	w.history[task.ID] = history
+	if status.Success {
+		w.lastIP[task.ID+"|"+task.IPType] = status.IP
+	}
 	w.smu.Unlock()
-	w.setStatus(task.ID, ip, iface, true, result)
-	return nil
+	if firstErr != nil {
+		notify.Publish(notify.Event{Type: notify.TypeDDNSUpdateFailed, Entity: task.Name, Level: notify.LevelError, Message: fmt.Sprintf("DDNS 任务 %s 更新失败: %s", task.Name, firstErr.Error())})
+	}
+	return firstErr
 }

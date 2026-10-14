@@ -13,6 +13,7 @@ import (
 
 	"andey-proxy/internal/api"
 	"andey-proxy/internal/config"
+	"andey-proxy/internal/guard"
 	"andey-proxy/internal/ids"
 )
 
@@ -52,6 +53,9 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 		}
 		rule.ID = ids.New()
 		if err := cfg.Update(func(c *config.Config) error {
+			if err := guard.ValidateReferenceLocked(c, rule.PolicyID); err != nil {
+				return err
+			}
 			c.Forwards = append(c.Forwards, rule)
 			return nil
 		}); err != nil {
@@ -105,6 +109,9 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 			return
 		}
 		err := cfg.Update(func(c *config.Config) error {
+			if err := guard.ValidateReferenceLocked(c, body.PolicyID); err != nil {
+				return err
+			}
 			for i := range c.Forwards {
 				if c.Forwards[i].ID == id {
 					body.ID = id

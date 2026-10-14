@@ -1,0 +1,1745 @@
+{
+  "target": {
+    "ip": "192.168.199.7",
+    "model": "QEMU Standard PC (Q35 + ICH9, 2009)",
+    "firmware": "ImmortalWrt 25.12.2 r38135-0c4cd0f9920a",
+    "kernel": "6.12.103",
+    "architecture": "x86_64",
+    "packageManager": "apk-tools 3.0.5",
+    "memoryKiB": 485248,
+    "vCPUs": 2
+  },
+  "testInstance": {
+    "initialMetrics": {
+      "time": "2026-10-13T14:16:58.211199346Z",
+      "hostCpu": 0.6993006993006993,
+      "memoryPercent": 29.364778422579793,
+      "memoryTotal": 496893952,
+      "memoryUsed": 145911808,
+      "processResident": 15527936,
+      "processHeap": 2121064,
+      "goroutines": 11,
+      "interface": "br-lan",
+      "bytesInPerSecond": 774.0001233756198,
+      "bytesOutPerSecond": 912.0001453728232,
+      "received": 38492052,
+      "sent": 47146373,
+      "hostSupported": true,
+      "networkSupported": true
+    },
+    "health": {
+      "conf": {
+        "enabled": true,
+        "type": "tcp",
+        "path": "/",
+        "intervalSeconds": 5,
+        "timeoutSeconds": 2,
+        "rise": 1,
+        "fall": 2
+      },
+      "backends": [
+        {
+          "backend": "http://127.0.0.1:18849",
+          "up": true,
+          "activeCheck": true,
+          "lastCheck": 1791901019
+        }
+      ]
+    },
+    "tls": {
+      "concurrentRequests": 40,
+      "validatedHostname": "pve.example.test",
+      "serialChanged": true,
+      "failedReplacePreservesOriginal": true,
+      "allRequestsSucceeded": true
+    },
+    "metricsSamples": [
+      {
+        "time": "2026-10-13T14:17:28.211207467Z",
+        "hostCpu": 32.8,
+        "memoryPercent": 29.499967027169614,
+        "memoryTotal": 496893952,
+        "memoryUsed": 146583552,
+        "processResident": 21131264,
+        "processHeap": 3638032,
+        "goroutines": 42,
+        "interface": "br-lan",
+        "bytesInPerSecond": 17563.165361925276,
+        "bytesOutPerSecond": 425269.56128337124,
+        "received": 39100156,
+        "sent": 61315499,
+        "hostSupported": true,
+        "networkSupported": true
+      },
+      {
+        "time": "2026-10-13T14:17:33.211214991Z",
+        "hostCpu": 52.452452452452455,
+        "memoryPercent": 29.099347137958322,
+        "memoryTotal": 496893952,
+        "memoryUsed": 144592896,
+        "processResident": 21131264,
+        "processHeap": 1861648,
+        "goroutines": 42,
+        "interface": "br-lan",
+        "bytesInPerSecond": 17329.17392652491,
+        "bytesOutPerSecond": 419608.1686575494,
+        "received": 39186802,
+        "sent": 63413543,
+        "hostSupported": true,
+        "networkSupported": true
+      },
+      {
+        "time": "2026-10-13T14:17:38.211205805Z",
+        "hostCpu": 20.72072072072072,
+        "memoryPercent": 29.418359271959904,
+        "memoryTotal": 496893952,
+        "memoryUsed": 146178048,
+        "processResident": 21135360,
+        "processHeap": 2323376,
+        "goroutines": 42,
+        "interface": "br-lan",
+        "bytesInPerSecond": 17044.03133715602,
+        "bytesOutPerSecond": 422144.37615465,
+        "received": 39272022,
+        "sent": 65524261,
+        "hostSupported": true,
+        "networkSupported": true
+      }
+    ],
+    "history": {
+      "points": [
+        {
+          "time": "2026-10-13T14:16:08.210470906Z",
+          "cpu": null,
+          "memory": 27.577651015563177,
+          "bytesInPerSecond": null,
+          "bytesOutPerSecond": null
+        },
+        {
+          "time": "2026-10-13T14:16:13.211202661Z",
+          "cpu": 0.6006006006006006,
+          "memory": 27.869460564494855,
+          "bytesInPerSecond": 1116.2366392143456,
+          "bytesOutPerSecond": 2701.804591978686
+        },
+        {
+          "time": "2026-10-13T14:16:18.211205925Z",
+          "cpu": 0.2,
+          "memory": 28.251121076233183,
+          "bytesInPerSecond": 395.19974138128924,
+          "bytesOutPerSecond": 65.99995680962827
+        },
+        {
+          "time": "2026-10-13T14:16:23.211198161Z",
+          "cpu": 0.1,
+          "memory": 28.275850699024005,
+          "bytesInPerSecond": 70.80010989593058,
+          "bytesOutPerSecond": 74.40011548385925
+        },
+        {
+          "time": "2026-10-13T14:16:28.211197829Z",
+          "cpu": 0.6,
+          "memory": 28.55034951200211,
+          "bytesInPerSecond": 3340.000188376011,
+          "bytesOutPerSecond": 4141.2002335636935
+        },
+        {
+          "time": "2026-10-13T14:16:33.211199286Z",
+          "cpu": 0,
+          "memory": 28.703673173305198,
+          "bytesInPerSecond": 51.59998557264403,
+          "bytesOutPerSecond": 39.59998892784309
+        },
+        {
+          "time": "2026-10-13T14:16:38.211199666Z",
+          "cpu": 0.7,
+          "memory": 29.086158005803217,
+          "bytesInPerSecond": 1484.5998871704085,
+          "bytesOutPerSecond": 3385.399742709619
+        },
+        {
+          "time": "2026-10-13T14:16:43.211198585Z",
+          "cpu": 2.4,
+          "memory": 28.933658665259827,
+          "bytesInPerSecond": 7078.401519024966,
+          "bytesOutPerSecond": 136766.62935011866
+        },
+        {
+          "time": "2026-10-13T14:16:48.211197854Z",
+          "cpu": 0.4,
+          "memory": 29.002901609074122,
+          "bytesInPerSecond": 1302.8001925538683,
+          "bytesOutPerSecond": 3061.4004524749867
+        },
+        {
+          "time": "2026-10-13T14:16:53.211200013Z",
+          "cpu": 0.2,
+          "memory": 29.071320232128727,
+          "bytesInPerSecond": 156.39992821243297,
+          "bytesOutPerSecond": 188.3999135244397
+        },
+        {
+          "time": "2026-10-13T14:16:58.211199346Z",
+          "cpu": 0.6993006993006993,
+          "memory": 29.364778422579793,
+          "bytesInPerSecond": 774.0001233756198,
+          "bytesOutPerSecond": 912.0001453728232
+        },
+        {
+          "time": "2026-10-13T14:17:03.21119925Z",
+          "cpu": 1.5015015015015014,
+          "memory": 28.844632023212874,
+          "bytesInPerSecond": 23264.80046064305,
+          "bytesOutPerSecond": 449506.40890022693
+        },
+        {
+          "time": "2026-10-13T14:17:08.211199586Z",
+          "cpu": 1.4985014985014986,
+          "memory": 29.18095489316803,
+          "bytesInPerSecond": 19535.198679420566,
+          "bytesOutPerSecond": 675279.954351075
+        },
+        {
+          "time": "2026-10-13T14:17:13.211197796Z",
+          "cpu": 2.002002002002002,
+          "memory": 29.06967159060934,
+          "bytesInPerSecond": 20245.60725197652,
+          "bytesOutPerSecond": 426691.35284084256
+        },
+        {
+          "time": "2026-10-13T14:17:18.211199107Z",
+          "cpu": 1.098901098901099,
+          "memory": 29.188373780005275,
+          "bytesInPerSecond": 21267.99440651747,
+          "bytesOutPerSecond": 427940.28745170444
+        },
+        {
+          "time": "2026-10-13T14:17:23.211197614Z",
+          "cpu": 1.2012012012012012,
+          "memory": 29.16034687417568,
+          "bytesInPerSecond": 19744.005923201777,
+          "bytesOutPerSecond": 429136.9287410786
+        },
+        {
+          "time": "2026-10-13T14:17:28.211207467Z",
+          "cpu": 32.8,
+          "memory": 29.499967027169614,
+          "bytesInPerSecond": 17563.165361925276,
+          "bytesOutPerSecond": 425269.56128337124
+        },
+        {
+          "time": "2026-10-13T14:17:33.211214991Z",
+          "cpu": 52.452452452452455,
+          "memory": 29.099347137958322,
+          "bytesInPerSecond": 17329.17392652491,
+          "bytesOutPerSecond": 419608.1686575494
+        },
+        {
+          "time": "2026-10-13T14:17:38.211205805Z",
+          "cpu": 20.72072072072072,
+          "memory": 29.418359271959904,
+          "bytesInPerSecond": 17044.03133715602,
+          "bytesOutPerSecond": 422144.37615465
+        }
+      ],
+      "sampleSeconds": 5,
+      "storage": "memory"
+    },
+    "protection": {
+      "policies": 1,
+      "globalPolicies": 0,
+      "activeBans": 0,
+      "rejected": 6,
+      "events": 6
+    },
+    "workspace": {
+      "certs": [
+        {
+          "enabled": true,
+          "id": "5a629e426b3bbbaf16f769cdb37e79ba",
+          "name": "PVE 导入证书",
+          "notAfter": "2026-12-12T14:16:27Z",
+          "remainingDays": 59,
+          "source": "uploaded"
+        }
+      ],
+      "ddns": [
+        {
+          "enabled": false,
+          "id": "52c0ce1c2463af093686b8a7d41f5bb9",
+          "name": "Cloudflare双栈验证",
+          "status": {
+            "taskId": "52c0ce1c2463af093686b8a7d41f5bb9",
+            "ip": "192.0.2.42",
+            "success": true,
+            "message": "cf.example.test A: 记录 cf.example.test 已是最新（192.0.2.42）；cf.example.test AAAA: 记录 cf.example.test 已是最新（2001:db8::42）",
+            "lastTime": "2026-10-13T14:16:59.037355909Z",
+            "records": [
+              {
+                "recordId": "v4",
+                "domain": "cf.example.test",
+                "type": "A",
+                "ip": "192.0.2.42",
+                "success": true,
+                "message": "记录 cf.example.test 已是最新（192.0.2.42）",
+                "lastTime": "2026-10-13T14:16:59.037355909Z",
+                "remoteChecked": true,
+                "changed": false
+              },
+              {
+                "recordId": "v6",
+                "domain": "cf.example.test",
+                "type": "AAAA",
+                "ip": "2001:db8::42",
+                "success": true,
+                "message": "记录 cf.example.test 已是最新（2001:db8::42）",
+                "lastTime": "2026-10-13T14:16:59.037355909Z",
+                "remoteChecked": true,
+                "changed": false
+              }
+            ]
+          }
+        },
+        {
+          "enabled": false,
+          "id": "8a26db95cd0f561ef545d814a35eab9b",
+          "name": "阿里云双栈验证",
+          "status": null
+        },
+        {
+          "enabled": false,
+          "id": "44331da8fc76192382a39f4a39797639",
+          "name": "DNSPod双栈验证",
+          "status": null
+        }
+      ],
+      "protection": {
+        "policies": 1,
+        "globalPolicies": 0,
+        "activeBans": 0,
+        "rejected": 6,
+        "events": 6
+      },
+      "time": "2026-10-13T14:17:41.372030703Z"
+    },
+    "stats": {
+      "4b40cdc6db2d078594a3b0194c8bf164": {
+        "requests": 43,
+        "bytesIn": 0,
+        "bytesOut": 7045120,
+        "active": 0,
+        "status1xx": 0,
+        "status2xx": 43,
+        "status3xx": 0,
+        "status4xx": 0,
+        "status5xx": 0,
+        "rules": {
+          "cffd8b8847f7dd349e7caa03ba68fcdc": {
+            "requests": 43,
+            "bytesIn": 0,
+            "bytesOut": 7045120,
+            "active": 0,
+            "status1xx": 0,
+            "status2xx": 43,
+            "status3xx": 0,
+            "status4xx": 0,
+            "status5xx": 0,
+            "backends": [
+              {
+                "backend": "http://127.0.0.1:18849",
+                "up": true,
+                "activeCheck": false
+              }
+            ]
+          }
+        }
+      },
+      "6c49e8f4c723f5f9cdb4bff49d268429": {
+        "requests": 37,
+        "bytesIn": 0,
+        "bytesOut": 5406775,
+        "active": 0,
+        "status1xx": 0,
+        "status2xx": 33,
+        "status3xx": 0,
+        "status4xx": 4,
+        "status5xx": 0,
+        "rules": {
+          "c67aacf79cbac31a8bf9fe25df24c75d": {
+            "requests": 33,
+            "bytesIn": 0,
+            "bytesOut": 5406720,
+            "active": 0,
+            "status1xx": 0,
+            "status2xx": 33,
+            "status3xx": 0,
+            "status4xx": 0,
+            "status5xx": 0,
+            "backends": [
+              {
+                "backend": "http://127.0.0.1:18849",
+                "up": true,
+                "activeCheck": true,
+                "lastCheck": 1791901059
+              }
+            ]
+          }
+        }
+      }
+    },
+    "firewall": {
+      "openwrt": true,
+      "rules": []
+    },
+    "ids": {
+      "tasks": {
+        "cloudflare": "52c0ce1c2463af093686b8a7d41f5bb9",
+        "aliyun": "8a26db95cd0f561ef545d814a35eab9b",
+        "dnspod": "44331da8fc76192382a39f4a39797639"
+      },
+      "policy": "44a40cbbde3a9db319cfa6f018a31d2c",
+      "site": "6c49e8f4c723f5f9cdb4bff49d268429",
+      "rule": "c67aacf79cbac31a8bf9fe25df24c75d",
+      "cert": "5a629e426b3bbbaf16f769cdb37e79ba"
+    },
+    "mockState": {
+      "records": {
+        "aliyunali.example.testA": {
+          "ID": "aliali.example.testA",
+          "Name": "ali.example.test",
+          "Type": "A",
+          "Value": "192.0.2.42",
+          "TTL": 600
+        },
+        "aliyunali.example.testAAAA": {
+          "ID": "aliali.example.testAAAA",
+          "Name": "ali.example.test",
+          "Type": "AAAA",
+          "Value": "2001:db8::42",
+          "TTL": 300
+        },
+        "cloudflarecf.example.testA": {
+          "ID": "cfcf.example.testA",
+          "Name": "cf.example.test",
+          "Type": "A",
+          "Value": "192.0.2.42",
+          "TTL": 600
+        },
+        "cloudflarecf.example.testAAAA": {
+          "ID": "cfcf.example.testAAAA",
+          "Name": "cf.example.test",
+          "Type": "AAAA",
+          "Value": "2001:db8::42",
+          "TTL": 300
+        },
+        "dnspoddp.example.testA": {
+          "ID": "5",
+          "Name": "dp.example.test",
+          "Type": "A",
+          "Value": "192.0.2.42",
+          "TTL": 600
+        },
+        "dnspoddp.example.testAAAA": {
+          "ID": "6",
+          "Name": "dp.example.test",
+          "Type": "AAAA",
+          "Value": "2001:db8::42",
+          "TTL": 300
+        }
+      },
+      "writes": {
+        "aliyun": 7,
+        "cloudflare": 7,
+        "dnspod": 7
+      }
+    },
+    "checks": [
+      "Three provider adapters perform A/AAAA writes on real router against local fixture endpoints",
+      "Forced remote drift repair and same-IP TTL update for all three adapters",
+      "Record independent toggle, stale mutation 409, dual-stack partial failure and recovery, history endpoint availability",
+      "Real reverse proxy body, custom unmatched response, health configuration, atomic failed-update rollback",
+      "Hot policy blocks Web including unmatched routes, new TCP and same-socket UDP; management stays usable; release restores all; referenced delete rejected",
+      "Temporary ban and release work with existing UDP socket and independent admin access",
+      "Actual TLS with hostname/certificate verification; failed import preserves serving cert; 40 concurrent requests succeed during replacement",
+      "Real Linux CPU rises under bounded 10-second load; memory, default br-lan counters/rates and history available; 30 concurrent proxy requests complete"
+    ],
+    "calls": [
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/39b522af26087bb6936fd1bce5a49502",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/3beef952df473b31c2757009bc67db6e",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/ddns/tasks/2ed9f8c4a82c10145039666843d7d8d2",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/policies",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/providers/cloudflare-8b1c1f42a762b2f09d879f08b709f6e1",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/providers/aliyun-37df639ba7a192ef6822d1fd9701e769",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/providers/dnspod-6c44749178ad3764f2f3afd76880ac05",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/run",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/8a26db95cd0f561ef545d814a35eab9b/run",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/44331da8fc76192382a39f4a39797639/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/records/v4",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/run",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/8a26db95cd0f561ef545d814a35eab9b/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/ddns/tasks/8a26db95cd0f561ef545d814a35eab9b/records/v4",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/8a26db95cd0f561ef545d814a35eab9b/run",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/44331da8fc76192382a39f4a39797639/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/ddns/tasks/44331da8fc76192382a39f4a39797639/records/v4",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/44331da8fc76192382a39f4a39797639/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/records/v4/toggle",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/toggle",
+        "status": 409
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/records/v4/toggle",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/run",
+        "status": 500
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/run",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/history",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/protection/policies",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/sites/6c49e8f4c723f5f9cdb4bff49d268429/rules",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/6c49e8f4c723f5f9cdb4bff49d268429/rules/c67aacf79cbac31a8bf9fe25df24c75d",
+        "status": 400
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites/6c49e8f4c723f5f9cdb4bff49d268429/rules/c67aacf79cbac31a8bf9fe25df24c75d/health",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/policies/44a40cbbde3a9db319cfa6f018a31d2c",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/protection/policies/44a40cbbde3a9db319cfa6f018a31d2c",
+        "status": 409
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/policies/44a40cbbde3a9db319cfa6f018a31d2c",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/dashboard/workspace",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/protection/bans/127.0.0.1",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 400
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics/history?range=1h",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/summary",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/dashboard/workspace",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites/stats",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/firewall/status",
+        "status": 200
+      }
+    ],
+    "apiCallCount": 73,
+    "realPublicDNSWrites": false,
+    "realPublicACME": false,
+    "supplementChecks": [
+      "Real br-lan IPv4 source reads router address",
+      "Global UA policy rejects matching agent and allows other agent",
+      "Temporary ban automatically expires and restores requests",
+      "Encrypted backup export/import preserves new schema, references and health; prior admin session invalidated",
+      "Actual process restart preserves encrypted tasks/providers/sites/forward/policy/health and replacement cert; TLS and TCP/UDP resume; in-memory history/counters reset as documented"
+    ],
+    "supplementCalls": [
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/preview-ip",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/policies",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/policies/44a40cbbde3a9db319cfa6f018a31d2c",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/protection/policies/44a40cbbde3a9db319cfa6f018a31d2c",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/system/backup/export",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/system/backup/import",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 401
+      },
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites/6c49e8f4c723f5f9cdb4bff49d268429/rules/c67aacf79cbac31a8bf9fe25df24c75d/health",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites/6c49e8f4c723f5f9cdb4bff49d268429/rules/c67aacf79cbac31a8bf9fe25df24c75d/health",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/summary",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks/52c0ce1c2463af093686b8a7d41f5bb9/history",
+        "status": 200
+      }
+    ],
+    "supplementApiCallCount": 25,
+    "realInterfacePreview": {
+      "interface": "br-lan",
+      "ip": "192.168.199.7"
+    }
+  },
+  "installed": {
+    "reviewDate": "2026-10-14",
+    "adminURL": "https://192.168.199.7:16606",
+    "tlsFingerprint": "6A:C9:53:45:D8:00:EC:43:6B:0E:40:C8:2C:59:37:81:39:EF:B8:65:2F:74:6B:4C:82:21:26:52:08:78:1A:A6",
+    "fingerprintMatchedSSHLog": true,
+    "hostnameChecked": "127.0.0.1 through SSH tunnel",
+    "userChangedPasswordLoginVerified": true,
+    "calls": [
+      {
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "path": "/api/me",
+        "status": 200
+      },
+      {
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "path": "/api/forwards",
+        "status": 200
+      },
+      {
+        "path": "/api/protection/policies",
+        "status": 200
+      },
+      {
+        "path": "/api/protection/summary",
+        "status": 200
+      },
+      {
+        "path": "/api/dashboard/workspace",
+        "status": 200
+      },
+      {
+        "path": "/api/firewall/status",
+        "status": 200
+      }
+    ],
+    "metrics": {
+      "time": "2026-10-14T00:04:26.403993677Z",
+      "hostCpu": 0.7007007007007007,
+      "memoryPercent": 35.62302163017674,
+      "memoryTotal": 496893952,
+      "memoryUsed": 177008640,
+      "processResident": 20520960,
+      "processHeap": 1552200,
+      "goroutines": 8,
+      "interface": "br-lan",
+      "bytesInPerSecond": 298.8001652962514,
+      "bytesOutPerSecond": 181.20010023989545,
+      "received": 125345186,
+      "sent": 260004842,
+      "hostSupported": true,
+      "networkSupported": true
+    },
+    "modules": {
+      "/api/providers": [
+        {
+          "id": "cloudflare-459ad1b5595f53d211c6c4205c8d1d66",
+          "type": "cloudflare",
+          "remark": "Cloudflare（本机模拟）",
+          "endpoint": "http://127.0.0.1:18849/cf",
+          "keyConfigured": true,
+          "secretConfigured": true
+        },
+        {
+          "id": "aliyun-de2e2c349d9bc20ec2f093ddf0c5a770",
+          "type": "aliyun",
+          "remark": "阿里云（本机模拟）",
+          "endpoint": "http://127.0.0.1:18849/ali",
+          "keyConfigured": true,
+          "secretConfigured": true
+        },
+        {
+          "id": "dnspod-f183a21ae9daf3c71b433c006c9d75db",
+          "type": "dnspod",
+          "remark": "DNSPod（本机模拟）",
+          "endpoint": "http://127.0.0.1:18849/dp",
+          "keyConfigured": true,
+          "secretConfigured": true
+        }
+      ],
+      "/api/ddns/tasks": [
+        {
+          "records": [
+            {
+              "id": "v4",
+              "enabled": true,
+              "domain": "cf.example.test",
+              "type": "A",
+              "ttl": 600
+            },
+            {
+              "id": "v6",
+              "enabled": true,
+              "domain": "cf.example.test",
+              "type": "AAAA",
+              "ttl": 300
+            }
+          ],
+          "ipv4Source": {
+            "source": "api",
+            "interface": "",
+            "apiUrl": "http://127.0.0.1:18849/ip4"
+          },
+          "ipv6Source": {
+            "source": "api",
+            "interface": "",
+            "apiUrl": "http://127.0.0.1:18849/ip6"
+          },
+          "forceInterval": 30,
+          "id": "52c0ce1c2463af093686b8a7d41f5bb9",
+          "name": "Cloudflare双栈验证",
+          "enabled": false,
+          "providerId": "cloudflare-459ad1b5595f53d211c6c4205c8d1d66",
+          "domains": null,
+          "ipType": "",
+          "ipSource": "",
+          "interface": "",
+          "apiUrl": "",
+          "interval": 300,
+          "ttl": 0,
+          "revision": "b5212cf8f387a4096824fe8678472f3534672d0c60d6aeaf68ae510ff436c91b",
+          "effectiveRecords": [
+            {
+              "id": "v4",
+              "enabled": true,
+              "domain": "cf.example.test",
+              "type": "A",
+              "ttl": 600
+            },
+            {
+              "id": "v6",
+              "enabled": true,
+              "domain": "cf.example.test",
+              "type": "AAAA",
+              "ttl": 300
+            }
+          ]
+        },
+        {
+          "records": [
+            {
+              "id": "v4",
+              "enabled": true,
+              "domain": "ali.example.test",
+              "type": "A",
+              "ttl": 600
+            },
+            {
+              "id": "v6",
+              "enabled": true,
+              "domain": "ali.example.test",
+              "type": "AAAA",
+              "ttl": 300
+            }
+          ],
+          "ipv4Source": {
+            "source": "api",
+            "interface": "",
+            "apiUrl": "http://127.0.0.1:18849/ip4"
+          },
+          "ipv6Source": {
+            "source": "api",
+            "interface": "",
+            "apiUrl": "http://127.0.0.1:18849/ip6"
+          },
+          "forceInterval": 30,
+          "id": "8a26db95cd0f561ef545d814a35eab9b",
+          "name": "阿里云双栈验证",
+          "enabled": false,
+          "providerId": "aliyun-de2e2c349d9bc20ec2f093ddf0c5a770",
+          "domains": null,
+          "ipType": "",
+          "ipSource": "",
+          "interface": "",
+          "apiUrl": "",
+          "interval": 300,
+          "ttl": 0,
+          "revision": "08514797798f005c0b6d2b5b88220f90dfa1ef7f2733293ac0cb162dc58c01d0",
+          "effectiveRecords": [
+            {
+              "id": "v4",
+              "enabled": true,
+              "domain": "ali.example.test",
+              "type": "A",
+              "ttl": 600
+            },
+            {
+              "id": "v6",
+              "enabled": true,
+              "domain": "ali.example.test",
+              "type": "AAAA",
+              "ttl": 300
+            }
+          ]
+        },
+        {
+          "records": [
+            {
+              "id": "v4",
+              "enabled": true,
+              "domain": "dp.example.test",
+              "type": "A",
+              "ttl": 600
+            },
+            {
+              "id": "v6",
+              "enabled": true,
+              "domain": "dp.example.test",
+              "type": "AAAA",
+              "ttl": 300
+            }
+          ],
+          "ipv4Source": {
+            "source": "api",
+            "interface": "",
+            "apiUrl": "http://127.0.0.1:18849/ip4"
+          },
+          "ipv6Source": {
+            "source": "api",
+            "interface": "",
+            "apiUrl": "http://127.0.0.1:18849/ip6"
+          },
+          "forceInterval": 30,
+          "id": "44331da8fc76192382a39f4a39797639",
+          "name": "DNSPod双栈验证",
+          "enabled": false,
+          "providerId": "dnspod-f183a21ae9daf3c71b433c006c9d75db",
+          "domains": null,
+          "ipType": "",
+          "ipSource": "",
+          "interface": "",
+          "apiUrl": "",
+          "interval": 300,
+          "ttl": 0,
+          "revision": "1ec1ad4f14272385734d48f5820883fc71ce62b1a7b5e5fad66754a53e668799",
+          "effectiveRecords": [
+            {
+              "id": "v4",
+              "enabled": true,
+              "domain": "dp.example.test",
+              "type": "A",
+              "ttl": 600
+            },
+            {
+              "id": "v6",
+              "enabled": true,
+              "domain": "dp.example.test",
+              "type": "AAAA",
+              "ttl": 300
+            }
+          ]
+        }
+      ],
+      "/api/certs": [
+        {
+          "source": "uploaded",
+          "keyType": "RSA2048",
+          "id": "5a629e426b3bbbaf16f769cdb37e79ba",
+          "name": "PVE 导入证书",
+          "enabled": true,
+          "domains": [
+            "pve.example.test"
+          ],
+          "providerId": "",
+          "email": "",
+          "caDirUrl": "",
+          "renewDays": 0,
+          "certFile": "certs/5a629e426b3bbbaf16f769cdb37e79ba.crt",
+          "keyFile": "certs/5a629e426b3bbbaf16f769cdb37e79ba.key",
+          "notAfter": "2026-12-12T14:16:27Z",
+          "status": "ok",
+          "remainingDays": 59,
+          "usingSites": [
+            {
+              "id": "4b40cdc6db2d078594a3b0194c8bf164",
+              "name": "PVE 真实 TLS"
+            }
+          ],
+          "obtaining": false
+        }
+      ],
+      "/api/sites": [
+        {
+          "revision": 2,
+          "policyId": "44a40cbbde3a9db319cfa6f018a31d2c",
+          "defaultResponse": {
+            "statusCode": 418,
+            "body": "pve unmatched"
+          },
+          "id": "6c49e8f4c723f5f9cdb4bff49d268429",
+          "name": "PVE 真实 Web 服务",
+          "enabled": false,
+          "listen": "127.0.0.1:18844",
+          "tls": false,
+          "certId": "",
+          "forceHttps": false,
+          "autoFw": false,
+          "rules": [
+            {
+              "revision": 1,
+              "group": "PVE 实测",
+              "id": "c67aacf79cbac31a8bf9fe25df24c75d",
+              "name": "路由器反向代理",
+              "type": "reverse",
+              "enabled": true,
+              "frontendHost": "",
+              "frontendPath": "/backend",
+              "backends": [
+                "http://127.0.0.1:18849"
+              ],
+              "redirectUrl": "",
+              "redirectCode": 0,
+              "rootDir": "",
+              "headers": null,
+              "preserveHost": false,
+              "basicAuth": false,
+              "authUser": "",
+              "authPass": "",
+              "ipListMode": "",
+              "ipList": null,
+              "uaListMode": "",
+              "uaList": null
+            }
+          ],
+          "status": "stopped"
+        },
+        {
+          "revision": 1,
+          "id": "4b40cdc6db2d078594a3b0194c8bf164",
+          "name": "PVE 真实 TLS",
+          "enabled": false,
+          "listen": "127.0.0.1:18846",
+          "tls": true,
+          "certId": "5a629e426b3bbbaf16f769cdb37e79ba",
+          "forceHttps": false,
+          "autoFw": false,
+          "rules": [
+            {
+              "revision": 1,
+              "id": "cffd8b8847f7dd349e7caa03ba68fcdc",
+              "name": "TLS 反向代理",
+              "type": "reverse",
+              "enabled": true,
+              "frontendHost": "",
+              "frontendPath": "/backend",
+              "backends": [
+                "http://127.0.0.1:18849"
+              ],
+              "redirectUrl": "",
+              "redirectCode": 0,
+              "rootDir": "",
+              "headers": null,
+              "preserveHost": false,
+              "basicAuth": false,
+              "authUser": "",
+              "authPass": "",
+              "ipListMode": "",
+              "ipList": null,
+              "uaListMode": "",
+              "uaList": null
+            }
+          ],
+          "status": "stopped"
+        }
+      ],
+      "/api/forwards": [
+        {
+          "policyId": "44a40cbbde3a9db319cfa6f018a31d2c",
+          "id": "6a22d5b1eeaccbbe2df7adc1f0904284",
+          "name": "PVE TCP",
+          "enabled": false,
+          "proto": "tcp",
+          "listen": "127.0.0.1:18853",
+          "targets": [
+            "127.0.0.1:18851"
+          ],
+          "autoFw": false,
+          "idleTimeout": 0,
+          "ipListMode": "",
+          "ipList": null,
+          "status": "stopped"
+        },
+        {
+          "policyId": "44a40cbbde3a9db319cfa6f018a31d2c",
+          "id": "1d0a455913042a649f06a10a2113c699",
+          "name": "PVE UDP",
+          "enabled": false,
+          "proto": "udp",
+          "listen": "127.0.0.1:18854",
+          "targets": [
+            "127.0.0.1:18852"
+          ],
+          "autoFw": false,
+          "idleTimeout": 0,
+          "ipListMode": "",
+          "ipList": null,
+          "status": "stopped"
+        }
+      ],
+      "/api/protection/policies": [
+        {
+          "id": "44a40cbbde3a9db319cfa6f018a31d2c",
+          "name": "PVE 热更新验证",
+          "enabled": true,
+          "global": false,
+          "ipListMode": "blacklist",
+          "ipList": [],
+          "uaListMode": "off",
+          "uaList": []
+        }
+      ],
+      "/api/protection/summary": {
+        "policies": 1,
+        "globalPolicies": 0,
+        "activeBans": 0,
+        "rejected": 0,
+        "events": 0
+      },
+      "/api/dashboard/workspace": {
+        "certs": [
+          {
+            "enabled": true,
+            "id": "5a629e426b3bbbaf16f769cdb37e79ba",
+            "name": "PVE 导入证书",
+            "notAfter": "2026-12-12T14:16:27Z",
+            "remainingDays": 59,
+            "source": "uploaded"
+          }
+        ],
+        "ddns": [
+          {
+            "enabled": false,
+            "id": "52c0ce1c2463af093686b8a7d41f5bb9",
+            "name": "Cloudflare双栈验证",
+            "status": null
+          },
+          {
+            "enabled": false,
+            "id": "8a26db95cd0f561ef545d814a35eab9b",
+            "name": "阿里云双栈验证",
+            "status": null
+          },
+          {
+            "enabled": false,
+            "id": "44331da8fc76192382a39f4a39797639",
+            "name": "DNSPod双栈验证",
+            "status": null
+          }
+        ],
+        "protection": {
+          "policies": 1,
+          "globalPolicies": 0,
+          "activeBans": 0,
+          "rejected": 0,
+          "events": 0
+        },
+        "time": "2026-10-14T00:04:27.239528428Z"
+      },
+      "/api/firewall/status": {
+        "openwrt": true,
+        "rules": []
+      }
+    },
+    "serviceVersion": "0.3.7-lucky-pve-test3"
+  },
+  "finalBinarySHA256": "ecf2649229dbd6d7df96ba61bf3747a3fe281e70e785438a96440c419ead4aa0",
+  "luciVisible": true,
+  "procdRunning": true,
+  "autostartEnabled": true,
+  "actualVMRebootTested": false,
+  "installationMethod": "direct repository OpenWrt files, not an apk package",
+  "networkAndFirewallConfigHashesUnchanged": true,
+  "frontendFinal": {
+    "files": 17,
+    "tests": 52,
+    "build": true,
+    "embeddedAssetTest": true
+  },
+  "visualReview": {
+    "measurements": [
+      {
+        "path": "dashboard",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "ddns",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "web-service",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "certs",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "protection",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "forward",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "tunnels",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "logs",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "notifications",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "settings",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 390,
+        "mainWidth": 390,
+        "scrollWidth": 390,
+        "width": 390
+      },
+      {
+        "path": "dashboard",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "ddns",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "web-service",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "certs",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "protection",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "forward",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "tunnels",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "logs",
+        "cards": [
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "notifications",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      },
+      {
+        "path": "settings",
+        "cards": [
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)",
+          "rgb(237, 245, 251)"
+        ],
+        "mainScroll": 1244,
+        "mainWidth": 1244,
+        "scrollWidth": 1440,
+        "width": 1440
+      }
+    ],
+    "browserConsoleErrors": 0,
+    "realDataMobileDualAxesVerified": true,
+    "screenshotsFrom": "same VM SSH-only isolated instance, identical binary to installed service",
+    "directHTTPSBrowser": "blocked by self-signed certificate; browser warning not bypassed",
+    "installedHTTPS": "fingerprint matched SSH log, TLS hostname check on SSH endpoint and authenticated API verified",
+    "luciFinalScreenshot": "screenshots/pve-style-fix-2026-10-13/luci-final-version.png"
+  },
+  "lastReviewDate": "2026-10-14",
+  "auditCopyStopped": true,
+  "finalListeners": {
+    "installedAdmin": 16606,
+    "mockHelperLoopback": 18849,
+    "audit18843": false,
+    "audit18944": false
+  },
+  "networkAndFirewallConfigSHA256": {
+    "network": "b3bbd83e76c33aac5ce3a13cb23cd90503f022bc617ad7eaeac0c7738415562e",
+    "firewall": "6dd761129990dbd4af74f9e886737dd07399f159a49457b61cace2d4da432dee"
+  }
+}

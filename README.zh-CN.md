@@ -20,24 +20,24 @@
 - **端口转发**:TCP / UDP 四层转发,带实时日志
   - 规则级 `idleTimeout` TCP 空闲超时（默认 600 秒，仅 API/配置字段）
 - **DDNS 动态域名**:定时检测 IP 变化并更新 DNS 记录
-  - IP 来源:网卡 / 自定义 API
-  - 支持 IPv4 / IPv6,阿里云、Cloudflare、DNSPod
+  - IP 来源：网卡 / API / STUN / DNS，支持最多3个顺序回退来源
+  - 支持 A/AAAA 与固定 CNAME/TXT，阿里云、Cloudflare、DNSPod；逐条启停、同步与历史
 - **Cloudflare 隧道**:后台新建或已有 Token 接入，多实例启停、连接状态、域名路由与日志
   - 通过专用 Unix Socket 发布本项目站点，保留鉴权、真实访客 IP 限流及统计；也支持直连 HTTP/HTTPS 服务
   - 可选的 `cloudflared` 2025.4.0+ 支持按系统架构从官方源一键下载，也可手动安装；主程序和安装包不捆绑，不增加强制依赖。[使用说明](docs/cloudflare-tunnel.md)
-- **安全防护**:IP 黑白名单(支持 CIDR)、User-Agent 黑白名单,转发与 Web 服务共用
+- **安全防护**：共享 IP/UA 策略、请求侧 WAF/CC、安全组；TCP 诱捕支持豁免、自动封禁、到期/手动解封，管理入口独立
 - **管理后台**:Vue 3 + Element Plus,通过 `go:embed` 嵌入二进制,无需额外部署
-- **运维控制台**:健康概览、防火墙、手动更新和最近错误统一管理
+- **运维控制台**:概览指标与历史、独立设置/日志/通知工作区，统一导航和窄屏表单
 - **日志中心**:结构化查询、下载与审计，磁盘占用上限约 5 MiB
 - **通知中心**:独立管理通知渠道与事件订阅，当前支持 Telegram Bot，可按证书 / DDNS / 站点 / 转发 / 隧道类型筛选
-- **配置备份**:Dashboard 导出/导入加密备份文件（口令派生密钥，可跨设备迁移）
+- **配置备份**:设置页导出/导入加密备份文件（口令派生密钥，可跨设备迁移）
 - **账户安全**:可选 Google Authenticator 双重验证、一次性恢复码和设备本机重置
 
 ## 快速开始
 
 ### 下载
 
-从 [Releases](https://github.com/wubin0532/Reverse_Proxy/releases) 下载对应架构的二进制,支持:
+从 [Releases](https://github.com/wubin0532/Reverse_Proxy/releases) 下载对应架构的 `.run` 安装文件，支持:
 
 | 架构 | 适用设备 |
 |------|---------|
@@ -70,26 +70,18 @@ make build          # 构建前端 + 本机二进制(输出 andey-proxy)
 
 前端产物通过 `go:embed` 嵌入二进制,构建 Go 代码前需先执行 `make web`(或 `cd web && npm ci && npm run build`)。
 
-### OpenWrt 安装
+### 安装与环境检查
 
-`package/openwrt/` 提供了 OpenWrt 包定义（含 LuCI 界面文件）,可用 OpenWrt SDK 编译为 ipk,详见该目录下 Makefile 头部注释。默认配置目录 `/etc/andey-proxy`。
-
-Release 中的 `luci-app-andeyproxy_*.ipk` 一个包即包含主程序与 LuCI 界面（服务 -> andey-Proxy 菜单）。旧版曾拆分为 `andey-proxy` + `luci-app-andeyproxy` 两个包；从旧包名 `andey-proxy` 迁移时请先备份再卸载（旧包卸载会删除运行数据）：
+v1.0.0 正式发行只提供五种架构的签名 `.run`，不发布 `.ipk`、`.apk` 或裸二进制包。先下载匹配架构的文件，并按 `checksums.txt` 核对摘要：
 
 ```bash
-cp -a /etc/andey-proxy /etc/andey-proxy.bak
-cp -a /etc/config/andey-proxy /etc/andey-proxy.bak.uci
-opkg remove andey-proxy
-opkg install luci-app-andeyproxy_*.ipk   # postinst 自动从备份恢复配置
+sh andey-proxy_1.0.0_linux_x86_64.run --check
+sudo sh andey-proxy_1.0.0_linux_x86_64.run
 ```
 
-没有 opkg 的 OpenWrt（ImmortalWrt 25.12 起改用 apk）直接用 `.run` 包,它同样自带 LuCI 界面：
+`--check` 检查 Linux/CPU 架构、MIPS大小端、解压/摘要工具、系统 CA 证书、临时及安装目录空间，并核对程序摘要和版本；不替换程序、不修改配置、不启停服务。Go 程序为静态编译，不需要 Go、Node.js 或额外 libc；`cloudflared` 仅为隧道功能的可选独立依赖。
 
-```bash
-sh andey-proxy_*_linux_x86_64.run
-```
-
-安装脚本会在检测到 LuCI 时铺开菜单、ACL、设置页与翻译,自动创建 `/etc/config/andey-proxy`（`enabled=1`、端口 16606）并启动服务,无需再手动装包或改配置;纯 Linux 服务器上这些 LuCI 文件会被忽略。
+OpenWrt/ImmortalWrt 使用 procd，检测到 LuCI 时安装菜单、ACL、页面与翻译。系统缺少 CA 证书时应先安装 `ca-bundle`；Debian/Ubuntu 应安装 `ca-certificates`。systemd Linux 安装后创建并启动服务；其它 Linux 环境给出手动启动命令。升级保留账号、配置、设备密钥和证书，原程序保留为 `/usr/bin/andey-proxy.previous`。仅首次安装时创建默认 UCI 配置。
 
 ## 目录结构
 
@@ -108,7 +100,7 @@ sh andey-proxy_*_linux_x86_64.run
 │   ├── notify/          # 事件总线、通知渠道管理与 Telegram Bot 发送
 │   └── config/          # AES-256-GCM 加密配置与原子事务
 ├── web/                 # 前端源码(Vue 3 + Vite + Element Plus)
-├── package/openwrt/     # OpenWrt ipk 打包
+├── package/openwrt/     # OpenWrt 服务脚本与 LuCI 文件
 └── scripts/build-all.sh # 多架构交叉编译
 ```
 
@@ -152,14 +144,14 @@ sh andey-proxy_*_linux_x86_64.run
 
 ## CI
 
-推送到 `main` 或打 `v*` 标签时,GitHub Actions 从 `go.mod` 读取 Go 版本，运行前端测试与构建、`go vet ./...`、`go test -race ./...`、依赖漏洞扫描并构建全部 5 种架构的二进制。标签构建还会生成五架构签名 `.run` 与 OpenWrt `.ipk` 产物(见 [Actions](https://github.com/wubin0532/Reverse_Proxy/actions))。
+推送到 `main` 或打 `v*` 标签时,GitHub Actions 从 `go.mod` 读取 Go 版本，运行前端测试与构建、`go vet ./...`、`go test -race ./...`、依赖漏洞扫描并构建全部 5 种架构的二进制。标签构建还会生成五架构签名 `.run` 与校验摘要(见 [Actions](https://github.com/wubin0532/Reverse_Proxy/actions))。
 
 ## 安全部署建议
 
 - 管理后台建议使用专用主机名/端口，避免与对外业务站点共用域名，降低被扫描与跨站攻击面。
 - 生产环境请使用 `-listen` 将管理后台绑定到内网地址，不要直接暴露到公网；默认监听全部网卡时启动日志会给出警告。
 - OpenWrt LuCI 界面的只读 ACL 仅授予状态查询与 `/etc/andey-proxy/initial-password` 读取权限：初始密码读取仅供首次登录，管理员首次改密后该文件自动删除；如需禁止只读账号查看，可在 `luci-app-andeyproxy.json` 中删除该授权行。
-- 仓库 `release/` 目录中的旧版包签名自检未通过，属于安全审计前的存量产物，请勿分发或安装；请等待重新签名的正式版本发布。
+- 下载正式版本后核对 `checksums.txt`；后台手动更新还会用内置 Ed25519 公钥验证包内签名。
 
 ## License
 

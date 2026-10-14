@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <el-card class="login-card">
-      <div class="brand-mark">A</div>
+      <div class="brand-mark"><NavIcon name="forward" /></div>
       <div class="login-title">andey-proxy</div>
       <p class="login-subtitle">{{ $t('login.subtitle') }}</p>
       <el-alert
@@ -61,6 +61,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import NavIcon from '../components/NavIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Key } from '@element-plus/icons-vue'

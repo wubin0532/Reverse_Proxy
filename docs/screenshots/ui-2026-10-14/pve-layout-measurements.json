@@ -1,0 +1,270 @@
+{
+  "desktop": [
+    {
+      "label": "概览",
+      "url": "https://192.168.199.7:16606/dashboard",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "概览",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "动态域名",
+      "url": "https://192.168.199.7:16606/ddns",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "动态域名",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Web 服务",
+      "url": "https://192.168.199.7:16606/web-service",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "Web 服务站点",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "证书管理",
+      "url": "https://192.168.199.7:16606/certs",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "证书管理",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "防护中心",
+      "url": "https://192.168.199.7:16606/protection",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "防护中心",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "端口转发",
+      "url": "https://192.168.199.7:16606/forward",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "端口转发规则新增规则",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Cloudflare 隧道",
+      "url": "https://192.168.199.7:16606/tunnels",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "Cloudflare 隧道",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "日志中心",
+      "url": "https://192.168.199.7:16606/logs",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "结构化日志当前文件 1 MiB，保留 4 个轮转文件，总上限约 5 MiB暂停刷新下载筛选结果清空",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "通知中心",
+      "url": "https://192.168.199.7:16606/notifications",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "通知中心",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "系统设置",
+      "url": "https://192.168.199.7:16606/settings",
+      "background": "rgb(243, 243, 240)",
+      "height": 907,
+      "pageWidth": 1920,
+      "title": "系统设置",
+      "width": 1920,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "mobile": [
+    {
+      "label": "概览",
+      "url": "https://192.168.199.7:16606/dashboard",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "动态域名",
+      "url": "https://192.168.199.7:16606/ddns",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Web 服务",
+      "url": "https://192.168.199.7:16606/web-service",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "证书管理",
+      "url": "https://192.168.199.7:16606/certs",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "防护中心",
+      "url": "https://192.168.199.7:16606/protection",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "端口转发",
+      "url": "https://192.168.199.7:16606/forward",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Cloudflare 隧道",
+      "url": "https://192.168.199.7:16606/tunnels",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "日志中心",
+      "url": "https://192.168.199.7:16606/logs",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "通知中心",
+      "url": "https://192.168.199.7:16606/notifications",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "系统设置",
+      "url": "https://192.168.199.7:16606/settings",
+      "height": 844,
+      "pageWidth": 390,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "siteDialog": {
+    "dialog": {
+      "bottom": 699,
+      "height": 675,
+      "left": 600,
+      "right": 1320,
+      "top": 24,
+      "width": 720,
+      "x": 600,
+      "y": 24
+    },
+    "height": 907,
+    "labels": [
+      {
+        "height": 40,
+        "text": "站点名称",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "监听地址 ?",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "监听端口 ?",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "启用 TLS ?",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "证书",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "强制 HTTPS ?",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "共享防护策略 ?",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "自定义默认响应 ?",
+        "width": 160
+      },
+      {
+        "height": 40,
+        "text": "防火墙 ?",
+        "width": 160
+      }
+    ],
+    "pageWidth": 1920,
+    "width": 1920,
+    "x": 0,
+    "y": 0
+  }
+}

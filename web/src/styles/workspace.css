@@ -1,0 +1,236 @@
+/* Shared workspace chrome, measured against the supplied Lucky instance. */
+.workspace-chrome {
+  padding: 20px;
+  border: 1px solid var(--ap-border);
+  border-radius: var(--ap-radius);
+  background: var(--ap-card);
+  box-shadow: var(--ap-shadow);
+}
+.workspace-top,
+.workspace-toolbar,
+.workspace-tools,
+.workspace-pills {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.workspace-top,
+.workspace-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.workspace-title,
+.workspace-chrome h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.workspace-toolbar {
+  margin-top: 16px;
+}
+.workspace-tools {
+  flex-wrap: wrap;
+}
+.workspace-pills {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid var(--ap-border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--ap-muted);
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 34px;
+  font-weight: 500;
+}
+.status-pill.active {
+  background: var(--ap-primary);
+  border-color: var(--ap-primary);
+  color: white;
+}
+.status-pill b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.workspace-search {
+  width: min(360px, 100%);
+}
+.workspace-row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.workspace-more {
+  padding: 6px 8px;
+  min-width: 34px;
+  min-height: 34px;
+  font-size: 18px;
+  line-height: 1;
+}
+.workspace-surface {
+  background: var(--ap-card);
+  border: 1px solid var(--ap-border);
+  border-radius: var(--ap-radius);
+  overflow: hidden;
+  box-shadow: var(--ap-shadow);
+}
+.numeric {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.layout .el-card {
+  min-width: 0;
+  --el-card-bg-color: var(--ap-card);
+  background-color: var(--ap-card);
+  box-shadow: var(--ap-shadow);
+}
+.layout .el-table {
+  --el-table-bg-color: var(--ap-card);
+  --el-table-tr-bg-color: var(--ap-card);
+  --el-table-expanded-cell-bg-color: var(--ap-card);
+  --el-table-header-bg-color: var(--ap-bg-soft);
+  --el-table-row-hover-bg-color: var(--ap-primary-softer);
+}
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  background-color: var(--ap-field);
+}
+.layout .el-button {
+  font-weight: 500;
+}
+.layout .el-button--primary {
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .workspace-tools {
+    gap: 6px;
+  }
+  .workspace-toolbar {
+    align-items: stretch;
+    gap: 10px;
+  }
+  .workspace-search {
+    width: 100%;
+  }
+  .workspace-top {
+    align-items: flex-start;
+  }
+  .workspace-chrome {
+    padding: 12px;
+  }
+  .workspace-chrome .el-button,
+  .status-pill,
+  .workspace-more {
+    min-height: 44px;
+  }
+  .el-dropdown-menu__item {
+    min-height: 44px;
+  }
+  .layout .el-switch {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+:root .workspace-chrome .status-pill.active {
+  background: var(--ap-primary);
+  border-color: var(--ap-primary);
+  color: white;
+}
+@media (max-width: 767px) {
+  .site-toolbar .el-button,
+  .group-pills .status-pill {
+    min-height: 44px !important;
+  }
+  .el-input__wrapper,
+  .el-select__wrapper {
+    min-height: 44px;
+  }
+  .el-input__inner,
+  .el-textarea__inner {
+    font-size: 16px;
+  }
+  .el-tabs__item {
+    height: 44px;
+  }
+}
+
+.layout .u-legend {
+  max-width: 100%;
+  font-size: 12px;
+  white-space: normal;
+}
+.layout .u-inline tr {
+  margin-right: 8px;
+}
+
+/* Long editors keep their action bar visible, including on narrow screens. */
+.workspace-dialog.el-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+  margin-block: 24px;
+}
+.workspace-dialog > .el-dialog__header,
+.workspace-dialog > .el-dialog__footer {
+  flex: 0 0 auto;
+}
+.workspace-dialog > .el-dialog__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.workspace-dialog .el-form-item {
+  margin-bottom: 16px;
+}
+.workspace-dialog .el-tabs__item {
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .workspace-dialog > .el-dialog__footer .el-button {
+    min-height: 44px;
+  }
+  .workspace-dialog .el-form-item__label {
+    line-height: 20px;
+    font-size: 13px;
+  }
+}
+
+/* Shared surface styling for traffic and operations workspaces. */
+.workspace-page {
+  gap: 18px;
+}
+.workspace-page .el-card__header {
+  padding: 18px 20px;
+}
+.workspace-page .card-header {
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.workspace-page .el-tabs__header {
+  margin-bottom: 18px;
+}
+.workspace-page .el-tabs__item {
+  font-size: 14px;
+}
+.workspace-page .el-card__body {
+  padding: 20px;
+}
+@media (max-width: 700px) {
+  .workspace-page .el-card__header,
+  .workspace-page .el-card__body {
+    padding: 16px;
+  }
+}

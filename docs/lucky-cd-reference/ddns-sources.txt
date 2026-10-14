@@ -1,0 +1,182 @@
+Browser tab: 8, Title: "Lucky | 动态域名", URL: "http://192.168.199.1:16601/andey/#/ddns".
+0 AXWebArea Lucky | 动态域名, URL: 192.168.199.1:16601/andey/#/ddns
+	1 container
+		2 container app
+			3 container
+				4 container
+					5 button Lucky
+						6 image Lucky
+						7 text Lucky
+						8 text 3.1.4
+					9 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+					10 text 动态域名 Lucky / 动态域名
+					11 button 切换主题
+					12 button 切换语言
+					13 button L Lucky Admin
+						14 text L
+						15 text Lucky Admin
+				16 container desktop-sidebar-navigation
+					17 content list
+						18 container 总览
+							19 text 总览
+						20 container 日志中心
+							21 text 日志中心
+						22 container 快速上手
+							23 text 快速上手
+						24 container 动态域名
+							25 text 动态域名
+						26 container Web服务
+							27 text Web服务
+						28 container 端口转发
+							29 text 端口转发
+						30 container STUN穿透
+							31 text STUN穿透
+						32 container Web终端
+							33 text Web终端
+						34 container 计划任务
+							35 text 计划任务
+						36 container SSL/TLS证书
+							37 text SSL/TLS证书
+						38 container 防护中心
+							39 container
+								40 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+									41 text 防护中心
+								42 container
+									43 text IP过滤
+									44 text 安全组
+						45 container IP地址库
+							46 text IP地址库
+						47 container 第三方认证
+							48 text 第三方认证
+						49 container Passkey 管理
+							50 text Passkey 管理
+						51 container LuckyID
+							52 text LuckyID
+						53 container 更多功能
+							54 button (collapsed) Description: 扩张, Secondary Actions: Expand
+								55 text 更多功能
+					56 content list
+						57 container 设置
+							58 text 设置
+						59 container 关于
+							60 text 关于
+				61 container pageContent
+					62 container
+						63 heading 动态域名, Value: 1
+							64 text 动态域名
+						65 button 帮助
+						66 button 日志
+						67 button 设置
+						68 button 新建任务
+							69 text 新建任务
+						70 container 筛选
+							71 checkbox 全部 1, Value: 1
+							72 checkbox 异常 0, Value: 0
+							73 checkbox 同步中 0, Value: 0
+							74 checkbox 已停用 0, Value: 0
+						75 container
+							76 text field (settable) Description: 搜索任务名、DNS 服务商、域名, ID: f_8fce34b7-3044-4254-baa8-5bb7c14641dd
+						77 checkbox (disabled) Description: 搜索或筛选时不能排序, Value: 0
+						78 container DDNS 任务列表
+							79 row (expanded) Secondary Actions: Collapse
+								80 cell
+									81 text Cloudflare
+									82 text Cloudflare · 2 条记录，2 条启用
+								83 cell
+									84 text IPv4
+									85 text 112.255.52.114
+								86 cell
+									87 text 正常
+									88 text 上次同步 10-14 08:17 · 下次检查 10-14 08:17
+								89 cell
+									90 container
+										91 button 立即同步
+										92 switch Description: 启用, Value: 1
+										93 button 更多操作
+								94 container
+									95 container
+										96 text 解析记录  · 2
+										97 button 新建记录
+									98 container
+										99 text A
+										100 button wubin.ink
+										101 text 默认线路
+										102 button 112.255.52.114
+										103 text 与本机一致 记录未变化
+										104 button 1
+										105 switch Description: 启用, Value: 1
+										106 button 更多操作
+									107 container
+										108 text A
+										109 button *.wubin.ink
+										110 text 默认线路
+										111 button 112.255.52.114
+										112 text 与本机一致 记录未变化
+										113 button 1
+										114 switch Description: 启用, Value: 1
+										115 button 更多操作
+									116 text IPv4 来源：HTTP(S)/STUN/DNS
+									117 button 变化记录 1
+									118 button 同步记录 10
+		119 container 新增 DDNS 任务
+			120 container
+				121 text 新增 DDNS 任务
+				122 button 关闭对话框
+				123 container
+					124 container
+						125 heading 基础设置, Value: 3
+							126 text 基础设置
+						127 button 打开 DDNS 配置引导，但不会打断当前表单填写
+						128 button 打开快速填写面板
+					129 text 任务名称
+					130 text field (settable) f_08e2d9d8-7845-4e31-9b5d-eae73ac1a6ed
+					131 text 任务开关
+					132 switch 1
+					133 tab group
+						134 tab (selectable, settable, boolean) DNS 服务商设置, Value: 0
+						135 tab (selected, settable, boolean) IP 变量, Value: 1
+						136 tab (selectable, settable, boolean) 域名记录（需添加）, Value: 0
+						137 tab (selectable, settable, boolean) Webhook, Value: 0
+						138 tab (selectable, settable, boolean) 高级设置, Value: 0
+					139 container
+						140 heading IP 变量, Value: 3
+							141 text IP 变量
+						142 text 如需添加多变量记录，请使用计划任务的全局变量方式。
+					171 container
+						172 button (expanded) STUN / DNS 公网 IP 来源格式, Secondary Actions: Collapse
+							173 text STUN / DNS 公网 IP 来源格式
+						174 text stun://IP-or-domain[:port] dns://DNS-server[:port]/query-domain/A-or-AAAA-or-TXT STUN 默认端口 3478；DNS 默认端口 53。IPv4 支持 A/TXT，IPv6 支持 AAAA/TXT；查询网络和结果地址族由所在区域决定。 谨慎使用 DNS 来源：系统 DNS、DNS 加速/代理/去广告软件或网络中的透明 DNS 劫持可能接管查询，导致返回代理出口 IP、错误地址或查询失败。建议先与 HTTP/STUN 查询结果对照验证。 常见公共 DNS 示例 PowerDNS · IPv4 dns://lua-ns-v4.powerdns.org/whoami.v4.powerdns.org/A PowerDNS · IPv6 dns://lua-ns-v6.powerdns.org/whoami.v6.powerdns.org/AAAA OpenDNS · IPv4 dns://resolver1.opendns.com/myip.opendns.com/A OpenDNS · IPv6 dns://resolver1.opendns.com/myip.opendns.com/AAAA Google · IPv4 / IPv6 dns://ns1.google.com/o-o.myaddr.l.google.com/TXT
+					145 container
+						146 heading {ipv6Addr}, Value: 3
+							147 text {ipv6Addr}
+						148 text 系统会根据该变量是否被引用，自动启用或禁用相关功能。
+					149 text 获取公网 IP 方式
+					150 container
+						151 text HTTP(S)/STUN/DNS
+						152 combo box (collapsed, settable) HTTP(S)/STUN/DNS, ID: f_28ec8cd5-ee9c-4363-a514-8f82670b9c3f, Secondary Actions: Expand
+					153 text IP 来源列表
+					154 text entry area (settable) Value: https://api6.ipify.org, ID: f_65e507c8-267c-42d4-bbed-33279a0dc17f
+					155 button 追加默认列表
+					156 button 恢复默认列表
+					157 container
+						158 heading {ipv4Addr}, Value: 3
+							159 text {ipv4Addr}
+						160 text 系统会根据该变量是否被引用，自动启用或禁用相关功能。
+					161 text 获取公网 IP 方式
+					162 container
+						163 text HTTP(S)/STUN/DNS
+						164 combo box (collapsed, settable) HTTP(S)/STUN/DNS, ID: f_59e93cb2-4878-4e9e-9f4e-8bfdce896364, Secondary Actions: Expand
+					165 text IP 来源列表
+					166 text entry area (settable) ID: f_27b18fb9-6d30-4d1a-ae2b-b24736d3b196, Value: stun://stun.miwifi.com
+stun://stun.chat.bilibili.com
+https://ddns.oray.com/checkip
+http://v4.66666.host:66/ip
+https://myip.ipip.net
+http://v4.666666.host:66/ip
+https://ip.3322.net
+					167 button 追加默认列表
+					168 button 恢复默认列表
+				169 button 取消
+				170 button 新建任务
+
+The focused UI element is 172 button (expanded) STUN / DNS 公网 IP 来源格式, Secondary Actions: Collapse

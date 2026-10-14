@@ -1,33 +1,41 @@
 <template>
-  <div class="page-grid">
+  <div class="page-grid workspace-page">
+    <WorkspaceHeader :title="$t('nav.logs')" :description="$t('logs.subtitle')" icon="logs">
+      <template #actions>
+        <el-button :icon="paused ? VideoPlay : VideoPause" @click="paused = !paused">{{
+          paused ? $t('logs.resume') : $t('logs.pause')
+        }}</el-button>
+        <el-button :icon="Download" @click="download">{{ $t('logs.downloadFiltered') }}</el-button>
+        <el-button type="danger" plain :icon="Delete" @click="clearOpen = true">{{ $t('logs.clear') }}</el-button>
+      </template>
+    </WorkspaceHeader>
     <el-card>
-      <template #header
-        ><div class="card-header">
-          <div>
-            <div>{{ $t('logs.title') }}</div>
-            <small class="muted">{{ $t('logs.subtitle') }}</small>
-          </div>
-          <div class="actions">
-            <el-button :icon="paused ? VideoPlay : VideoPause" @click="paused = !paused">{{
-              paused ? $t('logs.resume') : $t('logs.pause')
-            }}</el-button
-            ><el-button :icon="Download" @click="download">{{ $t('logs.downloadFiltered') }}</el-button
-            ><el-button type="danger" plain :icon="Delete" @click="clearOpen = true">{{ $t('logs.clear') }}</el-button>
-          </div>
-        </div></template
-      >
       <div class="filters">
-        <el-select v-model="filters.type" :placeholder="$t('logs.typeAll')" @change="reload">
+        <el-select
+          :aria-label="$t('logs.typeAll')"
+          v-model="filters.type"
+          :placeholder="$t('logs.typeAll')"
+          @change="reload"
+        >
           <el-option :label="$t('logs.typeAll')" value="" />
           <el-option :label="$t('logs.typeAccess')" value="access" />
           <el-option :label="$t('logs.typeSystem')" value="system" />
         </el-select>
-        <el-select v-model="filters.level" clearable :placeholder="$t('logs.allLevels')"
+        <el-select
+          :aria-label="$t('logs.allLevels')"
+          v-model="filters.level"
+          clearable
+          :placeholder="$t('logs.allLevels')"
           ><el-option label="Debug" value="debug" /><el-option label="Info" value="info" /><el-option
             label="Warn"
             value="warn" /><el-option label="Error" value="error"
         /></el-select>
-        <el-input v-model="filters.source" clearable :placeholder="$t('logs.sourcePlaceholder')" />
+        <el-input
+          :aria-label="$t('logs.sourcePlaceholder')"
+          v-model="filters.source"
+          clearable
+          :placeholder="$t('logs.sourcePlaceholder')"
+        />
         <el-date-picker
           v-model="filters.range"
           type="datetimerange"
@@ -35,7 +43,13 @@
           :start-placeholder="$t('logs.startTime')"
           :end-placeholder="$t('logs.endTime')"
         />
-        <el-input v-model="filters.keyword" clearable :placeholder="$t('logs.keyword')" @keyup.enter="reload" />
+        <el-input
+          :aria-label="$t('logs.keyword')"
+          v-model="filters.keyword"
+          clearable
+          :placeholder="$t('logs.keyword')"
+          @keyup.enter="reload"
+        />
         <el-button type="primary" :icon="Search" @click="reload">{{ $t('logs.filter') }}</el-button>
       </div>
       <el-table :data="entries" v-loading="loading" stripe class="log-table">
@@ -86,6 +100,7 @@ import { Delete, Download, Search, VideoPause, VideoPlay } from '@element-plus/i
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import request from '../api'
+import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 import { formatTime } from '../utils/format'
 
 const { t } = useI18n()
@@ -243,7 +258,7 @@ onUnmounted(() => {
 <style scoped>
 .filters {
   display: grid;
-  grid-template-columns: 120px 140px 180px minmax(300px, 1.3fr) minmax(220px, 1fr) auto;
+  grid-template-columns: 120px 120px minmax(130px, 0.8fr) minmax(280px, 1.5fr) minmax(170px, 1fr) auto;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -267,10 +282,6 @@ onUnmounted(() => {
   }
 }
 @media (max-width: 850px) {
-  .card-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
   .log-table {
     width: 100%;
   }

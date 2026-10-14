@@ -1,10 +1,10 @@
 /* 设计令牌唯一来源。JS 侧需要原始色值的场景（uPlot canvas）引用 src/styles/palette.js，
    palette.js 中的色值必须与此处的 --ap-chart-* 保持一致。 */
 :root {
-  /* 品牌主色（蓝灰） */
-  --ap-primary: #2563eb;
-  --ap-primary-dark: #1d4ed8;
-  --ap-accent: #2563eb;
+  /* 品牌主色（青蓝） */
+  --ap-primary: #087f8c;
+  --ap-primary-dark: #066875;
+  --ap-accent: #087f8c;
 
   /* 状态色 */
   --ap-success: #15803d;
@@ -13,42 +13,44 @@
   --ap-info: #64748b;
 
   /* 文本 */
-  --ap-text: #0f172a;
-  --ap-text-soft: #475569;
-  --ap-muted: #64748b;
-  --ap-text-faint: #94a3b8;
+  --ap-text: #26343e;
+  --ap-text-soft: #51606a;
+  --ap-muted: #68757e;
+  --ap-text-faint: #9ca6ad;
 
   /* 背景 / 表面 */
-  --ap-bg: #f8fafc;
+  --ap-bg: #f3f3f0;
+  --ap-surface: var(--ap-card);
   --ap-card: #ffffff;
-  --ap-bg-soft: #f1f5f9;
-  --ap-primary-soft: #eff6ff;
-  --ap-primary-softer: #f8fafc;
+  --ap-field: #fbfcfc;
+  --ap-bg-soft: #f4f6f6;
+  --ap-primary-soft: #e6f3f3;
+  --ap-primary-softer: #f0f8f8;
 
   /* 边框 */
-  --ap-border: #e2e8f0;
-  --ap-border-soft: #f1f5f9;
-  --ap-border-hover: #93c5fd;
+  --ap-border: #dce3e5;
+  --ap-border-soft: #eaf0f0;
+  --ap-border-hover: #82bfc5;
 
   /* 横幅 / 侧栏 */
-  --ap-hero-from: #ffffff;
-  --ap-hero-to: #ffffff;
+  --ap-hero-from: var(--ap-card);
+  --ap-hero-to: var(--ap-card);
   --ap-hero-shadow: rgba(8, 96, 107, 0.2);
   --ap-hero-text-soft: #64748b;
-  --ap-sidebar-from: #ffffff;
-  --ap-sidebar-to: #ffffff;
-  --ap-on-dark-muted: #475569;
+  --ap-sidebar-from: #fafbf9;
+  --ap-sidebar-to: #fafbf9;
+  --ap-on-dark-muted: #51606a;
   --ap-on-dark-faint: #64748b;
-  --ap-brand-from: #2563eb;
+  --ap-brand-from: #087f8c;
   --ap-brand-to: var(--ap-primary);
-  --ap-brand-shadow: rgba(37, 99, 235, 0.25);
+  --ap-brand-shadow: rgba(8, 127, 140, 0.2);
 
   /* 叠加层 / 光晕 */
   --ap-glass: rgba(255, 255, 255, 0.18);
-  --ap-header-bg: rgba(255, 255, 255, 0.92);
-  --ap-menu-active-bg: #eff6ff;
+  --ap-header-bg: rgba(250, 251, 249, 0.96);
+  --ap-menu-active-bg: #e4f2f2;
   --ap-shadow-dark: rgba(0, 0, 0, 0.18);
-  --ap-focus-ring: rgba(37, 99, 235, 0.25);
+  --ap-focus-ring: rgba(8, 127, 140, 0.2);
   --ap-warning-soft: #fffaf0;
   --ap-warning-border: #efd8ac;
   --ap-warning-glow: rgba(255, 185, 83, 0.25);
@@ -58,23 +60,26 @@
 
   /* 图表色（canvas 用，镜像见 src/styles/palette.js） */
   --ap-chart-requests: var(--ap-accent);
-  --ap-chart-bytes-in: #3b7dd8;
-  --ap-chart-bytes-out: #d8863b;
+  --ap-chart-bytes-in: #0b8d99;
+  --ap-chart-bytes-out: #b97837;
+  --ap-chart-resource-memory: #8274c6;
+  --ap-chart-resource-network-out: #39a381;
+  --el-box-shadow-light: var(--ap-shadow);
 
   /* 第三方品牌色 */
   --ap-telegram: #229ed9;
 
-  --ap-radius: 8px;
-  --ap-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --ap-radius: 14px;
+  --ap-shadow: 0 8px 22px rgba(38, 52, 62, 0.035);
 
   /* Element Plus 变量对齐：基础色 + 由基础色衍生的 light/dark 阶梯 */
   --el-color-primary: var(--ap-primary);
-  --el-color-primary-dark-2: #1e4fbc;
-  --el-color-primary-light-3: #6692f1;
-  --el-color-primary-light-5: #92b1f5;
-  --el-color-primary-light-7: #bed0f9;
-  --el-color-primary-light-8: #d3e0fb;
-  --el-color-primary-light-9: #e9effd;
+  --el-color-primary-dark-2: #066570;
+  --el-color-primary-light-3: #52a5ae;
+  --el-color-primary-light-5: #84bfc5;
+  --el-color-primary-light-7: #b5d9dd;
+  --el-color-primary-light-8: #cee5e8;
+  --el-color-primary-light-9: #e6f3f3;
   --el-color-success: var(--ap-success);
   --el-color-success-dark-2: #116631;
   --el-color-success-light-3: #5ba677;
@@ -118,7 +123,15 @@
   --el-border-color-lighter: var(--ap-border-soft);
   --el-border-color-extra-light: var(--ap-border-soft);
   --el-bg-color: var(--ap-card);
-  --el-border-radius-base: 6px;
+  --el-bg-color-page: var(--ap-bg);
+  --el-bg-color-overlay: var(--ap-card);
+  --el-fill-color-blank: var(--ap-card);
+  --el-fill-color-light: var(--ap-bg-soft);
+  --el-fill-color-lighter: var(--ap-primary-softer);
+  --el-fill-color-extra-light: var(--ap-card);
+  --el-border-radius-base: 8px;
+  --el-font-size-base: 14px;
+  --el-component-size: 40px;
 }
 
 * {
@@ -133,13 +146,9 @@ body,
 body {
   color: var(--ap-text);
   background: var(--ap-bg);
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    'PingFang SC',
-    sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 button,
 input,
@@ -161,11 +170,15 @@ textarea {
   font-weight: 650;
 }
 .el-button {
-  min-height: 36px;
+  min-height: 38px;
 }
 .page-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
+}
+.page-grid > * {
+  min-width: 0;
 }
 .card-header {
   display: flex;
@@ -184,7 +197,7 @@ textarea {
 @media (max-width: 767px) {
   .el-dialog {
     width: calc(100vw - 24px) !important;
-    margin-top: 5vh !important;
+    margin-top: 16px !important;
   }
   .el-drawer {
     width: min(92vw, 420px) !important;
@@ -209,4 +222,118 @@ h2 {
 }
 .el-button + .el-button {
   margin-left: 8px;
+}
+
+/* Shared visual treatment for every workspace and editor. */
+.el-dialog {
+  border: 1px solid var(--ap-border-soft);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 24px 80px rgba(27, 44, 52, 0.18);
+}
+.el-dialog__title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.el-dialog__header {
+  padding-bottom: 20px;
+  margin-right: 24px;
+}
+.el-dialog__footer {
+  margin-top: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ap-border-soft);
+}
+.el-overlay {
+  background-color: rgba(30, 45, 54, 0.32);
+}
+.el-form-item__label {
+  color: var(--ap-text-soft);
+  font-weight: 500;
+}
+.el-table th.el-table__cell {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ap-muted);
+  padding-block: 13px;
+}
+.el-table td.el-table__cell {
+  padding-block: 14px;
+}
+.el-tabs__item {
+  font-weight: 500;
+}
+.el-tag {
+  border-radius: 6px;
+  font-weight: 500;
+}
+.el-button {
+  transition:
+    background-color 0.16s,
+    border-color 0.16s,
+    box-shadow 0.16s;
+}
+.el-button--primary:not(.is-plain):not(.is-link):not(.is-text) {
+  box-shadow: 0 2px 4px rgba(8, 127, 140, 0.12);
+}
+.el-button:focus-visible {
+  outline: 2px solid var(--ap-primary);
+  outline-offset: 3px;
+}
+.el-input__wrapper,
+.el-select__wrapper {
+  transition: box-shadow 0.16s;
+}
+.el-empty {
+  padding: 28px 0;
+}
+.el-empty__description p {
+  color: var(--ap-muted);
+  font-size: 13px;
+}
+.numeric {
+  letter-spacing: -0.025em;
+}
+@media (max-width: 767px) {
+  .el-dialog {
+    padding: 18px;
+  }
+  .el-dialog__title {
+    font-size: 18px;
+  }
+  .el-button {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.el-form:not(.el-form--label-top) .el-form-item__label {
+  min-height: 40px;
+  align-items: center;
+}
+.el-form-item__content {
+  min-height: 40px;
+}
+@media (max-width: 700px) {
+  .el-form:not(.el-form--label-top) .el-form-item {
+    display: block;
+  }
+  .el-form:not(.el-form--label-top) .el-form-item__label {
+    width: 100% !important;
+    justify-content: flex-start;
+    height: auto;
+    margin-bottom: 5px;
+    line-height: 22px;
+  }
+  .el-form:not(.el-form--label-top) .el-form-item__content {
+    margin-left: 0 !important;
+  }
 }

@@ -15,7 +15,7 @@ import (
 
 // Provider DNS 服务商抽象。
 type Provider interface {
-	// UpsertRecord 创建或更新一条 A/AAAA 记录，返回变更说明
+	// UpsertRecord 创建或更新 A/AAAA/CNAME/TXT，返回变更说明。
 	UpsertRecord(ctx context.Context, domain, recordType, ip string, ttl int) (string, error)
 	// QueryRecord 只读查询一条记录当前值，不存在时返回空字符串
 	QueryRecord(ctx context.Context, domain, recordType string) (string, error)
@@ -65,4 +65,12 @@ func redactProviderMessage(message string, secrets ...string) string {
 		}
 	}
 	return message
+}
+
+// CNAME names are case-insensitive, with an optional root dot. TXT stays literal.
+func recordValuesEqual(typ, a, b string) bool {
+	if typ == "CNAME" {
+		return strings.EqualFold(strings.TrimSuffix(a, "."), strings.TrimSuffix(b, "."))
+	}
+	return a == b
 }

@@ -1,16 +1,12 @@
 <template>
-  <div class="tunnel-page" v-loading="loading">
-    <div class="heading">
-      <div>
-        <h2>{{ $t('tunnel.title') }}</h2>
-        <p>{{ $t('tunnel.subtitle') }}</p>
-      </div>
-      <div class="actions">
-        <el-button @click="accountListOpen = true">{{ $t('tunnel.accounts') }}</el-button>
-        <el-button @click="refresh">{{ $t('common.refresh') }}</el-button>
-        <el-button type="primary" @click="editInstance()">{{ $t('tunnel.addInstance') }}</el-button>
-      </div>
-    </div>
+  <div class="page-grid workspace-page tunnel-page" v-loading="loading">
+    <WorkspaceHeader :title="$t('tunnel.title')" :description="$t('tunnel.subtitle')" icon="tunnel">
+      <template #actions
+        ><el-button @click="accountListOpen = true">{{ $t('tunnel.accounts') }}</el-button
+        ><el-button @click="refresh">{{ $t('common.refresh') }}</el-button
+        ><el-button type="primary" @click="editInstance()">{{ $t('tunnel.addInstance') }}</el-button></template
+      >
+    </WorkspaceHeader>
     <TunnelRuntime
       :runtime="runtime"
       :instances="instances"
@@ -60,6 +56,7 @@
             ><TunnelActions :instance="row" :busy="busy" @control="control" @details="selected = $event" @more="more"
           /></template>
         </el-table-column>
+        <template #empty><el-empty :description="$t('tunnel.noInstances')" :image-size="60" /></template>
       </el-table>
       <div class="mobile-instances">
         <article v-for="instance in instances" :key="instance.id">
@@ -81,10 +78,11 @@
             @more="more"
           />
         </article>
+        <el-empty v-if="!instances.length" :description="$t('tunnel.noInstances')" :image-size="60" />
       </div>
-      <el-empty v-if="!instances.length" :description="$t('tunnel.noInstances')" />
     </el-card>
     <el-dialog
+      class="workspace-dialog"
       v-model="instanceOpen"
       :title="$t(instanceForm.id ? 'tunnel.editInstance' : 'tunnel.addInstance')"
       width="min(560px, 95vw)"
@@ -167,6 +165,7 @@
       >
     </el-dialog>
     <el-dialog
+      class="workspace-dialog"
       v-model="accountOpen"
       :title="$t(accountForm.id ? 'tunnel.editAccount' : 'tunnel.addAccount')"
       width="min(560px, 95vw)"
@@ -213,6 +212,7 @@ import { useTunnels } from '../composables/useTunnels'
 import TunnelDetails from '../components/TunnelDetails.vue'
 import TunnelRuntime from '../components/TunnelRuntime.vue'
 import TunnelActions from '../components/TunnelActions.vue'
+import WorkspaceHeader from '../components/WorkspaceHeader.vue'
 const router = useRouter(),
   { t } = useI18n()
 const {
@@ -266,7 +266,7 @@ async function more(row, command) {
 <style scoped>
 .tunnel-page {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 .heading {
   display: flex;

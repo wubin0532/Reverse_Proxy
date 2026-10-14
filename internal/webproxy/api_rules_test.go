@@ -25,7 +25,7 @@ func freeRuleAPIAddr(t *testing.T) string {
 	return addr
 }
 
-func callWebAPI(t *testing.T, router http.Handler, method, path, body string) *httptest.ResponseRecorder {
+func callWebAPI(t *testing.T, router http.Handler, method, path, body string, revisions ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	var payload *bytes.Reader
 	if body == "" {
@@ -35,6 +35,9 @@ func callWebAPI(t *testing.T, router http.Handler, method, path, body string) *h
 	}
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(method, path, payload)
+	if len(revisions) > 0 {
+		req.Header.Set("If-Match", revisions[0])
+	}
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -71,7 +74,7 @@ func TestRuleAPICRUDToggleOrderAndSecretPreservation(t *testing.T) {
 		t.Fatalf("更新时未保留密钥: %+v", updated)
 	}
 
-	res = callWebAPI(t, router, http.MethodPost, "/api/sites/s1/rules/r1/toggle", "")
+	res = callWebAPI(t, router, http.MethodPost, "/api/sites/s1/rules/r1/toggle", "", "1")
 	if res.Code != http.StatusOK {
 		t.Fatalf("切换规则返回 %d: %s", res.Code, res.Body.String())
 	}
@@ -82,7 +85,7 @@ func TestRuleAPICRUDToggleOrderAndSecretPreservation(t *testing.T) {
 		t.Fatal("规则应已停用")
 	}
 
-	res = callWebAPI(t, router, http.MethodPut, "/api/sites/s1/rules/order", `{"ruleIds":["r2","r1"]}`)
+	res = callWebAPI(t, router, http.MethodPut, "/api/sites/s1/rules/order", `{"ruleIds":["r2","r1"],"expectedRevision":2}`)
 	if res.Code != http.StatusOK {
 		t.Fatalf("规则排序返回 %d: %s", res.Code, res.Body.String())
 	}
@@ -93,7 +96,7 @@ func TestRuleAPICRUDToggleOrderAndSecretPreservation(t *testing.T) {
 		t.Fatalf("规则顺序未保存，第一条为 %s", firstID)
 	}
 
-	create := `{"name":"文件","type":"fileserver","enabled":true,"frontendPath":"/files","rootDir":"/tmp"}`
+	create := `{"expectedRevision":3,"name":"文件","type":"fileserver","enabled":true,"frontendPath":"/files","rootDir":"/tmp"}`
 	res = callWebAPI(t, router, http.MethodPost, "/api/sites/s1/rules", create)
 	if res.Code != http.StatusOK {
 		t.Fatalf("新增规则返回 %d: %s", res.Code, res.Body.String())
@@ -108,7 +111,7 @@ func TestRuleAPICRUDToggleOrderAndSecretPreservation(t *testing.T) {
 	createdStats.begin()
 	createdStats.finish(http.StatusOK, 1, 2)
 
-	res = callWebAPI(t, router, http.MethodDelete, "/api/sites/s1/rules/"+createdID, "")
+	res = callWebAPI(t, router, http.MethodDelete, "/api/sites/s1/rules/"+createdID, "", "1")
 	if res.Code != http.StatusOK {
 		t.Fatalf("删除规则返回 %d: %s", res.Code, res.Body.String())
 	}

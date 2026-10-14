@@ -37,7 +37,7 @@ A lightweight, all-in-one network toolkit for routers and low-power devices. It 
 
 ### Download
 
-Grab the build for your architecture from [Releases](https://github.com/wubin0532/Reverse_Proxy/releases):
+Grab the `.run` installer for your architecture from [Releases](https://github.com/wubin0532/Reverse_Proxy/releases):
 
 | Architecture | Target devices |
 |------|---------|
@@ -70,26 +70,18 @@ make build              # build frontend + local binary (outputs andey-proxy)
 
 Frontend assets are embedded into the binary via `go:embed`, so `make web` (or `cd web && npm ci && npm run build`) has to run before building the Go code.
 
-### OpenWrt
+### Installation and environment checks
 
-`package/openwrt/` contains the OpenWrt package definition (including the LuCI files) and can be built into an ipk with the OpenWrt SDK; see the comments at the top of the Makefile in that directory. The default config directory is `/etc/andey-proxy`.
-
-The `luci-app-andeyproxy_*.ipk` in each release contains both the main program and the LuCI interface (under the **Services → andey-Proxy** menu). Earlier versions split this into `andey-proxy` + `luci-app-andeyproxy`; when migrating from the old package name, back up before removing, because uninstalling the old package deletes runtime data:
+v1.0.0 distributes signed `.run` installers for five architectures only. No `.ipk`, `.apk` or standalone binary downloads are published. Download the matching file and verify it against `checksums.txt`:
 
 ```bash
-cp -a /etc/andey-proxy /etc/andey-proxy.bak
-cp -a /etc/config/andey-proxy /etc/andey-proxy.bak.uci
-opkg remove andey-proxy
-opkg install luci-app-andeyproxy_*.ipk   # postinst restores the config from the backup
+sh andey-proxy_1.0.0_linux_x86_64.run --check
+sudo sh andey-proxy_1.0.0_linux_x86_64.run
 ```
 
-On OpenWrt builds without opkg (ImmortalWrt 25.12 and later moved to apk), use the `.run` package instead — it carries the LuCI files too:
+`--check` verifies Linux/CPU compatibility, MIPS endianness, archive/hash tools, system CA certificates, temporary/install disk space, binary digest and executable version. It does not replace files, change configuration or stop/start services. The Go binary is statically compiled; Go, Node.js and an additional libc are not required. `cloudflared` remains an optional dependency for Tunnel functionality.
 
-```bash
-sh andey-proxy_*_linux_x86_64.run
-```
-
-When LuCI is detected, the installer lays out the menu entries, ACLs, settings page and translations, creates `/etc/config/andey-proxy` (`enabled=1`, port 16606) and starts the service, so there is no manual package install or config editing left to do. On plain Linux servers those LuCI files are ignored.
+The installer uses procd on OpenWrt/ImmortalWrt and installs LuCI files when LuCI is present. Install `ca-bundle` on OpenWrt, or `ca-certificates` on Debian/Ubuntu, if CA roots are missing. Systemd hosts receive a service unit; other Linux hosts receive manual startup instructions. Upgrades retain accounts, configuration, device keys and certificates, and keep the previous binary at `/usr/bin/andey-proxy.previous`. Default UCI settings are created only on first installation.
 
 ## Repository layout
 
@@ -109,7 +101,7 @@ When LuCI is detected, the installer lays out the menu entries, ACLs, settings p
 │   ├── notify/          # event bus, notification channel management, Telegram Bot delivery
 │   └── config/          # AES-256-GCM encrypted config with atomic transactions
 ├── web/                 # frontend source (Vue 3 + Vite + Element Plus)
-├── package/openwrt/     # OpenWrt ipk packaging
+├── package/openwrt/     # OpenWrt service scripts and LuCI files
 └── scripts/build-all.sh # multi-architecture cross compilation
 ```
 
@@ -153,14 +145,14 @@ Release packages are signed with Ed25519. Building a `.run` requires the release
 
 ## CI
 
-On every push to `main` or `v*` tag, GitHub Actions reads the Go version from `go.mod` and runs frontend tests and build, `go vet ./...`, `go test -race ./...`, a dependency vulnerability scan, and builds all five architecture variants. Tag builds additionally produce signed `.run` packages and OpenWrt `.ipk` artifacts for all five architectures (see [Actions](https://github.com/wubin0532/Reverse_Proxy/actions)).
+On every push to `main` or `v*` tag, GitHub Actions reads the Go version from `go.mod` and runs frontend tests and build, `go vet ./...`, `go test -race ./...`, a dependency vulnerability scan, and builds all five architecture variants. Tag builds additionally produce signed `.run` packages and checksums for all five architectures (see [Actions](https://github.com/wubin0532/Reverse_Proxy/actions)).
 
 ## Security deployment notes
 
 - Use a dedicated hostname and port for the admin console instead of sharing a domain with public sites, to reduce scanning and cross-site attack surface.
 - In production, use `-listen` to bind the admin console to an internal address rather than exposing it to the internet. Binding to all interfaces by default prints a warning in the startup log.
 - The read-only ACL for the OpenWrt LuCI interface grants only status queries plus read access to `/etc/andey-proxy/initial-password`. That file exists only for the first login and is deleted automatically once the administrator changes the password. To stop read-only accounts from seeing it, remove that grant line in `luci-app-andeyproxy.json`.
-- The legacy packages in the repository's `release/` directory fail their own signature self-check. They are leftovers from before the security audit — do not redistribute or install them, and wait for a freshly signed release instead.
+- Verify downloads against `checksums.txt`; manual updates in the administration UI also verify the embedded Ed25519 signature.
 
 ## License
 

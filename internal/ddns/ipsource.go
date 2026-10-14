@@ -23,6 +23,20 @@ func GetIP(ctx context.Context, task config.DDNSTask) (string, error) {
 
 // GetIPDetail 同 GetIP，额外返回实际使用的网卡名（自动识别时为识别结果）。
 func GetIPDetail(ctx context.Context, task config.DDNSTask) (ip, ifaceName string, err error) {
+	source := task.IPv4Source
+	if task.IPType == "ipv6" {
+		source = task.IPv6Source
+	}
+	if source != nil {
+		return resolveSource(ctx, *source, task.IPType == "ipv6")
+	}
+	if task.IPSource == "stun" || task.IPSource == "dns" {
+		return resolveSource(ctx, config.IPSourceConfig{Source: task.IPSource, APIURL: task.APIURL}, task.IPType == "ipv6")
+	}
+	return getSingleIPDetail(ctx, task)
+}
+
+func getSingleIPDetail(ctx context.Context, task config.DDNSTask) (ip, ifaceName string, err error) {
 	switch task.IPSource {
 	case "interface":
 		ifaceName = task.Interface

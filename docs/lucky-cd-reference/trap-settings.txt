@@ -1,0 +1,123 @@
+Browser tab: 8, Title: "Lucky | IP过滤", URL: "http://192.168.199.1:16601/andey/#/ipfilter".
+0 AXWebArea Lucky | IP过滤, URL: 192.168.199.1:16601/andey/#/ipfilter
+	1 container app
+		2 container
+			3 container
+				4 button Lucky
+					5 image Lucky
+					6 text Lucky
+					7 text 3.1.4
+				8 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+				61 text 诱捕 Lucky / 防护中心 / IP过滤 / 诱捕
+				10 button 切换主题
+				11 button 切换语言
+				12 button L Lucky Admin
+					13 text L
+					14 text Lucky Admin
+			15 container desktop-sidebar-navigation
+				16 content list
+					17 container 总览
+						18 text 总览
+					19 container 日志中心
+						20 text 日志中心
+					21 container 快速上手
+						22 text 快速上手
+					23 container 动态域名
+						24 text 动态域名
+					25 container Web服务
+						26 text Web服务
+					27 container 端口转发
+						28 text 端口转发
+					29 container STUN穿透
+						30 text STUN穿透
+					31 container Web终端
+						32 text Web终端
+					33 container 计划任务
+						34 text 计划任务
+					35 container SSL/TLS证书
+						36 text SSL/TLS证书
+					37 container 防护中心
+						38 container
+							39 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+								40 text 防护中心
+							41 container
+								42 text IP过滤
+								43 text 安全组
+					44 container IP地址库
+						45 text IP地址库
+					46 container 第三方认证
+						47 text 第三方认证
+					48 container Passkey 管理
+						49 text Passkey 管理
+					50 container LuckyID
+						51 text LuckyID
+					52 container 更多功能
+						53 button (collapsed) Description: 扩张, Secondary Actions: Expand
+							54 text 更多功能
+				55 content list
+					56 container 设置
+						57 text 设置
+					58 container 关于
+						59 text 关于
+			60 container pageContent
+				63 container
+					64 heading IP 过滤, Value: 1
+						65 text IP 过滤
+					66 button 帮助
+					67 button 添加IP过滤规则
+					68 tab group
+						69 container
+							70 tab (selected, settable, boolean) 诱捕, Value: 1
+诱捕
+							71 tab (selectable, settable, boolean) 过滤规则, Value: 0
+过滤规则
+					72 button (collapsed) 访问保护说明, Secondary Actions: Expand
+						73 text 访问保护说明
+					74 container
+						75 heading 诱捕, Value: 2
+							76 text 诱捕
+						77 text 已停止
+						78 switch Description: 启用诱捕, Value: 0
+							79 text 启用
+						80 button 日志
+						81 button 刷新
+						82 tab group
+							83 container
+								84 tab (selectable, settable, boolean) 运行, Value: 0
+运行
+								85 tab (selected, settable, boolean) 设置, Value: 1
+设置
+						86 container
+							87 heading 监听端口, Value: 3
+								88 text 监听端口
+							89 text TCP端口 已填写 0 / 20 个端口
+							90 text entry area (settable) f_094fe4ff-e560-4512-9cee-0f4a0675f288
+							91 button 填充常见端口
+							92 text UDP端口 由于UDP来源IP容易伪造，暂不开放
+						93 container
+							94 heading 访问例外, Value: 3
+								95 text 访问例外
+							96 text 放行规则 勾选的白名单规则中的IP不会被捕获记录
+							97 container
+								98 container
+									99 text 白名单
+									100 button 移除
+								101 combo box (collapsed, settable) 白名单 移除 清空, Value: 白名单, ID: f_8649a5a5-a57a-4956-b00d-aea0ff325d4f, Secondary Actions: Expand
+								102 button 清空
+							103 text 默认放行IP 这些IP或IP段永远不会被捕获记录，支持CIDR格式（每行一个）
+							104 text entry area (settable) f_c3da58ea-b5b5-43cb-a29e-478a22770d05
+						105 container
+							106 heading 捕获处理, Value: 3
+								107 text 捕获处理
+							108 text IPv6前缀匹配 匹配前64位
+							109 stepper (settable, integer) Value: 64, ID: f_c7bccf7d-cdff-41ac-88af-400b2475080a
+						110 container
+							111 heading 触发操作, Value: 3
+								112 text 触发操作
+							113 text 配置捕获后的本地脚本与 Webhook。
+							114 text 启用脚本
+							115 switch 0
+							116 text 启用Webhook
+							117 switch 0
+
+The focused UI element is 118 container

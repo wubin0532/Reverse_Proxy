@@ -48,7 +48,13 @@ type BackendHealth struct {
 // 每次构建/命中处理器缓存时由 reverseHandlerFor 调和一次，健康 API 变更时也直接调用。
 func (h *reverseHandler) configureHealth(conf HealthCheckConf, rule config.SubRule) {
 	conf = conf.withDefaults()
+	h.lifecycleMu.Lock()
+	if h.retired {
+		h.lifecycleMu.Unlock()
+		return
+	}
 	h.healthMu.Lock()
+	h.lifecycleMu.Unlock()
 	defer h.healthMu.Unlock()
 	if h.healthConf == conf {
 		return
@@ -77,6 +83,10 @@ func (h *reverseHandler) stopProberLocked() {
 
 // shutdown 停止探测并释放后端空闲连接（规则变更重建或站点停止时调用）。
 func (h *reverseHandler) shutdown() {
+	h.lifecycleMu.Lock()
+	h.retired = true
+	h.releaseRetiredAdmissionLocked()
+	h.lifecycleMu.Unlock()
 	h.healthMu.Lock()
 	h.stopProberLocked()
 	h.healthMu.Unlock()

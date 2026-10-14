@@ -1,0 +1,35 @@
+{
+  "body": {
+    "clientWidth": 328,
+    "scrollTop": 382,
+    "scrollWidth": 328
+  },
+  "dialog": {
+    "bottom": 812,
+    "height": 796,
+    "left": 12,
+    "right": 378,
+    "top": 16,
+    "width": 366,
+    "x": 12,
+    "y": 16
+  },
+  "footer": {
+    "bottom": 793,
+    "height": 63,
+    "left": 31,
+    "right": 359,
+    "top": 730,
+    "width": 328,
+    "x": 31,
+    "y": 730
+  },
+  "height": 844,
+  "overlay": {
+    "clientHeight": 844,
+    "scrollHeight": 844,
+    "scrollTop": 0
+  },
+  "pageWidth": 390,
+  "width": 390
+}

@@ -9,15 +9,15 @@
 #   5. make package/luci-app-andeyproxy/compile V=s
 # 产物在 bin/packages/<arch>/base/luci-app-andeyproxy_<version>_<arch>.ipk
 #
-# 注：Release 中已提供免 SDK 构建的 .ipk，可直接 opkg install
+# 注：正式发行仅提供签名 .run；此定义保留供自行使用 SDK 构建。
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-andeyproxy
-PKG_VERSION:=0.3.7
+PKG_VERSION:=1.0.0
 PKG_RELEASE:=1
 
-PKG_LICENSE:=MIT
+PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=andey
 
 PKG_BUILD_DEPENDS:=golang/host

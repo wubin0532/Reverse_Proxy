@@ -12,13 +12,15 @@ import 'uplot/dist/uPlot.min.css'
 import { useI18n } from 'vue-i18n'
 import { hasAnyTraffic } from '../utils/series'
 import { formatBytes } from '../utils/format'
+import { chartTime } from '../utils/resource-series'
+import { numericAxis, chartAxisFont } from '../utils/chart-axis'
 import { chartPalette } from '../styles/palette'
 
 const props = defineProps({
   data: { type: Object, default: null } // seriesToChartData() 的输出
 })
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const host = ref(null)
 const empty = computed(() => !hasAnyTraffic(props.data))
 let chart = null
@@ -28,7 +30,7 @@ function buildOptions(width) {
   return {
     width,
     height: 220,
-    padding: [10, 8, 0, 0],
+    padding: [12, 12, 6, 12],
     legend: { show: true },
     scales: {
       x: { time: true },
@@ -36,18 +38,17 @@ function buildOptions(width) {
       bytes: { range: (u, min, max) => [0, Math.max(1, max)] }
     },
     axes: [
-      { size: 60 },
-      { scale: 'y', size: 50, grid: { show: true } },
       {
-        scale: 'bytes',
-        side: 1,
         size: 60,
-        grid: { show: false },
-        values: (u, splits) => splits.map((v) => formatBytes(v))
-      }
+        font: chartAxisFont,
+        space: 110,
+        values: (u, v) => v.map((x) => (Number.isFinite(x) ? chartTime(x) : null))
+      },
+      numericAxis((value) => String(Math.round(value)), { scale: 'y', grid: { show: true } }),
+      numericAxis(formatBytes, { scale: 'bytes', side: 1, grid: { show: false } })
     ],
     series: [
-      {},
+      { label: t('logs.colTime'), value: (u, v) => chartTime(v) },
       {
         label: t('chart.requestsPerMin'),
         scale: 'y',
@@ -100,6 +101,10 @@ function destroy() {
 }
 
 watch(() => props.data, render, { deep: true })
+watch(locale, () => {
+  destroy()
+  render()
+})
 onMounted(() => {
   render()
   observer = new ResizeObserver(() => {
@@ -114,6 +119,11 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.traffic-chart,
+.chart-host {
+  min-width: 0;
+  max-width: 100%;
+}
 .chart-host {
   width: 100%;
   min-height: 220px;

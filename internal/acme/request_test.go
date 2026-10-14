@@ -71,7 +71,7 @@ func TestPropagationWaitRespondsToDeadline(t *testing.T) {
 }
 
 func TestObsoleteCertificateResultCannotReplaceFilesOrState(t *testing.T) {
-	for _, change := range []string{"domains", "credentials", "disabled", "deleted", "canceled"} {
+	for _, change := range []string{"domains", "credentials", "disabled", "deleted", "canceled", "algorithm", "source"} {
 		t.Run(change, func(t *testing.T) {
 			cfg := newTestConfig(t)
 			cert := writeCertFiles(t, cfg, "c", []string{"old.example"}, time.Now().Add(90*24*time.Hour))
@@ -89,6 +89,10 @@ func TestObsoleteCertificateResultCannotReplaceFilesOrState(t *testing.T) {
 			originalState := cfg.State().Cert(cert.ID)
 			if err := cfg.Update(func(c *config.Config) error {
 				switch change {
+				case "algorithm":
+					c.Certs[0].KeyType = "P256"
+				case "source":
+					c.Certs[0].Source = "uploaded"
 				case "domains":
 					c.Certs[0].Domains = []string{"new.example"}
 				case "credentials":

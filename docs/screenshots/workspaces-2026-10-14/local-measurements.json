@@ -1,0 +1,121 @@
+{
+  "desktop": [
+    {
+      "label": "日志中心",
+      "slug": "logs",
+      "url": "http://127.0.0.1:18960/logs",
+      "headerCount": 1,
+      "headerPadding": "20px",
+      "height": 900,
+      "pageWidth": 1280,
+      "titleFont": "22px",
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "通知中心",
+      "slug": "notifications",
+      "url": "http://127.0.0.1:18960/notifications",
+      "headerCount": 1,
+      "headerPadding": "20px",
+      "height": 900,
+      "pageWidth": 1280,
+      "titleFont": "22px",
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "系统设置",
+      "slug": "settings",
+      "url": "http://127.0.0.1:18960/settings",
+      "headerCount": 1,
+      "headerPadding": "20px",
+      "height": 900,
+      "pageWidth": 1280,
+      "titleFont": "22px",
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "端口转发",
+      "slug": "forward",
+      "url": "http://127.0.0.1:18960/forward",
+      "headerCount": 1,
+      "headerPadding": "20px",
+      "height": 900,
+      "pageWidth": 1280,
+      "titleFont": "22px",
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Cloudflare 隧道",
+      "slug": "tunnels",
+      "url": "http://127.0.0.1:18960/tunnels",
+      "headerCount": 1,
+      "headerPadding": "20px",
+      "height": 900,
+      "pageWidth": 1280,
+      "titleFont": "22px",
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "mobile": [
+    {
+      "label": "日志中心",
+      "headerPadding": "12px",
+      "height": 844,
+      "pageWidth": 390,
+      "titleFont": "22px",
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "通知中心",
+      "headerPadding": "12px",
+      "height": 844,
+      "pageWidth": 390,
+      "titleFont": "22px",
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "系统设置",
+      "headerPadding": "12px",
+      "height": 844,
+      "pageWidth": 390,
+      "titleFont": "22px",
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "端口转发",
+      "headerPadding": "12px",
+      "height": 844,
+      "pageWidth": 390,
+      "titleFont": "22px",
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "label": "Cloudflare 隧道",
+      "headerPadding": "12px",
+      "height": 844,
+      "pageWidth": 390,
+      "titleFont": "22px",
+      "width": 390,
+      "x": 0,
+      "y": 0
+    }
+  ]
+}

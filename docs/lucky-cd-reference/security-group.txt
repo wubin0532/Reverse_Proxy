@@ -1,0 +1,100 @@
+Browser tab: 8, Title: "Lucky | 安全组", URL: "http://192.168.199.1:16601/andey/#/securitygroups".
+0 AXWebArea Lucky | 安全组, URL: 192.168.199.1:16601/andey/#/securitygroups
+	1 container
+		2 container app
+			3 container
+				4 container
+					5 button Lucky
+						6 image Lucky
+						7 text Lucky
+						8 text 3.1.4
+					9 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+					10 text 安全组 Lucky / 防护中心 / 安全组
+					11 button 切换主题
+					12 button 切换语言
+					13 button L Lucky Admin
+						14 text L
+						15 text Lucky Admin
+				16 container desktop-sidebar-navigation
+					17 content list
+						18 container 总览
+							19 text 总览
+						20 container 日志中心
+							21 text 日志中心
+						22 container 快速上手
+							23 text 快速上手
+						24 container 动态域名
+							25 text 动态域名
+						26 container Web服务
+							27 text Web服务
+						28 container 端口转发
+							29 text 端口转发
+						30 container STUN穿透
+							31 text STUN穿透
+						32 container Web终端
+							33 text Web终端
+						34 container 计划任务
+							35 text 计划任务
+						36 container SSL/TLS证书
+							37 text SSL/TLS证书
+						38 container 防护中心
+							39 container
+								40 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+									41 text 防护中心
+								42 container
+									43 text IP过滤
+									44 text 安全组
+						45 container IP地址库
+							46 text IP地址库
+						47 container 第三方认证
+							48 text 第三方认证
+						49 container Passkey 管理
+							50 text Passkey 管理
+						51 container LuckyID
+							52 text LuckyID
+						53 container 更多功能
+							54 button (collapsed) Description: 扩张, Secondary Actions: Expand
+								55 text 更多功能
+					56 content list
+						57 container 设置
+							58 text 设置
+						59 container 关于
+							60 text 关于
+				61 container
+					62 heading 安全组, Value: 1
+						63 text 安全组
+					64 button 刷新
+					65 button 新增安全组
+						66 text 新增安全组
+					67 container 筛选
+						68 checkbox 本地用户 0, Value: 0
+						69 checkbox 关联用户 0, Value: 0
+					70 container
+						71 text field (settable) Description: 搜索安全组、本地用户、关联用户或授权 IP, ID: f_5c74ea4b-5c66-410f-862b-592a424f8a73
+					72 container
+						73 heading 暂无安全组, Value: 3
+							74 text 暂无安全组
+						75 text 创建安全组后，就可以把 Web 和端口转发规则绑定到它。
+						76 button 新增安全组
+		77 container 新增安全组
+			78 container 新增安全组 关闭对话框 组名称 会话时长（分钟） 登录后授权保持的时长 720 分钟 启用 允许已认证 IP 跨 Web 子规则免登录 使用本组凭据的 Web 子规则可复用有效 IP 授权，支持不同主域名，App 无须跳转。换网后，浏览器访问原登录站点并通过 Cookie 验证时更新 IP；仅凭 IP 放行的客户端不能自行迁移。Cookie 按站点隔离，仍会校验准入。共用公网出口的其他设备也可能获准访问，请按需开启。 说明 可留空。 取消 保存
+				79 container
+					80 text 新增安全组
+					81 button 关闭对话框
+					82 container
+						83 text 组名称
+						84 text field (settable) f_000cdaee-f3e3-4af1-926c-d58b250d59e8
+						85 text 会话时长（分钟） 登录后授权保持的时长
+						86 container
+							87 stepper (settable, integer) 分钟, Value: 720, ID: f_2627c014-cf18-460a-a670-76c067173cb3
+							88 text 分钟
+						89 text 启用
+						90 switch 1
+						91 text 允许已认证 IP 跨 Web 子规则免登录 使用本组凭据的 Web 子规则可复用有效 IP 授权，支持不同主域名，App 无须跳转。换网后，浏览器访问原登录站点并通过 Cookie 验证时更新 IP；仅凭 IP 放行的客户端不能自行迁移。Cookie 按站点隔离，仍会校验准入。共用公网出口的其他设备也可能获准访问，请按需开启。
+						92 switch 0
+						93 text 说明 可留空。
+						94 text entry area (settable) f_709ed989-c624-4f09-b6b8-79645a97cb55
+					95 button 取消
+					96 button 保存
+
+The focused UI element is 78 container 新增安全组 关闭对话框 组名称 会话时长（分钟） 登录后授权保持的时长 720 分钟 启用 允许已认证 IP 跨 Web 子规则免登录 使用本组凭据的 Web 子规则可复用有效 IP 授权，支持不同主域名，App 无须跳转。换网后，浏览器访问原登录站点并通过 Cookie 验证时更新 IP；仅凭 IP 放行的客户端不能自行迁移。Cookie 按站点隔离，仍会校验准入。共用公网出口的其他设备也可能获准访问，请按需开启。 说明 可留空。 取消 保存

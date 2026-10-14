@@ -1,7 +1,11 @@
 package upgrade
 
 import (
+	"debug/elf"
 	"os"
+	"os/exec"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -20,5 +24,24 @@ func TestBuiltSignedPackage(t *testing.T) {
 	expectedArch := os.Getenv("ANDEY_SIGNED_ARCH")
 	if !versionPattern.MatchString(manifest.Version) || manifest.GOOS != "linux" || (expectedArch != "" && manifest.GOARCH != expectedArch) {
 		t.Fatalf("unexpected manifest: %+v", manifest)
+	}
+	if expected := os.Getenv("ANDEY_SIGNED_VERSION"); expected != "" && manifest.Version != expected {
+		t.Fatalf("version %s differs from release %s", manifest.Version, expected)
+	}
+	f, err := elf.Open(binaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	for _, p := range f.Progs {
+		if p.Type == elf.PT_INTERP {
+			t.Fatal("release binary requires an external dynamic loader")
+		}
+	}
+	if runtime.GOOS == "linux" && runtime.GOARCH == manifest.GOARCH {
+		output, err := exec.Command(binaryPath, "-v").CombinedOutput()
+		if err != nil || strings.TrimSpace(string(output)) != manifest.Version {
+			t.Fatalf("executable version mismatch: %s, %v", output, err)
+		}
 	}
 }

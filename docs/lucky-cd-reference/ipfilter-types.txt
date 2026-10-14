@@ -1,0 +1,136 @@
+Browser tab: 8, Title: "Lucky | IP过滤", URL: "http://192.168.199.1:16601/andey/#/ipfilter#globalblacklist".
+0 AXWebArea Lucky | IP过滤, URL: 192.168.199.1:16601/andey/#/ipfilter%23globalblacklist
+	1 container
+		2 container app
+			3 container
+				4 container
+					5 button Lucky
+						6 image Lucky
+						7 text Lucky
+						8 text 3.1.4
+					9 button (expanded) Description: 收起侧边栏, Secondary Actions: Collapse
+					10 text 全局黑名单 Lucky / 防护中心 / IP过滤 / 全局黑名单
+					11 button 切换主题
+					12 button 切换语言
+					13 button L Lucky Admin
+						14 text L
+						15 text Lucky Admin
+				16 container desktop-sidebar-navigation
+					17 content list
+						18 container 总览
+							19 text 总览
+						20 container 日志中心
+							21 text 日志中心
+						22 container 快速上手
+							23 text 快速上手
+						24 container 动态域名
+							25 text 动态域名
+						26 container Web服务
+							27 text Web服务
+						28 container 端口转发
+							29 text 端口转发
+						30 container STUN穿透
+							31 text STUN穿透
+						32 container Web终端
+							33 text Web终端
+						34 container 计划任务
+							35 text 计划任务
+						36 container SSL/TLS证书
+							37 text SSL/TLS证书
+						38 container 防护中心
+							39 container
+								40 button (expanded) Description: 坍塌, Secondary Actions: Collapse
+									41 text 防护中心
+								42 container
+									43 text IP过滤
+									44 text 安全组
+						45 container IP地址库
+							46 text IP地址库
+						47 container 第三方认证
+							48 text 第三方认证
+						49 container Passkey 管理
+							50 text Passkey 管理
+						51 container LuckyID
+							52 text LuckyID
+						53 container 更多功能
+							54 button (collapsed) Description: 扩张, Secondary Actions: Expand
+								55 text 更多功能
+					56 content list
+						57 container 设置
+							58 text 设置
+						59 container 关于
+							60 text 关于
+				61 container pageContent
+					62 container
+						63 heading IP 过滤, Value: 1
+							64 text IP 过滤
+						65 button 帮助
+						66 button 添加IP过滤规则
+						67 tab group
+							68 container
+								69 tab (selectable, settable, boolean) 诱捕, Value: 0
+诱捕
+								70 tab (selected, settable, boolean) 过滤规则, Value: 1
+过滤规则
+						71 button (collapsed) 访问保护说明, Secondary Actions: Expand
+							72 text 访问保护说明
+						73 container
+							74 heading 内置规则, Value: 3
+								75 text 内置规则
+							76 button 全局黑名单
+							77 button 黑名单
+							78 button 白名单
+							79 heading 全局黑名单, Value: 2
+								80 text 全局黑名单
+							81 text 拒绝
+							82 button 自动记录, Help: 自动记录IP设置
+							83 pop up button (collapsed) Description: 更多操作, ID: ui-action-menu-v-41, Secondary Actions: Expand
+							84 container
+								85 text field (settable) Description: 搜索子规则或匹配内容, ID: f_59b49b1f-1390-4871-8bab-d7faf2c8feb9
+							86 button 添加子规则
+								87 text 添加子规则
+							88 heading 暂无子规则, Value: 3
+								89 text 暂无子规则
+							90 text 添加子规则后，即可按 IP 或地区匹配访问来源。
+							91 button 添加子规则
+		92 container 添加子规则 全局黑名单
+			93 container
+				94 container v-42-title
+					95 text 添加子规则
+					96 text 全局黑名单
+				97 button 关闭对话框
+				98 container
+					99 text 子规则备注
+					100 text field (settable) f_42139afc-3249-4871-9b16-e05061b0a498
+					101 text 子规则开关
+					102 switch 1
+					103 text 子规则类型
+					104 container
+						105 text 文本
+						106 combo box (expanded, settable) 文本, ID: f_73e41682-f542-463b-8a2b-91f306e143f3, Secondary Actions: Collapse
+				107 container
+					108 heading 有效期, Value: 3
+						109 text 有效期
+					110 text 长期有效
+					111 switch 1
+				112 container
+					113 heading 匹配内容, Value: 3
+						114 text 匹配内容
+					115 text IP列表 每行一个 IP 或 IP 段，支持 CIDR
+					116 text entry area (settable) f_7c6ab123-e5cb-4c0d-a777-a210476ec182
+				117 button 取消
+				118 button 添加
+		119 list f_73e41682-f542-463b-8a2b-91f306e143f3_lb
+			120 container
+				121 (selected) Value: 文本, ID: f_73e41682-f542-463b-8a2b-91f306e143f3_0
+					122 text 文本
+				123 Value: 诱捕数据库, ID: f_73e41682-f542-463b-8a2b-91f306e143f3_1
+					124 text 诱捕数据库
+				125 (disabled) Value: IP地址信息, ID: f_73e41682-f542-463b-8a2b-91f306e143f3_2
+					126 text IP地址信息
+				127 (disabled) Value: IP地址信息全, ID: f_73e41682-f542-463b-8a2b-91f306e143f3_3
+					128 text IP地址信息全
+				129 Value: IP信息关键词, ID: f_73e41682-f542-463b-8a2b-91f306e143f3_4
+					130 text IP信息关键词
+
+The focused UI element is 106 combo box (expanded, settable) 文本, ID: f_73e41682-f542-463b-8a2b-91f306e143f3, Secondary Actions: Collapse

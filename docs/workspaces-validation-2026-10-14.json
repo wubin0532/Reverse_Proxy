@@ -1,0 +1,156 @@
+{
+  "date": "2026-10-14",
+  "build": {
+    "version": "0.3.7-cd-pve-test8",
+    "targets": [
+      {
+        "target": "amd64",
+        "size": 25186464,
+        "sha256": "786b19ea2b36c924603717ada84aeba0fbbac52c1cf3c5c9aa45231f8c7e0036"
+      },
+      {
+        "target": "arm64",
+        "size": 23724192,
+        "sha256": "0b5877a0a6b6da1094604bfd7d00aee2800b84a71ddd5f53e1143aa747926442"
+      },
+      {
+        "target": "armv7",
+        "size": 24379552,
+        "sha256": "d77c721c696cc1ac1d5c7eb7a02f9da06ae524b1bcba1b1b8457d489c29f8096"
+      },
+      {
+        "target": "mips",
+        "size": 27132095,
+        "sha256": "b7c142f39bfef90c73d84d96e77ced33726f7fded3351cfa0304162ed6d8641e"
+      },
+      {
+        "target": "mipsle",
+        "size": 27132095,
+        "sha256": "69690cc948eeabe93b2d4f6f5a871591225662de876091e5b76a23b574682aee"
+      }
+    ]
+  },
+  "device": {
+    "tlsCertificateSHA256": "245faa8c63c14f84ca703b3767355f3c5e06a3ababc4a20d0597ccb8a82778aa",
+    "checks": [
+      {
+        "path": "/api/me",
+        "ok": true
+      },
+      {
+        "path": "/api/sites",
+        "ok": true,
+        "sites": [
+          {
+            "name": "PVE 真实 Web 服务",
+            "enabled": false,
+            "rules": 1
+          },
+          {
+            "name": "PVE 真实 TLS",
+            "enabled": false,
+            "rules": 1
+          }
+        ]
+      },
+      {
+        "path": "/api/ddns/tasks",
+        "ok": true,
+        "tasks": 3
+      },
+      {
+        "path": "/api/certs",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/summary",
+        "ok": true
+      },
+      {
+        "path": "/api/metrics",
+        "ok": true
+      },
+      {
+        "path": "/api/system/info",
+        "ok": true,
+        "info": {
+          "goarch": "amd64",
+          "goos": "linux",
+          "version": "0.3.7-cd-pve-test8"
+        }
+      },
+      {
+        "path": "/api/backend-pools",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/access/groups",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/access/users",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/access/sessions",
+        "ok": true
+      },
+      {
+        "path": "/api/metrics/history/settings",
+        "ok": true
+      },
+      {
+        "path": "/api/protection/policies",
+        "ok": true
+      },
+      {
+        "path": "/api/forwards",
+        "ok": true,
+        "count": 2
+      },
+      {
+        "path": "/api/tunnels/runtime",
+        "ok": true
+      },
+      {
+        "path": "/api/tunnels/accounts",
+        "ok": true,
+        "count": 0
+      },
+      {
+        "path": "/api/tunnels/instances",
+        "ok": true,
+        "count": 0
+      },
+      {
+        "path": "/api/notifications/settings",
+        "ok": true
+      },
+      {
+        "path": "/api/notifications/events?limit=1",
+        "ok": true
+      },
+      {
+        "path": "/api/system/update/status",
+        "ok": true
+      },
+      {
+        "path": "/api/logs?limit=1",
+        "ok": true
+      }
+    ]
+  },
+  "frontendFiles": 23,
+  "frontendTests": 74,
+  "formatCheck": true,
+  "productionBuild": true,
+  "realBrowserVerified": true,
+  "networkSHA256": "b3bbd83e76c33aac5ce3a13cb23cd90503f022bc617ad7eaeac0c7738415562e",
+  "firewallSHA256": "6dd761129990dbd4af74f9e886737dd07399f159a49457b61cace2d4da432dee",
+  "realLayoutMeasurementFile": "screenshots/workspaces-2026-10-14/pve-measurements.json",
+  "realDesktopPages": 5,
+  "realNarrowPages": 5,
+  "removedDuplicatePanelsVerified": true,
+  "maintenanceTabVerified": true,
+  "physicalPhoneTested": false
+}

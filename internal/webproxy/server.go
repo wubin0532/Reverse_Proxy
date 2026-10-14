@@ -32,6 +32,7 @@ type CertGetter func(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
 
 // Service 管理所有站点的监听器，支持按配置增量增删。
 type Service struct {
+	discovery     discoveryRuntime
 	tunnelMu      sync.Mutex
 	tunnelOrigins map[string]*tunnelOrigin
 	tunnelErrors  map[string]string
@@ -40,7 +41,9 @@ type Service struct {
 
 	// FW 可选的防火墙自动放行管理器（main 注入，nil 时跳过）。
 	// Start/Reload 后会按 Enabled && AutoFW 的站点上报期望放行集合。
-	FW *firewall.Manager
+	FW              *firewall.Manager
+	Protection      *guard.Engine
+	BoundCertGetter func(string) (*tls.Certificate, error)
 
 	mu       sync.Mutex
 	reloadMu sync.Mutex
@@ -48,7 +51,8 @@ type Service struct {
 
 	// stats 站点级流量统计（siteID → 桶），独立于站点监听器生命周期：
 	// 热重载重建 handler 缓存不丢失，站点删除/禁用时清理，进程重启清零。
-	stats sync.Map
+	stats          sync.Map
+	poolAdmissions sync.Map
 
 	// health 反向代理后端主动健康检查配置（加密主配置的一部分）。
 	health *healthStore
@@ -63,12 +67,14 @@ type Service struct {
 
 // siteServer 一个站点监听器及其运行状态。
 type siteServer struct {
-	siteMu  sync.RWMutex
-	site    config.Site // 当前不可变配置快照
-	srv     *http.Server
-	ln      net.Listener
-	logs    *forward.RingLog
-	limiter *ruleLimiter
+	siteMu           sync.RWMutex
+	site             config.Site // 当前不可变配置快照
+	srv              *http.Server
+	ln               net.Listener
+	logs             *forward.RingLog
+	limiter          *ruleLimiter
+	protection       *guard.Engine
+	poolAdmissionFor func(string) *poolAdmission
 
 	mu  sync.Mutex
 	err error // 最近一次的监听/运行错误
@@ -115,7 +121,7 @@ func (s *Service) Start() {
 	s.cfg.RLock()
 	sites := make([]config.Site, len(s.cfg.Sites))
 	for i := range s.cfg.Sites {
-		sites[i] = cloneSite(s.cfg.Sites[i])
+		sites[i] = s.runtimeSiteLocked(s.cfg.Sites[i])
 	}
 	s.cfg.RUnlock()
 	for _, site := range sites {
@@ -132,6 +138,7 @@ func (s *Service) Start() {
 
 // Stop 优雅关闭所有站点（每个最多等 5 秒）。
 func (s *Service) Stop() {
+	s.discovery.stop()
 	s.stopTunnelOrigins()
 	s.mu.Lock()
 	all := make([]*siteServer, 0, len(s.sites))
@@ -163,7 +170,7 @@ func (s *Service) Reload() error {
 	want := make(map[string]config.Site)
 	for _, site := range s.cfg.Sites {
 		if site.Enabled {
-			want[site.ID] = cloneSite(site)
+			want[site.ID] = s.runtimeSiteLocked(site)
 		}
 	}
 	s.cfg.RUnlock()
@@ -258,14 +265,16 @@ func (s *Service) syncFirewall() {
 func (s *Service) startLocked(site config.Site) error {
 	site = cloneSite(site)
 	ss := &siteServer{
-		site:          site,
-		logs:          forward.NewRingLog(300),
-		limiter:       newRuleLimiter(),
-		revHandler:    make(map[string]http.Handler),
-		revErr:        make(map[string]error),
-		staticHandler: make(map[string]http.Handler),
-		health:        s.health,
-		stats:         s.statsFor(site.ID),
+		site:             site,
+		logs:             forward.NewRingLog(300),
+		limiter:          newRuleLimiter(),
+		protection:       s.Protection,
+		poolAdmissionFor: s.poolAdmissionFor,
+		revHandler:       make(map[string]http.Handler),
+		revErr:           make(map[string]error),
+		staticHandler:    make(map[string]http.Handler),
+		health:           s.health,
+		stats:            s.statsFor(site.ID),
 	}
 	ss.stats.pruneRules(site.Rules)
 	s.sites[site.ID] = ss
@@ -435,9 +444,31 @@ func (ss *siteServer) updateSite(site config.Site) {
 // comparison and racing with live request dispatch.
 func cloneSite(site config.Site) config.Site {
 	cloned := site
+	if site.DefaultResponse != nil {
+		v := *site.DefaultResponse
+		cloned.DefaultResponse = &v
+	}
 	cloned.Rules = make([]config.SubRule, len(site.Rules))
 	for i := range site.Rules {
 		cloned.Rules[i] = site.Rules[i]
+		if pool := site.Rules[i].ResolvedPool; pool != nil {
+			v := *pool
+			v.Nodes = append([]config.BackendNode(nil), pool.Nodes...)
+			cloned.Rules[i].ResolvedPool = &v
+		}
+		if c := site.Rules[i].CORS; c != nil {
+			v := *c
+			v.Origins = append([]string(nil), c.Origins...)
+			v.Methods = append([]string(nil), c.Methods...)
+			v.Headers = append([]string(nil), c.Headers...)
+			cloned.Rules[i].CORS = &v
+		}
+		if site.Rules[i].ResponseHeaders != nil {
+			cloned.Rules[i].ResponseHeaders = make(map[string]string)
+			for k, v := range site.Rules[i].ResponseHeaders {
+				cloned.Rules[i].ResponseHeaders[k] = v
+			}
+		}
 		cloned.Rules[i].Backends = append([]string(nil), site.Rules[i].Backends...)
 		cloned.Rules[i].IPList = append([]string(nil), site.Rules[i].IPList...)
 		cloned.Rules[i].UAList = append([]string(nil), site.Rules[i].UAList...)
@@ -556,6 +587,9 @@ func (s *Service) applyRuleHealth(siteID string, rule config.SubRule, conf Healt
 	rh, ok := ss.revHandler[rule.ID].(*reverseHandler)
 	ss.handlerMu.Unlock()
 	if ok {
+		if pool := rh.pool; pool != nil {
+			conf = HealthCheckConf(pool.HealthCheck)
+		}
 		rh.configureHealth(conf, rule)
 	}
 }
@@ -629,7 +663,11 @@ func (s *Service) tlsConfig(siteSnapshot func() config.Site) *tls.Config {
 				}
 			}
 			if site.CertID != "" {
-				if cert, err := s.loadCertFile(site.CertID); err == nil && (hello.ServerName == "" || cert.Leaf.VerifyHostname(hello.ServerName) == nil) {
+				getter := s.loadCertFile
+				if s.BoundCertGetter != nil {
+					getter = s.BoundCertGetter
+				}
+				if cert, err := getter(site.CertID); err == nil && cert != nil && cert.Leaf != nil && (hello.ServerName == "" || cert.Leaf.VerifyHostname(hello.ServerName) == nil) {
 					return cert, nil
 				} else {
 					log.Printf("[webproxy] 站点 %s 证书 %s 不可用于当前连接，使用自签证书", site.Name, site.CertID)

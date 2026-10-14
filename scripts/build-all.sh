@@ -12,7 +12,8 @@ if [ -n "$(find web/src -type f -newer internal/adminweb/dist/index.html -print 
   echo "警告：web/src 比 internal/adminweb/dist 新，建议先执行 make web 重建前端" >&2
 fi
 
-VERSION=${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}
+VERSION=${VERSION:-$(cat VERSION)}
+VERSION=${VERSION#v}
 OUT=dist
 LDFLAGS="-s -w -X main.version=$VERSION"
 mkdir -p $OUT

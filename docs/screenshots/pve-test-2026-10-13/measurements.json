@@ -1,0 +1,62 @@
+[
+  {
+    "path": "dashboard",
+    "heading": "20px",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "ddns",
+    "heading": "20px",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "web-service",
+    "heading": "20px",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "certs",
+    "heading": "20px",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "protection",
+    "heading": "20px",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "path": "dashboard",
+    "heading": "20px",
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "ddns",
+    "heading": "20px",
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "web-service",
+    "heading": "20px",
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "certs",
+    "heading": "20px",
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "path": "protection",
+    "heading": "20px",
+    "scrollWidth": 390,
+    "width": 390
+  }
+]

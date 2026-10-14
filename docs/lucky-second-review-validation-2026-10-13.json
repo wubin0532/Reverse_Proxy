@@ -1,0 +1,275 @@
+{
+  "date": "2026-10-13",
+  "base": "180f365bd5031492a781c77bb141963aa20d9b05",
+  "frontend": {
+    "files": 16,
+    "tests": 50,
+    "build": true
+  },
+  "go": {
+    "vet": true,
+    "racePackages": 17,
+    "topLevelTests": 298,
+    "passIncludingSubtests": 384,
+    "fail": 0,
+    "embeddedAssetTests": true,
+    "linuxTargets": [
+      "amd64",
+      "arm64",
+      "armv7",
+      "mipsle-softfloat",
+      "mips-softfloat"
+    ],
+    "nativeBuild": true
+  },
+  "api": {
+    "results": [
+      {
+        "method": "POST",
+        "path": "/api/login",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics/history",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/dashboard/workspace",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/policies",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/providers",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/dual/records/v4/toggle",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/ddns/tasks",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/ddns/tasks/dual/records/v4/toggle",
+        "status": 409
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/certs/import",
+        "status": 400
+      },
+      {
+        "method": "GET",
+        "path": "/api/certs",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/sites/site/rules",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/site/rules/a4220abece25b4eeaeae0e6fd8936b80",
+        "status": 400
+      },
+      {
+        "method": "GET",
+        "path": "/api/sites",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/site/rules/a4220abece25b4eeaeae0e6fd8936b80",
+        "status": 200
+      },
+      {
+        "method": "PUT",
+        "path": "/api/sites/site/rules/a4220abece25b4eeaeae0e6fd8936b80",
+        "status": 409
+      },
+      {
+        "method": "POST",
+        "path": "/api/protection/bans",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/metrics",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/protection/bans/127.0.0.1",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/protection/summary",
+        "status": 200
+      }
+    ],
+    "checks": [
+      "Three providers only",
+      "Record toggle and stale revision rejection",
+      "PEM import and failed replacement preservation",
+      "Rule plus health atomic validation and conflict",
+      "Business ban leaves admin accessible; release restores site"
+    ],
+    "businessRequests": [
+      403,
+      200
+    ],
+    "productionWrites": false
+  },
+  "browser": {
+    "measurements": [
+      {
+        "path": "dashboard",
+        "width": 1440,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "26px",
+        "scrollWidth": 1440,
+        "viewport": 1440,
+        "weight": "650"
+      },
+      {
+        "path": "ddns",
+        "width": 1440,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "28px",
+        "scrollWidth": 1440,
+        "viewport": 1440,
+        "weight": "650"
+      },
+      {
+        "path": "web-service",
+        "width": 1440,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "26px",
+        "scrollWidth": 1440,
+        "viewport": 1440,
+        "weight": "650"
+      },
+      {
+        "path": "certs",
+        "width": 1440,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "26px",
+        "scrollWidth": 1440,
+        "viewport": 1440,
+        "weight": "650"
+      },
+      {
+        "path": "protection",
+        "width": 1440,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "28px",
+        "scrollWidth": 1440,
+        "viewport": 1440,
+        "weight": "650"
+      },
+      {
+        "path": "dashboard",
+        "width": 390,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "26px",
+        "scrollWidth": 390,
+        "viewport": 390,
+        "weight": "650"
+      },
+      {
+        "path": "ddns",
+        "width": 390,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "28px",
+        "scrollWidth": 390,
+        "viewport": 390,
+        "weight": "650"
+      },
+      {
+        "path": "web-service",
+        "width": 390,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "26px",
+        "scrollWidth": 390,
+        "viewport": 390,
+        "weight": "650"
+      },
+      {
+        "path": "certs",
+        "width": 390,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "26px",
+        "scrollWidth": 390,
+        "viewport": 390,
+        "weight": "650"
+      },
+      {
+        "path": "protection",
+        "width": 390,
+        "body": "14px",
+        "font": "20px",
+        "lineHeight": "28px",
+        "scrollWidth": 390,
+        "viewport": 390,
+        "weight": "650"
+      }
+    ],
+    "ddnsCreateSaved": true,
+    "ddnsCreateDisabled": true,
+    "providerCount": 3,
+    "webEditorTabs": true,
+    "certDropdownAndImportForm": true,
+    "consoleErrors": 0
+  },
+  "productionWrites": false,
+  "deployed": false,
+  "realPhoneVerified": false,
+  "publicDNSOrCAVerified": false
+}

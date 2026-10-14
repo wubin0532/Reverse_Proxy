@@ -2,10 +2,12 @@ package ddns
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,7 +19,9 @@ func TestFailedUpdateDoesNotAdvanceIPCache(t *testing.T) {
 		_, _ = w.Write([]byte("203.0.113.9"))
 	}))
 	defer ipServer.Close()
+	var providerCalls atomic.Int32
 	failingProvider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		providerCalls.Add(1)
 		http.Error(w, "temporary failure", http.StatusServiceUnavailable)
 	}))
 	defer failingProvider.Close()
@@ -34,14 +38,20 @@ func TestFailedUpdateDoesNotAdvanceIPCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := config.DDNSTask{ID: "task-1", Name: "test", Domains: []string{"www.example.com"}, IPType: "ipv4", IPSource: "api", APIURL: ipServer.URL, ProviderID: providerID}
+	cfg.Lock()
+	cfg.DDNS = []config.DDNSTask{task}
+	cfg.Unlock()
 	worker := NewWorker(cfg)
 	for i := 0; i < 2; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		err = worker.runTask(ctx, task, false)
 		cancel()
-		if err == nil {
+		if err == nil || errors.Is(err, errTaskChanged) {
 			t.Fatal("expected provider failure")
 		}
+	}
+	if providerCalls.Load() != 2 {
+		t.Fatalf("provider retry calls = %d", providerCalls.Load())
 	}
 	worker.smu.Lock()
 	_, cached := worker.lastIP[task.ID+"|"+task.IPType]

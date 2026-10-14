@@ -36,7 +36,8 @@ type Service struct {
 
 	// FW 可选的防火墙自动放行管理器（main 注入，nil 时跳过）。
 	// Start/Reload 后会按 Enabled && AutoFW 的规则上报期望放行集合。
-	FW *firewall.Manager
+	FW         *firewall.Manager
+	Protection *guard.Engine
 
 	mu       sync.Mutex
 	lmu      sync.Mutex // 保护 logs，与 mu 分离避免 startRuleLocked 持锁时死锁
@@ -319,7 +320,18 @@ func (s *Service) serveTCP(ctx context.Context, rule config.ForwardRule, ln net.
 func (s *Service) handleTCPConn(ctx context.Context, rule config.ForwardRule, src net.Conn, matcher *guard.IPMatcher) {
 	defer src.Close()
 	srcIP, _, _ := net.SplitHostPort(src.RemoteAddr().String())
-	if !matcher.Allow(srcIP) {
+	allowed := s.Protection.CheckGlobal(srcIP, "", "tcp", rule.ID) && s.Protection.CheckPolicy(rule.PolicyID, srcIP, "", "tcp", rule.ID)
+	if allowed && rule.AccessGroupID != "" {
+		allowed = s.Protection.CheckForwardAccess(rule.AccessGroupID, srcIP, rule.ID)
+		if !allowed {
+			s.Protection.RecordRejection(srcIP, "tcp", rule.ID, "安全组IP授权缺失或失效")
+		}
+	}
+	if allowed && !matcher.Allow(srcIP) {
+		s.Protection.RecordRejection(srcIP, "tcp", rule.ID, "本地IP名单拒绝")
+		allowed = false
+	}
+	if !allowed {
 		s.noteReject(rule, srcIP)
 		return
 	}
@@ -418,7 +430,19 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule, ln *net
 			}
 			continue
 		}
-		if !matcher.Allow(srcAddr.IP.String()) {
+		ip := srcAddr.IP.String()
+		allowed := s.Protection.CheckGlobal(ip, "", "udp", rule.ID) && s.Protection.CheckPolicy(rule.PolicyID, ip, "", "udp", rule.ID)
+		if allowed && rule.AccessGroupID != "" {
+			allowed = s.Protection.CheckForwardAccess(rule.AccessGroupID, ip, rule.ID)
+			if !allowed {
+				s.Protection.RecordRejection(ip, "udp", rule.ID, "安全组IP授权缺失或失效")
+			}
+		}
+		if allowed && !matcher.Allow(ip) {
+			s.Protection.RecordRejection(ip, "udp", rule.ID, "本地IP名单拒绝")
+			allowed = false
+		}
+		if !allowed {
 			s.noteReject(rule, srcAddr.IP.String())
 			continue
 		}
