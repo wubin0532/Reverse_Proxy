@@ -96,27 +96,3 @@ func (r *SubRule) ValidateAdvanced() error {
 	}
 	return nil
 }
-
-// A business WebDAV writer must not be able to replace a CGI executable.
-func validateServiceRoots(sites []Site) error {
-	var writable, scripts []string
-	for _, site := range sites {
-		for _, rule := range site.Rules {
-			if rule.Type == "webdav" && rule.WebDAVWritable {
-				writable = append(writable, filepath.Clean(rule.RootDir))
-			}
-			if rule.Type == "cgi" {
-				scripts = append(scripts, filepath.Clean(rule.RootDir))
-			}
-		}
-	}
-	for _, root := range writable {
-		for _, script := range scripts {
-			rel, err := filepath.Rel(root, script)
-			if err == nil && (rel == "." || filepath.IsLocal(rel)) {
-				return fmt.Errorf("CGI目录不可置于可写WebDAV目录中")
-			}
-		}
-	}
-	return nil
-}

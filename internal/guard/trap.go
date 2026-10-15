@@ -195,12 +195,7 @@ func (m *TrapManager) captureLocked(host, addr string) {
 	m.engine.mu.Lock()
 	m.engine.nextID++
 	ev := Event{ID: m.engine.nextID, Time: time.Now().UTC(), Source: "trap", EntityID: addr, IP: host, Reason: b.Reason, Action: "ban"}
-	if len(m.engine.events) >= MaxEvents {
-		copy(m.engine.events, m.engine.events[1:])
-		m.engine.events[len(m.engine.events)-1] = ev
-	} else {
-		m.engine.events = append(m.engine.events, ev)
-	}
+	m.engine.events.append(ev, MaxEvents)
 	m.engine.mu.Unlock()
 }
 

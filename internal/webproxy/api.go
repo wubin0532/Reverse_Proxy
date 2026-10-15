@@ -89,7 +89,7 @@ func (h *apiHandler) testBackend(w http.ResponseWriter, r *http.Request) {
 		SkipTLSVerify bool   `json:"skipBackendTlsVerify"`
 	}
 	if err := api.DecodeBody(r, &body); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	u, err := url.Parse(strings.TrimSpace(body.URL))
@@ -171,7 +171,7 @@ func (h *apiHandler) create(w http.ResponseWriter, r *http.Request) {
 
 	var site config.Site
 	if err := api.DecodeBody(r, &site); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	ensureRuleIDs(&site)
@@ -222,7 +222,7 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var input siteInput
 	if err := api.DecodeBody(r, &input); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	site := input.Site
@@ -464,7 +464,7 @@ func (h *apiHandler) toggle(w http.ResponseWriter, r *http.Request) {
 func (h *apiHandler) createRule(w http.ResponseWriter, r *http.Request) {
 	var input ruleInput
 	if err := api.DecodeBody(r, &input); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	rule := input.SubRule
@@ -483,7 +483,7 @@ func (h *apiHandler) createRule(w http.ResponseWriter, r *http.Request) {
 func (h *apiHandler) updateRule(w http.ResponseWriter, r *http.Request) {
 	var input ruleInput
 	if err := api.DecodeBody(r, &input); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	rule := input.SubRule
@@ -549,7 +549,7 @@ func (h *apiHandler) reorderRules(w http.ResponseWriter, r *http.Request) {
 		ExpectedRevision *uint64  `json:"expectedRevision"`
 	}
 	if err := api.DecodeBody(r, &body); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	site, ok := h.mutateRules(w, r, chi.URLParam(r, "id"), func(site *config.Site) error {
@@ -805,8 +805,8 @@ func (h *apiHandler) getRuleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *apiHandler) putRuleHealth(w http.ResponseWriter, r *http.Request) {
 	siteID, ruleID := chi.URLParam(r, "id"), chi.URLParam(r, "ruleId")
 	var conf HealthCheckConf
-	if api.DecodeBody(r, &conf) != nil {
-		api.Fail(w, 400, "请求格式错误")
+	if err := api.DecodeBody(r, &conf); err != nil {
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	if _, ok := h.mutateRules(w, r, siteID, func(site *config.Site) error {

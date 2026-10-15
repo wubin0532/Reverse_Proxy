@@ -36,8 +36,8 @@ func (h *handler) updateMappings(w http.ResponseWriter, r *http.Request) {
 		Revision string                      `json:"revision"`
 		Mappings []config.CertificateMapping `json:"mappings"`
 	}
-	if api.DecodeBody(r, &body) != nil {
-		api.Fail(w, 400, "请求格式错误")
+	if err := api.DecodeBody(r, &body); err != nil {
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	err := h.cfg.Update(func(c *config.Config) error {

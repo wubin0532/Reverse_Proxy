@@ -84,7 +84,11 @@ func (s *Server) handleTOTPLogin(w http.ResponseWriter, r *http.Request) {
 		ChallengeID string `json:"challengeId"`
 		Code        string `json:"code"`
 	}
-	if DecodeBody(r, &body) != nil || len(body.ChallengeID) != 64 || len(body.Code) > 32 {
+	if err := DecodeBody(r, &body); err != nil {
+		FailDecodeAs(w, err, 403, "双重验证码无效或已过期")
+		return
+	}
+	if len(body.ChallengeID) != 64 || len(body.Code) > 32 {
 		Fail(w, 403, "双重验证码无效或已过期")
 		return
 	}
@@ -198,8 +202,8 @@ func (s *Server) handleTOTPSetup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	if DecodeBody(r, &body) != nil {
-		Fail(w, 403, "当前密码错误")
+	if err := DecodeBody(r, &body); err != nil {
+		FailDecodeAs(w, err, 403, "当前密码错误")
 		return
 	}
 	if !AdmitPasswordConfirm("totp", r.RemoteAddr) {
@@ -327,8 +331,8 @@ func (s *Server) handleTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		SetupID string `json:"setupId"`
 		Code    string `json:"code"`
 	}
-	if DecodeBody(r, &body) != nil {
-		Fail(w, 400, "请求格式错误")
+	if err := DecodeBody(r, &body); err != nil {
+		FailDecode(w, err, "请求格式错误")
 		return
 	}
 	s.twoFactorMu.Lock()
@@ -387,8 +391,8 @@ func (s *Server) handleTOTPManagement(w http.ResponseWriter, r *http.Request, re
 		Password string `json:"password"`
 		Code     string `json:"code"`
 	}
-	if DecodeBody(r, &body) != nil {
-		Fail(w, 403, "当前密码或双重验证码错误")
+	if err := DecodeBody(r, &body); err != nil {
+		FailDecodeAs(w, err, 403, "当前密码或双重验证码错误")
 		return
 	}
 	if !AdmitPasswordConfirm("totp", r.RemoteAddr) {

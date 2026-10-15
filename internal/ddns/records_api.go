@@ -74,7 +74,7 @@ func (h *handler) mutateRecord(w http.ResponseWriter, r *http.Request, action st
 		Record   config.DDNSRecord `json:"record"`
 	}
 	if err := api.DecodeBody(r, &body); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	id, recordID := chi.URLParam(r, "id"), chi.URLParam(r, "recordId")

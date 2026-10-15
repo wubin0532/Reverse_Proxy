@@ -30,6 +30,42 @@ type Event struct {
 	Reason   string    `json:"reason"`
 	Action   string    `json:"action"`
 }
+
+// eventRing 固定容量事件环形缓冲。旧实现在每次拒绝时 copy 最多 512 条事件，
+// 且全程持 e.mu；被封禁的 IP 持续发包（UDP 转发按包调用）会把单包成本放大成
+// 一次数百项的搬移，这里改为原地覆盖、零搬移。
+type eventRing struct {
+	buf   []Event
+	start int
+}
+
+func (r *eventRing) append(e Event, limit int) {
+	if limit <= 0 {
+		return
+	}
+	if len(r.buf) < limit {
+		r.buf = append(r.buf, e)
+		return
+	}
+	r.buf[r.start] = e
+	r.start++
+	if r.start == len(r.buf) {
+		r.start = 0
+	}
+}
+
+func (r *eventRing) len() int { return len(r.buf) }
+
+// newestFirst 返回新到旧的副本（API 展示顺序）。
+func (r *eventRing) newestFirst() []Event {
+	n := len(r.buf)
+	out := make([]Event, 0, n)
+	for i := 0; i < n; i++ {
+		out = append(out, r.buf[(r.start+n-1-i)%n])
+	}
+	return out
+}
+
 type Summary struct {
 	Policies       int    `json:"policies"`
 	GlobalPolicies int    `json:"globalPolicies"`
@@ -54,7 +90,7 @@ type Engine struct {
 	snapshot atomic.Pointer[policySnapshot]
 	mu       sync.Mutex
 	bans     map[string]Ban
-	events   []Event
+	events   eventRing
 	rejected uint64
 	nextID   uint64
 	mutation sync.Mutex
@@ -168,12 +204,7 @@ func (e *Engine) deny(ip, ua, source, entity, id, reason string) bool {
 	e.rejected++
 	e.nextID++
 	event := Event{e.nextID, time.Now().UTC(), source, entity, ip, id, reason, "deny"}
-	if len(e.events) == MaxEvents {
-		copy(e.events, e.events[1:])
-		e.events[len(e.events)-1] = event
-	} else {
-		e.events = append(e.events, event)
-	}
+	e.events.append(event, MaxEvents)
 	return false
 }
 func (e *Engine) allowPolicy(p compiledPolicy, ip, ua, source, entity string) bool {
@@ -192,9 +223,9 @@ func (e *Engine) CheckGlobal(ip, ua, source, entity string) bool {
 	if e == nil {
 		return true
 	}
-	if parsed := net.ParseIP(ip); parsed != nil {
-		ip = parsed.String()
-	}
+	// 不对 ip 做 net.ParseIP 归一化：调用方传入的地址来自 net 库（RemoteAddr /
+	// UDPAddr）已是规范形式，AddBan 写入的键同样经过规范化，两侧必然一致。
+	// 这样每个 TCP 连接 / 每个 UDP 包可省掉一次解析与分配。
 	e.mu.Lock()
 	ban, ok := e.bans[ip]
 	if ok && !ban.ExpiresAt.After(time.Now()) {
@@ -279,16 +310,12 @@ func (e *Engine) Bans() []Ban {
 func (e *Engine) Events() []Event {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	out := make([]Event, len(e.events))
-	for i, v := range e.events {
-		out[len(out)-1-i] = v
-	}
-	return out
+	return e.events.newestFirst()
 }
 func (e *Engine) Summary() Summary {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.pruneBansLocked(time.Now())
 	snap := e.snapshot.Load()
-	return Summary{len(snap.policies), len(snap.globals), len(e.bans), e.rejected, len(e.events)}
+	return Summary{len(snap.policies), len(snap.globals), len(e.bans), e.rejected, e.events.len()}
 }

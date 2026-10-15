@@ -55,7 +55,7 @@ Grab the `.run` installer for your architecture from [Releases](https://github.c
 ./andey-proxy -cd /etc/andey-proxy # use a specific config directory
 ```
 
-Then open `https://<device-ip>:16606`. When no ACME certificate matches, a self-signed one is used and the browser will ask you to confirm it on first visit. The default account is `admin`; the one-time random password is printed to the console on first start only.
+Then open `https://<device-ip>:16606`. When no ACME certificate matches, a self-signed one is used and the browser will ask you to confirm it on first visit. The default account is `admin`; the one-time random password is generated on first start and written with mode `0600` to `<config-dir>/initial-password`. It is printed to the console only when stderr is an interactive terminal — procd/systemd redirect stdout/stderr into the system log, so the file is the authoritative copy. Read it over SSH/console or from the LuCI settings page, and change it immediately after logging in; the file is deleted once the password is changed, after which neither place shows it.
 
 If you must support legacy clients that cannot do HTTPS, pass `-admin-http` explicitly. That mode keeps a high-risk warning on the dashboard at all times.
 
@@ -72,14 +72,16 @@ Frontend assets are embedded into the binary via `go:embed`, so `make web` (or `
 
 ### Installation and environment checks
 
-v1.0.0 distributes signed `.run` installers for five architectures only. No `.ipk`, `.apk` or standalone binary downloads are published. Download the matching file and verify it against `checksums.txt`:
+v1.5.0 distributes signed `.run` installers for five architectures only. No `.ipk`, `.apk` or standalone binary downloads are published. Download the matching file and verify it against `checksums.txt`:
 
 ```bash
-sh andey-proxy_1.0.0_linux_x86_64.run --check
-sudo sh andey-proxy_1.0.0_linux_x86_64.run
+sh andey-proxy_1.5.0_linux_x86_64.run --check
+sudo sh andey-proxy_1.5.0_linux_x86_64.run
 ```
 
-`--check` verifies Linux/CPU compatibility, MIPS endianness, archive/hash tools, system CA certificates, temporary/install disk space, binary digest and executable version. It does not replace files, change configuration or stop/start services. The Go binary is statically compiled; Go, Node.js and an additional libc are not required. `cloudflared` remains an optional dependency for Tunnel functionality.
+`--check` verifies Linux/CPU compatibility, MIPS endianness, archive/hash tools, system CA certificates, temporary/install disk space, the signed file listing and per-file digests. It does not replace files, change configuration, stop/start services or execute the payload. The Go binary is statically compiled; Go, Node.js and an additional libc are not required. `cloudflared` remains an optional dependency for Tunnel functionality.
+
+The whole payload — binary, init script, LuCI pages, rpcd ACL and uninstaller — is covered by a per-file SHA-256 listing whose own digest is part of the Ed25519-signed `manifest.json`; the installer verifies every extracted file against it and rejects archive members with absolute or `..` paths before extraction. An installer cannot be its own trust anchor, so to verify authenticity as well, obtain the release public key out of band and pass `--pubkey <file>`; with `openssl` present the signature is then checked and a mismatch aborts the installation. Without `--pubkey` only digests are verified, and the installer says so.
 
 The installer uses procd on OpenWrt/ImmortalWrt and installs LuCI files when LuCI is present. Install `ca-bundle` on OpenWrt, or `ca-certificates` on Debian/Ubuntu, if CA roots are missing. Systemd hosts receive a service unit; other Linux hosts receive manual startup instructions. Upgrades retain accounts, configuration, device keys and certificates, and keep the previous binary at `/usr/bin/andey-proxy.previous`. Default UCI settings are created only on first installation.
 
@@ -109,7 +111,9 @@ The installer uses procd on OpenWrt/ImmortalWrt and installs LuCI files when LuC
 
 All configuration is stored as a single AES-256-GCM encrypted blob. The device key is stored separately; on OpenWrt it defaults to `/etc/andey-proxy.key` with mode `0600`. DNS tokens, Basic Auth passwords and custom request headers are write-only fields — the API never returns them in plaintext.
 
-Security notes: when backing up or migrating the config directory, the `.key` file (the config encryption key) is as sensitive as the config itself. Protect it, and never let it leak with a backup. Lose the `.key` and the existing encrypted config can no longer be decrypted. Dashboard backup export uses its own passphrase-derived key and is unaffected by `.key`. When you first reach the admin console through a self-signed certificate, compare the browser's certificate fingerprint against the SHA-256 fingerprint printed in the startup log before trusting it.
+Security notes: the config directory must be owned by the account running the service and must not be group- or world-writable; an existing directory is never re-chmod'ed, so pointing `-cd` at a system directory cannot damage it. The one-time password is shown on the LuCI settings page until the admin password is changed, at which point the program deletes the file and the page stops showing it. Any account holding the `luci-app-andeyproxy` ACL can read it, so grant that ACL only to administrators; to hide it from read-only accounts, remove the `/etc/andey-proxy/initial-password` line from the ACL's file read grant. (rpcd scopes ACLs per ubus method, so `luci.setInitAction` also permits starting and stopping other init scripts.) The uninstaller removes the directory named by `uci get andey-proxy.main.confdir` together with its `.key` file.
+
+When backing up or migrating the config directory, the `.key` file (the config encryption key) is as sensitive as the config itself. Protect it, and never let it leak with a backup. Lose the `.key` and the existing encrypted config can no longer be decrypted. Dashboard backup export uses its own passphrase-derived key and is unaffected by `.key`. When you first reach the admin console through a self-signed certificate, compare the browser's certificate fingerprint against the SHA-256 fingerprint printed in the startup log before trusting it.
 
 ### Proxy behavior and resource limits
 
@@ -119,7 +123,9 @@ Security notes: when backing up or migrating the config directory, the `.key` fi
 - Same-port HTTP/TLS sniffing keeps at most 128 pending connections per site with a 10-second wait for the first byte; beyond that, new connections are closed.
 - Layer-4 port forwarding shares a global cap of 256 TCP connections and 256 active UDP sessions across all rules. At the cap, new TCP connections are closed and new UDP session packets are dropped, while existing sessions keep running. Each UDP rule's session index is also capped at 256 entries. These are fixed limits in the current version.
 - Hot rule reload only rebuilds the handlers and connection pools that changed. Requests holding an old rule snapshot that have not yet acquired a handler may receive a 503; subsequent requests use the new config.
-- Config backup v1 accepts only the fixed scrypt parameters the program uses when exporting (about 32 MiB of derivation memory). Import and export are mutually exclusive and return 409 while another operation is running. Malformed encrypted fields are rejected before the key is derived.
+- Config backup v1 accepts only the fixed scrypt parameters the program uses when exporting (about 32 MiB of derivation memory). Import and export are mutually exclusive and return 409 while another operation is running. Malformed encrypted fields are rejected before the key is derived. Backup import accepts request bodies up to 64 MiB so an export can always be restored.
+- Request-side WAF (Coraza + OWASP CRS) is opt-in per protection policy. At most 8 WAF transactions run concurrently per process: further requests are rejected immediately with 503 (there is no queueing), and the inspected request body is buffered in memory up to the policy's `bodyLimitKiB` (default 256 KiB, maximum 1 MiB).
+- Rate-limit token buckets and CC counters are bounded at 4096 entries each. Expired entries are pruned on an interval, not on every request, so saturation cannot turn into per-request whole-table scans.
 
 ### Google Authenticator two-factor authentication
 
@@ -141,7 +147,7 @@ The reset command confirms through the config lock that the service has stopped 
 
 Main-program updates remain manual; uploaded package scripts are never executed. Optional cloudflared checks and binary downloads are available separately on the Tunnel page after administrator confirmation. Download the signed `.run` package for your architecture yourself, then use **Upload package to update manually** under **Settings → Updates & backups**: verify the signature, digest, Linux/CPU/ELF architecture and version before entering the admin password to install.
 
-Release packages are signed with Ed25519. Building a `.run` requires the release private key to be supplied through `RELEASE_SIGNING_KEY`; GitHub Actions reads it from a protected secret named `RELEASE_SIGNING_PRIVATE_KEY`. The private key must never be committed to the repository or written into build artifacts.
+Release packages are signed with Ed25519. Building a `.run` requires the release private key through `RELEASE_SIGNING_KEY` and the matching public key through `RELEASE_SIGNING_PUBLIC_KEY`; the build refuses to run without the public key so every package is self-verified before it is written. GitHub Actions reads them from the protected secrets `RELEASE_SIGNING_PRIVATE_KEY` and `RELEASE_SIGNING_PUBLIC_KEY`. Neither key may be committed to the repository or written into build artifacts.
 
 ## CI
 

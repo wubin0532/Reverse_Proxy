@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -12,6 +13,10 @@ import (
 
 const notificationQueueCapacity = 64
 const notificationMaxAttempts = 3
+
+// notificationMaxRetryDelay 单次退避的上限。渠道（如 Telegram 429）要求的
+// 等待时间超过该值时直接放弃本次发送，避免分发协程被长时间挂住。
+const notificationMaxRetryDelay = 30 * time.Second
 
 var notificationRetryBackoff = []time.Duration{time.Second, 2 * time.Second}
 
@@ -98,7 +103,16 @@ func sendWithRetry(sender Sender, ev Event) error {
 	var lastErr error
 	for attempt := 0; attempt < notificationMaxAttempts; attempt++ {
 		if attempt > 0 {
-			time.Sleep(notificationRetryBackoff[attempt-1])
+			delay := notificationRetryBackoff[attempt-1]
+			var limited *rateLimitError
+			if errors.As(lastErr, &limited) && limited.RetryAfter > delay {
+				// 渠道明确要求等待：按其要求退避，否则会在限流窗口内把消息重试到丢弃。
+				delay = limited.RetryAfter
+			}
+			if delay > notificationMaxRetryDelay {
+				return lastErr
+			}
+			time.Sleep(delay)
 		}
 		lastErr = sender.Send(ev)
 		if lastErr == nil {

@@ -4,6 +4,7 @@ package metrics
 import (
 	"net/http"
 	"runtime"
+	rmetrics "runtime/metrics"
 	"sync"
 	"time"
 
@@ -95,6 +96,20 @@ func (s *Sampler) Stop() {
 	s.once.Do(func() { close(s.stop); s.wg.Wait(); s.flushHistory(true) })
 	s.wg.Wait()
 }
+
+// heapAllocSample 读取与 runtime.MemStats.HeapAlloc 等价的堆对象字节数。
+// runtime.ReadMemStats 会触发 stop-the-world，每 5 秒一次在大堆上表现为周期性
+// 停顿；runtime/metrics 读取同一指标且不停止世界。
+func readHeapAlloc() uint64 {
+	// Read mutates the sample buffer; independent samplers must not share it.
+	samples := []rmetrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
+	rmetrics.Read(samples)
+	if v := samples[0].Value; v.Kind() == rmetrics.KindUint64 {
+		return v.Uint64()
+	}
+	return 0
+}
+
 func value(v float64) *float64 { return &v }
 func appendBounded(points []Point, p Point, limit int) []Point {
 	if len(points) >= limit {
@@ -105,11 +120,10 @@ func appendBounded(points []Point, p Point, limit int) []Point {
 }
 
 func (s *Sampler) sample(at time.Time, h hostCounters) {
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
+	heap := readHeapAlloc()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	n := Snapshot{Time: at, MemoryTotal: h.memory, ProcessResident: h.resident, ProcessHeap: mem.HeapAlloc, Goroutines: runtime.NumGoroutine(), Interface: h.iface, Received: h.received, Sent: h.sent, HostSupported: h.cpuOK || h.memoryOK, NetworkSupported: h.networkOK}
+	n := Snapshot{Time: at, MemoryTotal: h.memory, ProcessResident: h.resident, ProcessHeap: heap, Goroutines: runtime.NumGoroutine(), Interface: h.iface, Received: h.received, Sent: h.sent, HostSupported: h.cpuOK || h.memoryOK, NetworkSupported: h.networkOK}
 	if h.memoryOK && h.memory > 0 && h.available <= h.memory {
 		n.MemoryUsed = h.memory - h.available
 		n.MemoryPercent = value(float64(n.MemoryUsed) * 100 / float64(h.memory))

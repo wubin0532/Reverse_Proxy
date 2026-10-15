@@ -90,9 +90,15 @@ jobs:
           test -n "$SIGNING_KEY_PEM"
           umask 077
           printf '%s' "$SIGNING_KEY_PEM" > "$RUNNER_TEMP/release-signing.pem"
+      - name: prepare release public key
+        run: |
+          umask 077
+          openssl pkey -in "$RUNNER_TEMP/release-signing.pem" -pubout \
+            -out "$RUNNER_TEMP/release-signing.pub"
       - name: build signed manual-update packages
         env:
           RELEASE_SIGNING_KEY: ${{ runner.temp }}/release-signing.pem
+          RELEASE_SIGNING_PUBLIC_KEY: ${{ runner.temp }}/release-signing.pub
           VERSION: ${{ github.ref_name }}
         run: |
           VERSION="${VERSION#v}" ./scripts/build-release.sh
@@ -108,9 +114,9 @@ jobs:
               ANDEY_SIGNED_ARCH="$arch" ANDEY_SIGNED_VERSION="${GITHUB_REF_NAME#v}" \
               go test ./internal/upgrade -run '^TestBuiltSignedPackage$' -count=1
           done
-      - name: remove protected signing key
+      - name: remove signing material
         if: always()
-        run: rm -f "$RUNNER_TEMP/release-signing.pem"
+        run: rm -f "$RUNNER_TEMP/release-signing.pem" "$RUNNER_TEMP/release-signing.pub"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: andey-proxy_${{ github.ref_name }}_signed-packages

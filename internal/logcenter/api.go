@@ -89,8 +89,8 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 			Password string `json:"password"`
 			Type     string `json:"type"` // 可选：access / system，缺省清空全部
 		}
-		if api.DecodeBody(req, &body) != nil {
-			api.Fail(w, 400, "请求格式错误")
+		if err := api.DecodeBody(req, &body); err != nil {
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		if !validLogType(body.Type) {
@@ -137,7 +137,7 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 
 func queryFrom(r *http.Request) Query {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	cursor, _ := strconv.Atoi(r.URL.Query().Get("cursor"))
+	cursor, _ := strconv.ParseInt(r.URL.Query().Get("cursor"), 10, 64)
 	from, _ := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
 	to, _ := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
 	return Query{Level: r.URL.Query().Get("level"), Source: r.URL.Query().Get("source"), Keyword: r.URL.Query().Get("q"), EntityID: r.URL.Query().Get("entityId"), Type: r.URL.Query().Get("type"), Limit: limit, Cursor: cursor, From: from, To: to}

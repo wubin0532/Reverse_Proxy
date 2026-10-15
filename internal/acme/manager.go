@@ -42,9 +42,23 @@ const defaultRenewDays = 30
 const scanInterval = 12 * time.Hour
 
 // cachedCert holds one validated pair; the fingerprint includes both files.
+// certStamp/keyStamp 记录两份文件的轻量标识，使 TLS 握手热路径不必每次读盘。
 type cachedCert struct {
 	cert        *tls.Certificate
 	fingerprint [32]byte
+	certStamp   fileStamp
+	keyStamp    fileStamp
+}
+
+// fileStamp 文件大小与修改时间，用于判断缓存是否仍然有效。
+type fileStamp struct{ size, mtime int64 }
+
+func stampOf(path string) (fileStamp, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fileStamp{}, err
+	}
+	return fileStamp{size: info.Size(), mtime: info.ModTime().UnixNano()}, nil
 }
 
 // acmeUser 实现 lego 的 registration.User 接口。
@@ -797,6 +811,31 @@ func (m *Manager) loadCached(c *config.CertConf) (*tls.Certificate, error) {
 	m.pairMu.RLock()
 	defer m.pairMu.RUnlock()
 	certFile, keyFile := m.certPath(c)
+	certStamp, err := stampOf(certFile)
+	if err != nil {
+		return nil, fmt.Errorf("证书文件不可用: %w", err)
+	}
+	keyStamp, err := stampOf(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("私钥文件不可用: %w", err)
+	}
+	// 在锁内复制出需要的字段：storeStamps 会就地更新这些标识，若在锁外读取
+	// 就会与并发的 storeStamps 构成数据竞争（cert 指针本身不可变，可在锁外用）。
+	m.mu.RLock()
+	cached := m.cache[c.ID]
+	var cachedFingerprint [32]byte
+	var cachedCertStamp, cachedKeyStamp fileStamp
+	if cached != nil {
+		cachedFingerprint = cached.fingerprint
+		cachedCertStamp, cachedKeyStamp = cached.certStamp, cached.keyStamp
+	}
+	m.mu.RUnlock()
+	// 快路径：两份文件的大小与修改时间都没变，直接复用已解析的证书。
+	// 原先每次 TLS 握手都要 os.ReadFile 证书与私钥、再算一次 SHA-256，
+	// 使指纹缓存形同虚设（必须先读盘才能命中）。
+	if cached != nil && cachedCertStamp == certStamp && cachedKeyStamp == keyStamp {
+		return cached.cert, nil
+	}
 	certPEM, err := os.ReadFile(certFile)
 	if err != nil {
 		return nil, fmt.Errorf("证书文件不可用: %w", err)
@@ -806,10 +845,9 @@ func (m *Manager) loadCached(c *config.CertConf) (*tls.Certificate, error) {
 		return nil, fmt.Errorf("私钥文件不可用: %w", err)
 	}
 	fingerprint := pairFingerprint(certPEM, keyPEM)
-	m.mu.RLock()
-	cached := m.cache[c.ID]
-	m.mu.RUnlock()
-	if cached != nil && cached.fingerprint == fingerprint {
+	if cached != nil && cachedFingerprint == fingerprint {
+		// 内容未变（例如仅被 touch）：刷新标识后继续复用。
+		m.storeStamps(c.ID, certStamp, keyStamp)
 		return cached.cert, nil
 	}
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
@@ -817,7 +855,17 @@ func (m *Manager) loadCached(c *config.CertConf) (*tls.Certificate, error) {
 		return nil, err
 	}
 	m.publishPair(c.ID, &pair, certPEM, keyPEM)
+	m.storeStamps(c.ID, certStamp, keyStamp)
 	return &pair, nil
+}
+
+// storeStamps 为缓存条目记录对应的文件标识，使后续握手可走 stat 快路径。
+func (m *Manager) storeStamps(id string, certStamp, keyStamp fileStamp) {
+	m.mu.Lock()
+	if entry := m.cache[id]; entry != nil {
+		entry.certStamp, entry.keyStamp = certStamp, keyStamp
+	}
+	m.mu.Unlock()
 }
 
 func pairFingerprint(certPEM, keyPEM []byte) [32]byte {

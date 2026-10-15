@@ -16,15 +16,22 @@ import (
 )
 
 var sharedWAF struct {
-	once   sync.Once
+	mu     sync.Mutex
 	engine coraza.WAF
 	err    error
 }
 var wafTransactions = make(chan struct{}, 8)
 
+// prepareWAF 惰性初始化共享 WAF 引擎。初始化失败不得被永久缓存：否则一次
+// 临时失败（内存紧张等）会让所有 WAF 请求固定 503、保存策略固定 400，
+// 只能重启进程才能恢复。成功结果仍然复用，不重复编译 CRS。
 func prepareWAF() (coraza.WAF, error) {
-	sharedWAF.once.Do(func() {
-		sharedWAF.engine, sharedWAF.err = coraza.NewWAF(coraza.NewWAFConfig().WithRootFS(coreruleset.FS).WithErrorCallback(func(types.MatchedRule) {}).WithDirectives(`
+	sharedWAF.mu.Lock()
+	defer sharedWAF.mu.Unlock()
+	if sharedWAF.engine != nil {
+		return sharedWAF.engine, nil
+	}
+	engine, err := coraza.NewWAF(coraza.NewWAFConfig().WithRootFS(coreruleset.FS).WithErrorCallback(func(types.MatchedRule) {}).WithDirectives(`
 SecRuleEngine On
 SecRequestBodyAccess On
 SecRequestBodyLimit 1048576
@@ -39,8 +46,13 @@ SecRule REQUEST_HEADERS:Content-Type "@rx (?i)^(application|text)/xml" "id:20000
 Include @crs-setup.conf.example
 Include @owasp_crs/REQUEST-*.conf
 `))
-	})
-	return sharedWAF.engine, sharedWAF.err
+	if err != nil {
+		sharedWAF.err = err
+		return nil, err
+	}
+	sharedWAF.engine = engine
+	sharedWAF.err = nil
+	return engine, nil
 }
 
 type ccCounter struct {
@@ -49,8 +61,26 @@ type ccCounter struct {
 	settings           config.CCConfig
 }
 type ccRuntime struct {
-	mu     sync.Mutex
-	counts map[string]ccCounter
+	mu        sync.Mutex
+	counts    map[string]ccCounter
+	lastPrune time.Time
+}
+
+// ccPruneInterval CC 计数表清理间隔。旧实现在每个请求里遍历整张表（最多
+// 4096 项，且持 cc.mu）删除过期项，属可被放大的性能悬崖；改为按时间惰性清理，
+// 热路径只做单 key 读写。
+const ccPruneInterval = 2 * time.Second
+
+func (cc *ccRuntime) pruneLocked(at time.Time) {
+	if !cc.lastPrune.IsZero() && at.Sub(cc.lastPrune) < ccPruneInterval {
+		return
+	}
+	cc.lastPrune = at
+	for key, v := range cc.counts {
+		if at.Sub(v.at) >= time.Duration(v.settings.WindowSeconds)*time.Second {
+			delete(cc.counts, key)
+		}
+	}
 }
 
 func (e *Engine) httpPolicies(ids []string) []compiledPolicy {
@@ -58,17 +88,43 @@ func (e *Engine) httpPolicies(ids []string) []compiledPolicy {
 		return nil
 	}
 	snapshot := e.snapshot.Load()
-	out := []compiledPolicy{}
-	seen := map[string]bool{}
-	for _, p := range snapshot.globals {
-		if !seen[p.conf.ID] {
-			seen[p.conf.ID] = true
-			out = append(out, p)
+	// 绝大多数请求没有全局策略、规则也未绑定策略：先做零分配短路，
+	// 避免在逐请求路径上为过滤分配 map 与切片。
+	if len(snapshot.globals) == 0 {
+		hit := false
+		for _, id := range ids {
+			if id == "" {
+				continue
+			}
+			if p, ok := snapshot.policies[id]; ok && p.conf.Enabled {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			return nil
 		}
 	}
+	out := make([]compiledPolicy, 0, len(snapshot.globals)+len(ids))
+	for _, p := range snapshot.globals {
+		out = append(out, p)
+	}
 	for _, id := range ids {
-		if p, ok := snapshot.policies[id]; ok && p.conf.Enabled && !seen[id] {
-			seen[id] = true
+		if id == "" {
+			continue
+		}
+		p, ok := snapshot.policies[id]
+		if !ok || !p.conf.Enabled {
+			continue
+		}
+		dup := false
+		for _, existing := range out {
+			if existing.conf.ID == id {
+				dup = true
+				break
+			}
+		}
+		if !dup {
 			out = append(out, p)
 		}
 	}
@@ -83,11 +139,7 @@ func (e *Engine) checkCC(p compiledPolicy, ip, entity string, at time.Time) bool
 	if e.cc.counts == nil {
 		e.cc.counts = map[string]ccCounter{}
 	}
-	for key, v := range e.cc.counts {
-		if at.Sub(v.at) >= time.Duration(v.settings.WindowSeconds)*time.Second {
-			delete(e.cc.counts, key)
-		}
-	}
+	e.cc.pruneLocked(at)
 	key := p.conf.ID + "|" + ip
 	counter, ok := e.cc.counts[key]
 	if !ok && len(e.cc.counts) >= 4096 {
@@ -124,7 +176,12 @@ func (e *Engine) ObserveHTTPStatus(ip, entity string, status int, ids []string) 
 		if e.cc.counts == nil {
 			e.cc.counts = map[string]ccCounter{}
 		}
+		e.cc.pruneLocked(at)
 		counter, ok := e.cc.counts[key]
+		if !ok && status != http.StatusNotFound {
+			e.cc.mu.Unlock()
+			continue
+		}
 		if !ok && len(e.cc.counts) >= 4096 {
 			e.cc.mu.Unlock()
 			continue
@@ -154,12 +211,7 @@ func (e *Engine) wafEvent(ip, entity, policy, reason string, observe bool) {
 	defer e.mu.Unlock()
 	e.nextID++
 	event := Event{e.nextID, time.Now().UTC(), "web", entity, ip, policy, reason, "observe"}
-	if len(e.events) == MaxEvents {
-		copy(e.events, e.events[1:])
-		e.events[len(e.events)-1] = event
-	} else {
-		e.events = append(e.events, event)
-	}
+	e.events.append(event, MaxEvents)
 }
 
 type restoredBody struct {

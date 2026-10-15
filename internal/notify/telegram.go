@@ -86,16 +86,36 @@ func (s *TelegramSender) Send(ev Event) error {
 	var result struct {
 		OK          bool   `json:"ok"`
 		Description string `json:"description"`
+		ErrorCode   int    `json:"error_code"`
+		Parameters  struct {
+			RetryAfter int `json:"retry_after"`
+		} `json:"parameters"`
 	}
 	_ = json.Unmarshal(limited, &result)
 	if resp.StatusCode/100 != 2 || !result.OK {
 		if result.Description == "" {
 			result.Description = fmt.Sprintf("HTTP %d", resp.StatusCode)
 		}
+		if resp.StatusCode == http.StatusTooManyRequests || result.ErrorCode == http.StatusTooManyRequests {
+			// Telegram 会明确告知需要等待多久；忽略它会导致消息在限流窗口内
+			// 被重试三次后静默丢弃。
+			return &rateLimitError{
+				RetryAfter: time.Duration(result.Parameters.RetryAfter) * time.Second,
+				detail:     fmt.Sprintf("Telegram 限流: %s", result.Description),
+			}
+		}
 		return fmt.Errorf("Telegram 返回错误: %s", result.Description)
 	}
 	return nil
 }
+
+// rateLimitError 表示通知渠道要求等待一段时间后再发送。
+type rateLimitError struct {
+	RetryAfter time.Duration
+	detail     string
+}
+
+func (e *rateLimitError) Error() string { return e.detail }
 
 func ValidateTelegramConfig(c config.TelegramNotification, tokenRequired bool) error {
 	c.BotToken = strings.TrimSpace(c.BotToken)

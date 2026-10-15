@@ -21,20 +21,22 @@ const (
 )
 
 type connAgg struct {
-	mu             sync.Mutex
-	windowStart    time.Time
-	tcpConns       int
-	udpSessions    int
-	bytesUp        int64
-	bytesDown      int64
-	peers          map[string]struct{}
-	peersFull      bool
-	rejected       int
-	dialFailed     int
-	rejectSeen     bool // 本窗口已即时记录过拒绝
-	dialSeen       bool // 本窗口已即时记录过目标连接失败
-	known          map[string]struct{}
-	overflowLogged bool // 已见对端表打满提示只记一次
+	mu              sync.Mutex
+	windowStart     time.Time
+	tcpConns        int
+	udpSessions     int
+	bytesUp         int64
+	bytesDown       int64
+	peers           map[string]struct{}
+	peersFull       bool
+	rejected        int
+	dialFailed      int
+	capacityDropped int  // 全局连接/会话预算耗尽而被丢弃的新连接或会话
+	rejectSeen      bool // 本窗口已即时记录过拒绝
+	dialSeen        bool // 本窗口已即时记录过目标连接失败
+	capacitySeen    bool // 本窗口已即时记录过容量丢弃
+	known           map[string]struct{}
+	overflowLogged  bool // 已见对端表打满提示只记一次
 }
 
 func newConnAgg() *connAgg {
@@ -68,12 +70,14 @@ func (a *connAgg) maybeFlushLocked(now time.Time) string {
 	a.peers = make(map[string]struct{})
 	a.peersFull = false
 	a.rejected, a.dialFailed = 0, 0
+	a.capacityDropped = 0
 	a.rejectSeen, a.dialSeen = false, false
+	a.capacitySeen = false
 	return msg
 }
 
 func (a *connAgg) summaryLocked() string {
-	if a.tcpConns == 0 && a.udpSessions == 0 && a.rejected == 0 && a.dialFailed == 0 {
+	if a.tcpConns == 0 && a.udpSessions == 0 && a.rejected == 0 && a.dialFailed == 0 && a.capacityDropped == 0 {
 		return ""
 	}
 	var parts []string
@@ -98,6 +102,9 @@ func (a *connAgg) summaryLocked() string {
 	}
 	if a.dialFailed > 0 {
 		parts = append(parts, fmt.Sprintf("目标连接失败 %d", a.dialFailed))
+	}
+	if a.capacityDropped > 0 {
+		parts = append(parts, fmt.Sprintf("容量上限丢弃 %d", a.capacityDropped))
 	}
 	return "最近一分钟: " + strings.Join(parts, "，")
 }
@@ -178,6 +185,26 @@ func (s *Service) noteReject(rule config.ForwardRule, srcIP string) {
 	a.mu.Unlock()
 	if first {
 		s.logf(rule.ID, "拒绝来自 %s 的连接（黑白名单）", srcIP)
+	}
+	if summary != "" {
+		s.logf(rule.ID, "%s", summary)
+	}
+}
+
+// noteCapacityDrop 记录因全局连接/会话预算耗尽而被丢弃的新连接或会话。
+// 这类丢弃原先完全静默：客户端被拒但无计数、无日志，面板仍显示规则健康，
+// 运维无法察觉容量瓶颈。与拒绝/失败一致，每窗口第一条即时记，其余进汇总。
+func (s *Service) noteCapacityDrop(rule config.ForwardRule, kind, srcIP string) {
+	a := s.aggFor(rule.ID)
+	a.mu.Lock()
+	summary := a.maybeFlushLocked(time.Now())
+	a.capacityDropped++
+	a.trackPeerLocked(srcIP)
+	first := !a.capacitySeen
+	a.capacitySeen = true
+	a.mu.Unlock()
+	if first {
+		s.logf(rule.ID, "已达全局容量上限，丢弃新的%s（来源 %s）", kind, srcIP)
 	}
 	if summary != "" {
 		s.logf(rule.ID, "%s", summary)

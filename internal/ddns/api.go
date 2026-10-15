@@ -94,7 +94,7 @@ func (h *handler) taskView(task config.DDNSTask) taskView {
 func (h *handler) createTask(w http.ResponseWriter, r *http.Request) {
 	var t config.DDNSTask
 	if err := api.DecodeBody(r, &t); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	t.ID = ""
@@ -125,7 +125,7 @@ func (h *handler) updateTask(w http.ResponseWriter, r *http.Request) {
 		Revision string `json:"revision"`
 	}
 	if err := api.DecodeBody(r, &body); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	task := body.DDNSTask
@@ -334,7 +334,7 @@ func validateHTTPURL(raw string, allowSafeQuery bool) (*url.URL, error) {
 func (h *handler) createProvider(w http.ResponseWriter, r *http.Request) {
 	var p config.DNSProviderConf
 	if err := api.DecodeBody(r, &p); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	p.ID = ""
@@ -366,7 +366,7 @@ func (h *handler) updateProvider(w http.ResponseWriter, r *http.Request) {
 		ClearEndpoint bool   `json:"clearEndpoint"`
 	}
 	if err := api.DecodeBody(r, &body); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	p := config.DNSProviderConf{ID: id, Type: body.Type, Remark: body.Remark, Key: body.Key, Secret: body.Secret, Endpoint: body.Endpoint}
@@ -491,8 +491,8 @@ func (h *handler) previewIP(w http.ResponseWriter, r *http.Request) {
 		APIURL    string                  `json:"apiUrl"`
 		Fallbacks []config.IPSourceConfig `json:"fallbacks"`
 	}
-	if api.DecodeBody(r, &body) != nil {
-		api.Fail(w, 400, "请求格式错误")
+	if err := api.DecodeBody(r, &body); err != nil {
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	if body.IPType == "" {
@@ -528,7 +528,11 @@ func (h *handler) testProvider(w http.ResponseWriter, r *http.Request) {
 		Domain     string `json:"domain"`
 		RecordType string `json:"recordType"`
 	}
-	if err := api.DecodeBody(r, &body); err != nil || body.Domain == "" {
+	if err := api.DecodeBody(r, &body); err != nil {
+		api.FailDecode(w, err, "请求格式错误")
+		return
+	}
+	if body.Domain == "" {
 		api.Fail(w, 400, "请求格式错误")
 		return
 	}

@@ -1,11 +1,13 @@
 package ddns
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // resolveWANInterface 自动识别 WAN 口网卡名。
@@ -28,7 +30,11 @@ func resolveWANInterface(ipv6 bool) (string, error) {
 
 // ubusL3Device 通过 OpenWrt ubus 查询接口的 L3 设备名（非 OpenWrt 系统返回错误）。
 func ubusL3Device(name string) (string, error) {
-	out, err := exec.Command("ubus", "call", "network.interface."+name, "status").Output()
+	// 必须带超时：ubusd 无响应时无超时的 exec 会让 DDNS 任务协程永久阻塞，
+	// 连带 Worker.Stop 的 Wait 无法返回，进程只能被 SIGKILL。
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ubus", "call", "network.interface."+name, "status").Output()
 	if err != nil {
 		return "", err
 	}

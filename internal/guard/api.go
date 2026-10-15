@@ -45,8 +45,8 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, e *Engine) {
 			e.mutation.Lock()
 			defer e.mutation.Unlock()
 			var p config.ProtectionPolicy
-			if api.DecodeBody(req, &p) != nil {
-				api.Fail(w, 400, "请求格式错误")
+			if err := api.DecodeBody(req, &p); err != nil {
+				api.FailDecode(w, err, "请求格式错误")
 				return
 			}
 			if err := ValidatePolicy(&p); err != nil {
@@ -133,8 +133,8 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, e *Engine) {
 	r.Get("/api/protection/bans", func(w http.ResponseWriter, _ *http.Request) { api.OK(w, e.Bans()) })
 	r.Post("/api/protection/bans", func(w http.ResponseWriter, req *http.Request) {
 		var b Ban
-		if api.DecodeBody(req, &b) != nil {
-			api.Fail(w, 400, "请求格式错误")
+		if err := api.DecodeBody(req, &b); err != nil {
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		if err := e.AddBan(b); err != nil {

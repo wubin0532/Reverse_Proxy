@@ -42,6 +42,8 @@ type Manager struct {
 	sources map[string]map[string]Rule // 来源 -> Key -> 规则
 	added   map[string]parsedRule      // 已写入 UCI 的规则 Key -> 规则
 	scanned bool                       // 是否已从 uci show 重建 added
+	// pendingCommit 上次 uci commit 未成功，下次 reconcile 必须重试提交。
+	pendingCommit bool
 
 	detectOnce sync.Once
 	detected   bool
@@ -163,7 +165,7 @@ func (m *Manager) reconcileLocked() error {
 			toDel = append(toDel, k)
 		}
 	}
-	if len(toAdd) == 0 && len(toDel) == 0 {
+	if len(toAdd) == 0 && len(toDel) == 0 && !m.pendingCommit {
 		return nil
 	}
 	// 排序保证命令顺序稳定（便于测试与排查）
@@ -193,8 +195,13 @@ func (m *Manager) reconcileLocked() error {
 	}
 
 	if _, err := m.execFn("uci", "commit", "firewall"); err != nil {
+		// 提交失败时改动仍留在 UCI 暂存区，uci show 会照常显示它们，于是内存
+		// 集合与期望集合相同，下一次 reconcile 会提前返回而永不重试：表现为
+		// 面板显示已放行、端口实际不通，重启后规则一并丢失。必须显式记录待提交。
+		m.pendingCommit = true
 		return fmt.Errorf("uci commit firewall: %w", err)
 	}
+	m.pendingCommit = false
 	m.reloadFirewall()
 	return nil
 }

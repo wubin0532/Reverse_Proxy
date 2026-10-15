@@ -35,7 +35,7 @@ import (
 	"andey-proxy/internal/webproxy"
 )
 
-var version = "1.0.0"
+var version = "1.5.0"
 
 func main() {
 	confDir := flag.String("cd", "", "配置文件夹路径（默认 ./andey-proxy-conf）")
@@ -125,9 +125,14 @@ func main() {
 		}); err != nil {
 			log.Fatalf("保存初始密码失败: %v", err)
 		}
-		// 一次性密码只写 stderr 和 confdir 内的初始密码文件，不进入持久化日志中心；
-		// 该文件供 LuCI 首次配置时读取，管理员修改密码后会被删除。
-		fmt.Fprintf(os.Stderr, "首次启动管理员: %s，一次性密码: %s（仅显示本次）\n", cfg.Settings.AdminUser, initialPassword)
+		// 一次性密码只写入 confdir 内 0600 的密码文件，管理员修改密码后会被删除。
+		// 明文只在交互式终端打印：procd/systemd 会把 stdout/stderr 收进系统日志，
+		// 写日志会让明文密码长期留存，超出"仅显示一次"的预期。
+		if fi, statErr := os.Stderr.Stat(); statErr == nil && fi.Mode()&os.ModeCharDevice != 0 {
+			fmt.Fprintf(os.Stderr, "首次启动管理员: %s，一次性密码: %s（仅显示本次）\n", cfg.Settings.AdminUser, initialPassword)
+		} else {
+			fmt.Fprintf(os.Stderr, "首次启动管理员: %s，一次性密码已生成，请在设备端查看 %s（0600，修改密码后自动删除）\n", cfg.Settings.AdminUser, filepath.Join(abs, "initial-password"))
+		}
 		if err := os.WriteFile(filepath.Join(abs, "initial-password"), []byte(initialPassword+"\n"), 0o600); err != nil {
 			log.Printf("写入初始密码文件失败: %v", err)
 		}
@@ -181,24 +186,27 @@ func main() {
 	apiSrv := api.NewServer(cfg, !*allowHTTP)
 	apiSrv.SetConfigRestoreGuard(tunnelMgr.LockForRestore)
 	// 备份导入后的热重载：webproxy/forward/acme 显式 Reload，DDNS worker 重排任务。
-	apiSrv.SetConfigRestore(version, func() {
+	// 任一服务重载失败时返回给调用方：配置已落盘，但运行态仍是旧配置，
+	// 只记日志会让接口报成功而行为不符，用户无从察觉。
+	apiSrv.SetConfigRestore(version, func() []string {
 		protection.Trap.Stop()
 		metricSampler.ConfigurePersistence()
-		if err := protection.Reload(); err != nil {
-			log.Printf("导入配置后重载防护失败: %v", err)
+		var warnings []string
+		record := func(what string, err error) {
+			if err == nil {
+				return
+			}
+			log.Printf("导入配置后重载%s失败: %v", what, err)
+			warnings = append(warnings, what+"未按新配置生效: "+err.Error())
 		}
-		if err := webSvc.Reload(); err != nil {
-			log.Printf("导入配置后重载 Web 服务失败: %v", err)
-		}
-		if err := fwdSvc.Reload(); err != nil {
-			log.Printf("导入配置后重载端口转发失败: %v", err)
-		}
-		if err := protection.Trap.Reload(); err != nil {
-			log.Printf("导入配置后重载诱捕失败: %v", err)
-		}
+		record("防护", protection.Reload())
+		record("Web 服务", webSvc.Reload())
+		record("端口转发", fwdSvc.Reload())
+		record("诱捕", protection.Trap.Reload())
 		ddnsWorker.Reload()
 		acmeMgr.Reload()
 		tunnelMgr.Reload()
+		return warnings
 	})
 	apiSrv.Mount(func(r chi.Router) { ddns.RegisterRoutes(r, cfg, ddnsWorker) })
 	apiSrv.Mount(func(r chi.Router) { guard.RegisterRoutes(r, cfg, protection) })

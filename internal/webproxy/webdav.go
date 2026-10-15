@@ -310,6 +310,7 @@ func (l *boundedDAVLocks) Unlock(now time.Time, token string) error {
 var davRequests = make(chan struct{}, 4)
 
 func webDAVHandler(rule config.SubRule) http.Handler {
+	directory := bindServiceDirectory(rule.RootDir)
 	locks := newDAVLocks()
 	prefix := strings.TrimSuffix(normalizedFrontendPrefix(rule.FrontendPath), "/")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -345,7 +346,7 @@ func webDAVHandler(rule config.SubRule) http.Handler {
 			http.Error(w, "403 COPY requires Depth: 0", 403)
 			return
 		}
-		root, e := os.OpenRoot(rule.RootDir)
+		root, e := directory.open()
 		if e != nil {
 			http.Error(w, "503 WebDAV directory unavailable", 503)
 			return

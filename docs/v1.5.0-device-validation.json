@@ -1,0 +1,52 @@
+{
+  "version": "1.5.0",
+  "sourceDirectory": "/Users/wubin/AI/Reverse Proxy",
+  "branch": "main",
+  "device": "192.168.199.7",
+  "system": "ImmortalWrt 25.12.2 / Linux 6.12.103 / x86_64",
+  "oldPluginCleanedBeforeInstall": true,
+  "oldPluginBackupVerifiedOffDevice": true,
+  "cleanupIncludesAppleDoubleMetadata": true,
+  "checkOnlyLeftServiceAndConfigAbsent": true,
+  "freshInstall": {
+    "phase": "fresh",
+    "version": "1.5.0",
+    "tlsFingerprintVerifiedViaSSH": true,
+    "tlsHostnameVerified": true,
+    "authenticatedReadonlyAPIs": 21,
+    "objectCounts": {
+      "/api/ddns/tasks": 0,
+      "/api/sites": 0,
+      "/api/forwards": 0,
+      "/api/certs": 0
+    },
+    "embeddedFilesVerified": 71
+  },
+  "restored": {
+    "phase": "restored",
+    "version": "1.5.0",
+    "tlsFingerprintVerifiedViaSSH": true,
+    "tlsHostnameVerified": true,
+    "authenticatedReadonlyAPIs": 21,
+    "objectCounts": {
+      "/api/ddns/tasks": 3,
+      "/api/sites": 2,
+      "/api/forwards": 2,
+      "/api/certs": 1
+    },
+    "embeddedFilesVerified": 71
+  },
+  "originalConfigDeviceKeyUCINetworkFirewallByteUnchanged": true,
+  "originalCertificateFilesByteUnchanged": 4,
+  "deviceGoTests": {
+    "config": 27,
+    "guard": 16,
+    "webproxy": 92,
+    "api": 24
+  },
+  "deviceGoTestsTotal": 159,
+  "candidateTemporarySignatureNotForDistribution": true,
+  "realPublicDNSWrites": false,
+  "wholeVMRebootTested": false,
+  "physicalPhoneTested": false
+}

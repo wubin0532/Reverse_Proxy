@@ -29,8 +29,8 @@ func RegisterRoutes(r chi.Router, m *Manager, cfg *config.Config) {
 			Password       string `json:"password"`
 			AllowDowngrade bool   `json:"allowDowngrade"`
 		}
-		if api.DecodeBody(req, &body) != nil {
-			api.Fail(w, 400, "请求格式错误")
+		if err := api.DecodeBody(req, &body); err != nil {
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		cfg.RLock()

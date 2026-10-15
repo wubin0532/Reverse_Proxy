@@ -30,7 +30,8 @@ func loginCookie(t *testing.T, handler http.Handler, remote string) *http.Cookie
 func TestBackupExportImportRoundTrip(t *testing.T) {
 	s, handler := testServer(t)
 	hookCalled := false
-	s.SetConfigRestore("test-version", func() { hookCalled = true })
+	reloadWarning := "Web 服务未按新配置生效: 端口被占用"
+	s.SetConfigRestore("test-version", func() []string { hookCalled = true; return []string{reloadWarning} })
 	remote := "192.0.2.10:1000"
 	cookie := loginCookie(t, handler, remote)
 
@@ -87,6 +88,10 @@ func TestBackupExportImportRoundTrip(t *testing.T) {
 	}
 	if !hookCalled {
 		t.Fatal("restore hook not called")
+	}
+	// 热重载失败必须随响应回传，否则用户以为全部生效。
+	if body := imp.Body.String(); !strings.Contains(body, "warnings") || !strings.Contains(body, reloadWarning) {
+		t.Fatalf("导入响应应包含热重载告警, body=%s", body)
 	}
 	// 导入前当前配置应已备份为 config.json.bak
 	if _, err := os.Stat(filepath.Join(s.cfg.Dir(), "config.json.bak")); err != nil {

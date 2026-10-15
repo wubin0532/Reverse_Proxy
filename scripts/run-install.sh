@@ -10,14 +10,22 @@ BIN_NAME=andey-proxy
 INSTALL_DIR=/usr/bin
 CONF_DIR=/etc/andey-proxy
 MODE=install
-case "${1:-}" in
-  --check) MODE=check ;;
-  --help|-h) echo "用法: sh $0 [--check]  --check只检查环境与载荷，不安装或修改配置"; exit 0 ;;
-  "") ;;
-  *) echo "未知参数: $1" >&2; exit 1 ;;
-esac
+PUBKEY_FILE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) MODE=check ;;
+    --pubkey)
+      shift
+      [ -n "${1:-}" ] || { echo "用法: sh $0 [--check] [--pubkey <公钥文件>]" >&2; exit 1; }
+      PUBKEY_FILE=${1:-}
+      ;;
+    --help|-h) echo "用法: sh $0 [--check] [--pubkey <公钥文件>]  --check只检查环境与载荷，不安装或修改配置"; exit 0 ;;
+    *) echo "未知参数: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
 fail() { echo "检查失败: $*" >&2; exit 1; }
-for cmd in uname id awk tail tar gzip cp chmod mkdir mv rm mktemp df sha256sum; do
+for cmd in uname id awk grep tail tar gzip cp chmod mkdir mv rm mktemp df sha256sum; do
   command -v "$cmd" >/dev/null 2>&1 || fail "缺少命令 ${cmd}，请安装相应系统工具后重试"
 done
 [ "$(uname -s)" = Linux ] || fail "仅支持Linux；当前系统为$(uname -s)"
@@ -83,15 +91,74 @@ trap 'exit 1' HUP INT TERM
 LINE=$(awk '/^__PAYLOAD_BELOW__$/ {print NR + 1; exit}' "$0")
 [ -n "$LINE" ] || fail "安装包载荷标记缺失"
 tail -n +"$LINE" "$0" > "$TMP/payload.tar.gz"
-tar xzf "$TMP/payload.tar.gz" -C "$TMP"
-[ -f "$TMP/$BIN_NAME" ] && [ -f "$TMP/manifest.json" ] && [ -f "$TMP/manifest.sig" ] || fail "载荷不完整"
+
+# 解包前只把清单文件取到 stdout 再自行落盘，不写入归档内的任意路径。
+for manifest_file in manifest.json manifest.sig files.sha256; do
+  # BusyBox tar matches ./manifest.json literally; release archives use ./.
+  if ! tar -xOzf "$TMP/payload.tar.gz" "$manifest_file" > "$TMP/$manifest_file" 2>/dev/null; then
+    tar -xOzf "$TMP/payload.tar.gz" "./$manifest_file" > "$TMP/$manifest_file" 2>/dev/null || fail "安装包缺少 $manifest_file"
+  fi
+  [ -s "$TMP/$manifest_file" ] || fail "安装包清单文件为空: $manifest_file"
+done
+
+# 签名验证：公钥必须经带外渠道获取后用 --pubkey 传入。安装脚本自身无法
+# 成为信任根（脚本与公钥都在包内，可被一起替换），因此不内置公钥。
+if [ -n "$PUBKEY_FILE" ]; then
+  [ -f "$PUBKEY_FILE" ] || fail "公钥文件不存在: $PUBKEY_FILE"
+  command -v openssl >/dev/null 2>&1 || fail "已指定 --pubkey 但系统缺少 openssl，无法验证签名"
+  command -v base64 >/dev/null 2>&1 || fail "已指定 --pubkey 但系统缺少 base64"
+  base64 -d "$TMP/manifest.sig" > "$TMP/manifest.sig.bin" 2>/dev/null || fail "签名内容不是有效的 base64"
+  openssl pkeyutl -verify -rawin -pubin -inkey "$PUBKEY_FILE" -in "$TMP/manifest.json" -sigfile "$TMP/manifest.sig.bin" >/dev/null 2>&1 \
+    || fail "安装包签名验证失败（公钥不匹配或清单被篡改）"
+  echo "签名验证通过"
+else
+  echo "提示：未指定 --pubkey，本次只校验摘要、未验证签名真实性；如需验证请从官网获取公钥并加 --pubkey <公钥文件>"
+fi
+
+# 拒绝归档中的绝对路径与包含 .. 的成员，避免未验签载荷写出解包目录。
+tar -tzf "$TMP/payload.tar.gz" > "$TMP/members.txt" || fail "无法读取安装包内容"
+while IFS= read -r member; do
+  case "$member" in
+    ""|/*|..|../*|*/..|*/../*) fail "安装包包含不安全的成员路径: $member" ;;
+  esac
+done < "$TMP/members.txt"
+
+# Links and special files can redirect extraction outside the temporary tree.
+# Both GNU and BusyBox tar put the entry type first in verbose listings.
+tar -tvzf "$TMP/payload.tar.gz" > "$TMP/member-types.txt" || fail "无法读取安装包文件类型"
+while read -r mode rest; do
+  case "$mode" in -*|d*) ;; *) fail "安装包不允许链接或特殊文件" ;; esac
+done < "$TMP/member-types.txt"
+
+tar xzf "$TMP/payload.tar.gz" -C "$TMP" || fail "解包失败"
+
+# 逐文件核对被签名清单覆盖的内容摘要。
+FILES_SHA=$(sha256sum "$TMP/files.sha256" | awk '{print $1}')
+grep -q "\"filesSha256\":\"$FILES_SHA\"" "$TMP/manifest.json" || fail "文件清单与签名清单不一致"
+while read -r digest file; do
+  [ -n "$digest" ] || continue
+  [ -f "$TMP/$file" ] || fail "载荷缺少文件: $file"
+  [ "$(sha256sum "$TMP/$file" | awk '{print $1}')" = "$digest" ] || fail "文件摘要不匹配: $file"
+done < "$TMP/files.sha256"
+
+# Every extracted file that may be installed must belong to the signed list;
+# otherwise an extra LuCI script could accompany an authentic manifest.
+while IFS= read -r member; do
+  file=${member#./}
+  case "$file" in ""|manifest.json|manifest.sig|files.sha256) continue ;; esac
+  [ ! -d "$TMP/$file" ] || continue
+  digest=$(sha256sum "$TMP/$file" | awk '{print $1}')
+  grep -Fxq "$digest  $file" "$TMP/files.sha256" || fail "载荷文件未列入已验证清单: $file"
+done < "$TMP/members.txt"
+
+[ -f "$TMP/$BIN_NAME" ] || fail "载荷不完整"
 ACTUAL_SHA=$(sha256sum "$TMP/$BIN_NAME" | awk '{print $1}')
 [ "$ACTUAL_SHA" = "$BINARY_SHA256" ] || fail "程序SHA256不匹配，安装包可能损坏"
-chmod 755 "$TMP/$BIN_NAME"
-[ "$("$TMP/$BIN_NAME" -v)" = "$VERSION" ] || fail "程序版本与安装包版本不一致"
-echo "载荷检查通过：v${VERSION}，SHA256一致，程序可以在当前设备执行（静态编译，无需Go/Node.js）"
+echo "载荷检查通过：v${VERSION}，清单与摘要一致，架构匹配（--check 不执行载荷）"
 if [ "$MODE" = check ]; then DONE=1; echo "检查完成；未安装、未修改配置、未启停服务"; exit 0; fi
 [ "$(id -u)" = 0 ] || fail "安装须使用root：sudo sh $0"
+chmod 755 "$TMP/$BIN_NAME"
+[ "$("$TMP/$BIN_NAME" -v)" = "$VERSION" ] || fail "程序版本与安装包版本不一致"
 [ -w "$INSTALL_DIR" ] || fail "${INSTALL_DIR}不可写"
 
 STAGED="$INSTALL_DIR/.$BIN_NAME.new.$$"
@@ -173,7 +240,7 @@ esac
 if [ -n "$OLD_BINARY" ]; then mv -f "$OLD_BINARY" "$INSTALL_DIR/$BIN_NAME.previous"; OLD_BINARY=""; fi
 DONE=1
 echo "v${VERSION}安装完成；原账号、配置、设备密钥及证书保留"
-echo "后台：https://<设备IP>:16606；首次安装的随机密码见启动日志"
+echo "后台：https://<设备IP>:16606；首次密码见LuCI设置页或$CONF_DIR/initial-password"
 echo "卸载：sudo andey-proxy-uninstall（会删除配置与证书）"
 exit 0
 __PAYLOAD_BELOW__

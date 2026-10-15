@@ -276,6 +276,7 @@ func (s *Service) startLocked(site config.Site) error {
 		health:           s.health,
 		stats:            s.statsFor(site.ID),
 	}
+	ss.prepareServiceHandlers(site)
 	ss.stats.pruneRules(site.Rules)
 	s.sites[site.ID] = ss
 
@@ -427,6 +428,7 @@ func (ss *siteServer) updateSite(site config.Site) {
 		delete(ss.staticHandler, id)
 		delete(ss.ipGuards, id)
 	}
+	ss.prepareServiceHandlers(site)
 	// Publish the snapshot and its cache index together under handlerMu. A request
 	// holding an older, changed rule is rejected instead of repopulating the cache.
 	ss.siteMu.Lock()

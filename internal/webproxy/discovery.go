@@ -234,8 +234,8 @@ func (d *discoveryRuntime) stop() {
 func (h *apiHandler) registerDiscovery(r chi.Router) {
 	r.Post("/api/sites/discovery", func(w http.ResponseWriter, q *http.Request) {
 		var spec discoverySpec
-		if api.DecodeBody(q, &spec) != nil {
-			api.Fail(w, 400, "请求格式错误")
+		if err := api.DecodeBody(q, &spec); err != nil {
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		j, e := h.svc.discovery.start(spec)

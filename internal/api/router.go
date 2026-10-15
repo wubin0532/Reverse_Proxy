@@ -40,7 +40,7 @@ type Server struct {
 	hasLastTOTPCounter bool
 	version            string // 备份文件元信息里的应用版本
 	restoreGuard       func() (func(), error)
-	restoreHook        func() // 配置导入后的热重载回调（main 装配各服务 Reload）
+	restoreHook        func() []string // 配置导入后的热重载回调，返回未能生效的服务说明
 }
 
 func NewServer(cfg *config.Config, secure ...bool) *Server {
@@ -69,8 +69,9 @@ func (s *Server) Mount(fn func(chi.Router)) {
 }
 
 // SetConfigRestore 设置配置备份所需的版本号与导入成功后的热重载回调。
-// hook 由各服务的 Reload 组成，在导入落盘成功后调用。
-func (s *Server) SetConfigRestore(version string, hook func()) {
+// hook 由各服务的 Reload 组成，在导入落盘成功后调用；返回需要告知用户的
+// 重载失败项（空切片表示全部生效）。
+func (s *Server) SetConfigRestore(version string, hook func() []string) {
 	s.version = version
 	s.restoreHook = hook
 }
@@ -152,7 +153,9 @@ func (s *Server) requestBudget(next http.Handler) http.Handler {
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			deadline := s.bodyReadTimeout
-			if r.URL.Path == "/api/system/update/inspect" {
+			switch r.URL.Path {
+			case "/api/system/update/inspect", "/api/system/backup/import":
+				// 大请求体：慢链路上传 100 MiB 更新包或整份配置备份。
 				deadline = 10 * time.Minute
 			}
 			// httptest 等场景下 ResponseWriter 不支持读期限，忽略错误。
@@ -216,7 +219,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := DecodeBody(r, &body); err != nil {
-		Fail(w, 400, "请求格式错误")
+		FailDecode(w, err, "请求格式错误")
 		return
 	}
 	if len(body.Username) > 64 || len(body.Password) > 72 {
@@ -308,7 +311,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"newPassword"`
 	}
 	if err := DecodeBody(r, &body); err != nil {
-		Fail(w, 400, "请求格式错误")
+		FailDecode(w, err, "请求格式错误")
 		return
 	}
 	proof := s.credentials()

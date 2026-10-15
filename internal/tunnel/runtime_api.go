@@ -25,8 +25,8 @@ func (h *handler) installRuntime(w http.ResponseWriter, r *http.Request) {
 		RestartRunning    bool     `json:"restartRunning"`
 		AffectedInstances []string `json:"affectedInstances"`
 	}
-	if api.DecodeBody(r, &input) != nil {
-		api.Fail(w, 400, "请求格式错误")
+	if err := api.DecodeBody(r, &input); err != nil {
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	if len(input.Password) > 72 || !api.AdmitPasswordConfirm("runtime-install", r.RemoteAddr) {

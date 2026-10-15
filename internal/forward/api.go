@@ -44,7 +44,7 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 	r.Post("/api/forwards", func(w http.ResponseWriter, req *http.Request) {
 		var rule config.ForwardRule
 		if err := api.DecodeBody(req, &rule); err != nil {
-			api.Fail(w, 400, "请求格式错误")
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		if err := validateRule(&rule); err != nil {
@@ -84,7 +84,7 @@ func RegisterRoutes(r chi.Router, cfg *config.Config, svc *Service) {
 	r.Put("/api/forwards/{id}", func(w http.ResponseWriter, req *http.Request) {
 		var body config.ForwardRule
 		if err := api.DecodeBody(req, &body); err != nil {
-			api.Fail(w, 400, "请求格式错误")
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		if err := validateRule(&body); err != nil {

@@ -232,7 +232,7 @@ func validateCertProviderLocked(c *config.Config, cert config.CertConf) error {
 func (h *handler) createCert(w http.ResponseWriter, r *http.Request) {
 	var c config.CertConf
 	if err := api.DecodeBody(r, &c); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	c.ID = ""
@@ -264,7 +264,7 @@ func (h *handler) updateCert(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var c config.CertConf
 	if err := api.DecodeBody(r, &c); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	c.ID = id

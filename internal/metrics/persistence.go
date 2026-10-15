@@ -181,8 +181,8 @@ func (s *Sampler) registerHistorySettings(r chi.Router) {
 		var body struct {
 			Enabled bool `json:"enabled"`
 		}
-		if api.DecodeBody(q, &body) != nil {
-			api.Fail(w, 400, "请求格式错误")
+		if err := api.DecodeBody(q, &body); err != nil {
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		if s.cfg == nil {

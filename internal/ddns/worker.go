@@ -320,19 +320,30 @@ func (w *Worker) runTask(ctx context.Context, task config.DDNSTask, force bool) 
 			if !due {
 				rs.Message = "记录值与配置未变化，跳过更新"
 			} else {
+				// 只在锁内做配置校验；provider 调用是最长 15 秒的同步 HTTP，
+				// 放在 cfg.RLock 里会让任何一次配置保存在途时阻塞全部读者
+				// （管理 API 的 listTasks 等会一起卡住）。
 				w.cfg.RLock()
-				if !w.matchesLocked(task, providerConf) {
-					w.cfg.RUnlock()
+				current := w.matchesLocked(task, providerConf)
+				w.cfg.RUnlock()
+				if !current {
 					return errTaskChanged
 				}
 				if err := ctx.Err(); err != nil {
-					w.cfg.RUnlock()
 					return err
 				}
 				rs.RemoteChecked = true
 				rs.Message, err = provider.UpsertRecord(ctx, record.Domain, record.Type, ip.ip, record.TTL)
 				if err == nil {
 					rs.Changed = strings.HasPrefix(rs.Message, "新增记录") || strings.HasPrefix(rs.Message, "更新记录")
+					// 写回缓存前再次确认配置未变：编辑优先于 provider 的写入结果，
+					// 与原先"provider 调用期间配置不可能变化"的语义保持一致。
+					w.cfg.RLock()
+					current = w.matchesLocked(task, providerConf)
+					w.cfg.RUnlock()
+					if !current {
+						return errTaskChanged
+					}
 					w.smu.Lock()
 					w.cache[key] = recordCache{IP: ip.ip, Fingerprint: fingerprint, Checked: now}
 					w.smu.Unlock()
@@ -343,7 +354,6 @@ func (w *Worker) runTask(ctx context.Context, task config.DDNSTask, force bool) 
 						firstErr = err
 					}
 				}
-				w.cfg.RUnlock()
 			}
 		}
 		if !rs.Success {

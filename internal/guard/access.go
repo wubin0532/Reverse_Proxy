@@ -19,6 +19,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// maxAccessAttempts Basic 认证尝试表的硬上限。
+const maxAccessAttempts = 4096
+
 const maxAccessSessions = 2048
 
 var accessDummyHash = func() string { hash, _ := auth.HashPassword("dummy-business-password"); return hash }()
@@ -151,17 +154,40 @@ func (e *Engine) attemptAccess(group, ip string) bool {
 	e.access.mu.Lock()
 	defer e.access.mu.Unlock()
 	e.access.pruneLocked(time.Now())
+	now := time.Now()
 	key := group + "|" + ip
 	v, ok := e.access.attempts[key]
 	if !ok {
-		if len(e.access.attempts) >= 4096 {
-			return false
+		if len(e.access.attempts) >= maxAccessAttempts {
+			// 表满时淘汰最旧的桶，而不是拒绝：否则分布式扫描会把所有新来源
+			// （包括凭据正确的正常用户）一起 429，构成对安全组认证的拒绝服务。
+			e.access.evictOldestAttemptLocked()
 		}
-		v.at = time.Now()
+		v.at = now
 	}
 	v.count++
 	e.access.attempts[key] = v
 	return v.count <= 10
+}
+
+// evictOldestAttemptLocked 采样淘汰最旧的尝试桶，避免每次新建 key 都全表扫描。
+func (a *accessRuntime) evictOldestAttemptLocked() {
+	const sample = 64
+	var oldestKey string
+	var oldest time.Time
+	seen := 0
+	for key, v := range a.attempts {
+		if oldestKey == "" || v.at.Before(oldest) {
+			oldestKey, oldest = key, v.at
+		}
+		seen++
+		if seen >= sample {
+			break
+		}
+	}
+	if oldestKey != "" {
+		delete(a.attempts, oldestKey)
+	}
 }
 func AccessCookieName(id string) string { return "andey-access-" + id }
 

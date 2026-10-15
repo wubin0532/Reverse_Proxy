@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 )
 
 const envelopeVersion = 1
@@ -214,15 +215,51 @@ type Config struct {
 	state     *StateStore
 }
 
+// ensureConfigDir 校验（必要时创建）配置目录，返回目录是否为本次新建。
+// 拒绝符号链接、非目录，以及属主不是当前 euid 或除属主外可写的目录：
+// 否则本地用户可预置一个 config.json，让以 root 运行的服务加载攻击者配置。
+func ensureConfigDir(dir string) (bool, error) {
+	info, err := os.Lstat(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return false, err
+		}
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("配置目录不能是符号链接: %s", dir)
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("配置路径不是目录: %s", dir)
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		return false, fmt.Errorf("配置目录对其他用户可写，拒绝使用: %s", dir)
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) != os.Geteuid() {
+		return false, fmt.Errorf("配置目录属主不是当前用户，拒绝使用: %s", dir)
+	}
+	return false, nil
+}
+
 // Load 从目录加载配置，不存在则创建默认配置。
 func Load(dir string) (*Config, error) {
 	if filepath.Clean(dir) == string(os.PathSeparator) {
 		return nil, errors.New("配置目录不能是文件系统根目录")
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	created, err := ensureConfigDir(dir)
+	if err != nil {
 		return nil, err
 	}
-	_ = os.Chmod(dir, 0o700)
+	if created {
+		// 仅在目录由本次调用新建时收紧权限。对已存在的目录执行 chmod 会让
+		// root 服务把任意既有目录（例如 /etc/ssl/certs）改成 0700 而破坏系统。
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return nil, err
+		}
+	}
 	fp := filepath.Join(dir, "config.json")
 	keyPath := dir + ".key"
 	c := &Config{filePath: fp, keyPath: keyPath, state: LoadState(dir)}
@@ -243,7 +280,14 @@ func Load(dir string) (*Config, error) {
 		return nil, err
 	}
 	var envelope encryptedEnvelope
-	isEncrypted := json.Unmarshal(data, &envelope) == nil && envelope.Ciphertext != ""
+	envelopeShape := json.Unmarshal(data, &envelope) == nil &&
+		(envelope.Version != 0 || envelope.Algorithm != "" || envelope.Nonce != "" || envelope.Ciphertext != "")
+	if envelopeShape && envelope.Ciphertext == "" {
+		// 具备加密信封形状但没有密文（文件被截断/手工编辑）：必须 fail closed。
+		// 否则会被当作明文配置解析成默认值，再被 Save 覆写回密文，配置彻底丢失。
+		return nil, errors.New("配置文件的加密信封缺少密文，已拒绝按明文加载")
+	}
+	isEncrypted := envelopeShape
 	var key []byte
 	if isEncrypted {
 		key, err = loadExistingKey(keyPath)
@@ -537,7 +581,13 @@ func encryptConfig(plain, key []byte) ([]byte, error) {
 
 func decryptIfNeeded(data, key []byte) ([]byte, bool, error) {
 	var env encryptedEnvelope
-	if err := json.Unmarshal(data, &env); err != nil || env.Ciphertext == "" {
+	if err := json.Unmarshal(data, &env); err != nil {
+		return data, false, nil
+	}
+	if env.Ciphertext == "" {
+		if env.Version != 0 || env.Algorithm != "" || env.Nonce != "" {
+			return nil, true, errors.New("配置文件的加密信封缺少密文")
+		}
 		return data, false, nil
 	}
 	if env.Version != envelopeVersion || env.Algorithm != "AES-256-GCM" {

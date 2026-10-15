@@ -381,3 +381,50 @@ func TestInvalidRuleIgnored(t *testing.T) {
 		t.Errorf("非法规则不应产生 add 命令，实际: %v", *cmds)
 	}
 }
+
+// 提交失败后必须重新尝试：改动仍在 UCI 暂存区，uci show 照常显示它们，
+// 若不显式记录待提交状态，下一次 reconcile 会因集合同构而提前返回。
+func TestCommitFailureIsRetried(t *testing.T) {
+	m, _ := newFakeManager(true, "")
+	base := m.execFn
+	commits := 0
+	failCommit := true
+	m.execFn = func(name string, args ...string) (string, error) {
+		if name == "uci" && len(args) > 0 && args[0] == "commit" {
+			commits++
+			if failCommit {
+				return "", fmt.Errorf("uci commit firewall: read-only file system")
+			}
+		}
+		return base(name, args...)
+	}
+	rules := []Rule{{Key: "site1", Port: 8080, Proto: "tcp"}}
+
+	m.SetDesiredFrom(SourceWeb, rules)
+	if commits != 1 {
+		t.Fatalf("首次同步应尝试提交一次, commits=%d", commits)
+	}
+	if !m.pendingCommit {
+		t.Fatal("提交失败后必须标记待提交")
+	}
+
+	failCommit = false
+	commits = 0
+	m.SetDesiredFrom(SourceWeb, rules)
+	if commits != 1 {
+		t.Fatalf("提交失败后再次同步必须重试提交, commits=%d", commits)
+	}
+	if m.pendingCommit {
+		t.Fatal("提交成功后应清除待提交标记")
+	}
+	if len(m.Rules()) != 1 {
+		t.Fatalf("重试成功后应报告 1 条规则: %v", m.Rules())
+	}
+
+	// 成功后恢复常规增量行为：集合未变时不再产生任何 commit。
+	commits = 0
+	m.SetDesiredFrom(SourceWeb, rules)
+	if commits != 0 {
+		t.Fatalf("无变更时不应重复提交, commits=%d", commits)
+	}
+}

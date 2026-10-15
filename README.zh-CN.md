@@ -55,7 +55,7 @@
 ./andey-proxy -cd /etc/andey-proxy  # 指定配置目录
 ```
 
-启动后访问 `https://<设备IP>:16606`。无匹配的 ACME 证书时会使用自签证书，浏览器首次需确认。账号默认为 `admin`，一次性随机密码只在首次启动的控制台输出一次。
+启动后访问 `https://<设备IP>:16606`。无匹配的 ACME 证书时会使用自签证书，浏览器首次需确认。账号默认为 `admin`；一次性随机密码在首次启动时生成并写入 `<配置目录>/initial-password`（权限 0600）。仅当 stderr 是交互式终端时才同时打印到控制台——procd/systemd 会把 stdout/stderr 收进系统日志，因此以文件为准。可在设备端（SSH/串口）或 LuCI 设置页读取，登录后立即修改；修改成功后该文件会被删除，两处都不再显示。
 
 如必须兼容无法使用 HTTPS 的旧客户端，可显式传入 `-admin-http`；该模式会在首页持续显示高风险警告。
 
@@ -72,16 +72,20 @@ make build          # 构建前端 + 本机二进制(输出 andey-proxy)
 
 ### 安装与环境检查
 
-v1.0.0 正式发行只提供五种架构的签名 `.run`，不发布 `.ipk`、`.apk` 或裸二进制包。先下载匹配架构的文件，并按 `checksums.txt` 核对摘要：
+v1.5.0 正式发行只提供五种架构的签名 `.run`，不发布 `.ipk`、`.apk` 或裸二进制包。先下载匹配架构的文件，并按 `checksums.txt` 核对摘要：
 
 ```bash
-sh andey-proxy_1.0.0_linux_x86_64.run --check
-sudo sh andey-proxy_1.0.0_linux_x86_64.run
+sh andey-proxy_1.5.0_linux_x86_64.run --check
+sudo sh andey-proxy_1.5.0_linux_x86_64.run
 ```
 
-`--check` 检查 Linux/CPU 架构、MIPS大小端、解压/摘要工具、系统 CA 证书、临时及安装目录空间，并核对程序摘要和版本；不替换程序、不修改配置、不启停服务。Go 程序为静态编译，不需要 Go、Node.js 或额外 libc；`cloudflared` 仅为隧道功能的可选独立依赖。
+`--check` 检查 Linux/CPU 架构、MIPS大小端、解压/摘要工具、系统 CA 证书、临时及安装目录空间，并核对被签名的文件清单与逐文件摘要；不替换程序、不修改配置、不启停服务，也不执行载荷。Go 程序为静态编译，不需要 Go、Node.js 或额外 libc；`cloudflared` 仅为隧道功能的可选独立依赖。
 
-OpenWrt/ImmortalWrt 使用 procd，检测到 LuCI 时安装菜单、ACL、页面与翻译。系统缺少 CA 证书时应先安装 `ca-bundle`；Debian/Ubuntu 应安装 `ca-certificates`。systemd Linux 安装后创建并启动服务；其它 Linux 环境给出手动启动命令。升级保留账号、配置、设备密钥和证书，原程序保留为 `/usr/bin/andey-proxy.previous`。仅首次安装时创建默认 UCI 配置。
+安装包载荷（程序、init 脚本、LuCI 页面、rpcd ACL、卸载器）由一份逐文件 SHA-256 清单覆盖，清单自身的摘要写进被 Ed25519 签名的 `manifest.json`；安装器逐个文件核对摘要，并在解包前拒绝绝对路径与含 `..` 的成员。安装脚本无法成为自身的信任根，因此要同时验证真实性，请通过带外渠道获取发布公钥并加 `--pubkey <公钥文件>`：系统有 `openssl` 时会校验签名，不匹配即中止安装。未指定 `--pubkey` 时只校验摘要，安装器会明确提示。
+
+OpenWrt/ImmortalWrt 使用 procd，检测到 LuCI 时安装菜单、ACL、页面与翻译。系统缺少 CA 证书时应先安装 `ca-bundle`；Debian/Ubuntu 应安装 `ca-certificates`。systemd Linux 安装后创建并启动服务；其它 Linux 环境给出手动启动命令。升级保留账号、配置、设备密钥和证书，原程序保留为 `/usr/bin/andey-proxy.previous`。仅首次安装时创建默认 UCI 配置。卸载时会按 `uci get andey-proxy.main.confdir` 删除实际配置目录、其相邻 `.key` 文件、UCI 配置与随包安装的 LuCI 文件。
+
+配置目录必须是运行服务的账号所有、且除属主外不可写；已存在的目录不会被 chmod，因此把 `-cd` 指向系统目录也不会破坏其权限。初始密码在首次登录时由 LuCI 设置页展示，管理员改密后程序会删除该文件，页面随之不再显示。持有 `luci-app-andeyproxy` ACL 的账号都能读到它，因此该 ACL 只应授予管理员；若要对只读账号隐藏，请从 ACL 的 file 读授权中移除 `/etc/andey-proxy/initial-password` 一行（rpcd 的授权粒度只到 ubus 方法，`luci.setInitAction` 同时允许启停其它 init 服务）。
 
 ## 目录结构
 
@@ -118,7 +122,9 @@ OpenWrt/ImmortalWrt 使用 procd，检测到 LuCI 时安装菜单、ACL、页面
 - 同端口 HTTP/TLS 分流每站点最多保留 128 个待嗅探连接，首字节等待上限 10 秒；达到上限后关闭新的连接。
 - 四层端口转发在所有规则间共享 256 条 TCP 连接、256 个活跃 UDP 会话的上限。达到上限时关闭新 TCP 连接、丢弃新 UDP 会话的数据包，已有会话继续运行；每条 UDP 规则的会话索引也限制为 256 项。这些是当前版本的固定资源上限。
 - 规则热更新只重建发生变化的处理器和连接池。持有旧规则快照、尚未取得处理器的请求可能收到 503，随后新请求使用新配置。
-- 配置备份 v1 只接受程序导出时使用的固定 scrypt 参数（约 32 MiB 派生内存）。导入与导出互斥，已有操作进行时返回 409；畸形加密字段在派生密钥前被拒绝。
+- 配置备份 v1 只接受程序导出时使用的固定 scrypt 参数（约 32 MiB 派生内存）。导入与导出互斥，已有操作进行时返回 409；畸形加密字段在派生密钥前被拒绝。备份导入接受最大 64 MiB 的请求体，保证导出的备份一定能被恢复。
+- 请求侧 WAF（Coraza + OWASP CRS）按策略开启。同一时刻最多 8 个 WAF 事务并发，超出的请求立即返回 503（不排队）；被检测的请求体会按策略的 `bodyLimitKiB`（默认 256 KiB，上限 1 MiB）读入内存。
+- 限速令牌桶与 CC 计数表各限制为 4096 项，过期项按时间间隔清理而不是每请求全表扫描，避免表满后退化成逐请求的整表遍历。
 
 ### Google Authenticator 双重验证
 

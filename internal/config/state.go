@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -84,13 +85,28 @@ func (st *StateStore) Update(fn func(*State)) {
 	}
 	st.dirty = true
 	st.gen++
-	if st.timer == nil && !st.closed {
-		st.timer = time.AfterFunc(st.writeDelay, func() {
-			st.mu.Lock()
-			st.timer = nil
-			st.mu.Unlock()
-			_ = st.Flush()
-		})
+	st.armFlushLocked()
+}
+
+// armFlushLocked 排期一次去抖写盘（调用方须持有 st.mu）。
+func (st *StateStore) armFlushLocked() {
+	if st.timer != nil || st.closed || !st.dirty {
+		return
+	}
+	st.timer = time.AfterFunc(st.writeDelay, st.flushAsync)
+}
+
+// flushAsync 去抖回调。写盘失败必须可见并重新排期：运行状态里含 TOTP 防重放
+// 计数器，静默丢弃会让已用过的动态码在时间窗内可被重放。
+func (st *StateStore) flushAsync() {
+	st.mu.Lock()
+	st.timer = nil
+	st.mu.Unlock()
+	if err := st.Flush(); err != nil {
+		log.Printf("[config] 运行状态落盘失败，将重试: %v", err)
+		st.mu.Lock()
+		st.armFlushLocked()
+		st.mu.Unlock()
 	}
 }
 

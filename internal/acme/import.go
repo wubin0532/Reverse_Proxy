@@ -116,7 +116,7 @@ func importedKeyType(pair *tls.Certificate) string {
 func (h *handler) importCert(w http.ResponseWriter, r *http.Request) {
 	var input importRequest
 	if err := api.DecodeBody(r, &input); err != nil {
-		api.Fail(w, 400, "请求格式错误或内容超过大小限制")
+		api.FailDecode(w, err, "请求格式错误或内容超过大小限制")
 		return
 	}
 	pair, leaf, err := validateImportedPair([]byte(input.CertPEM), []byte(input.KeyPEM), time.Now())

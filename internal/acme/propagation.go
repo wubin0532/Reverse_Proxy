@@ -37,9 +37,12 @@ func txtPropagationCheckOptions(parent context.Context, servers []string, timeou
 			for _, srv := range servers {
 				resolver := &net.Resolver{
 					PreferGo: true,
-					Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					// 必须使用 net 解析器传入的 network：TC 置位的应答会触发
+					// TCP 重试，若第二次仍返回 UDP Conn 会被当成完整应答，导致
+					// 传播检查永远判定未生效（同名多条 TXT + DNSSEC 时必现）。
+					Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 						d := net.Dialer{Timeout: 5 * time.Second}
-						return d.DialContext(ctx, "udp", resolverAddress(srv))
+						return d.DialContext(ctx, network, resolverAddress(srv))
 					},
 				}
 				ctx, cancel := context.WithTimeout(operation, 6*time.Second)

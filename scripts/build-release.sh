@@ -143,9 +143,18 @@ if command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/$BIN_NAME.se
 fi
 
 # 删除二进制、配置文件、运行数据（config.json、ACME 证书、日志缓存）与相邻密钥文件
+# 配置目录可能被 UCI 改到别处：先解析实际路径，再清理目录及其相邻密钥文件。
+CONF_DIR=/etc/andey-proxy
+if command -v uci >/dev/null 2>&1; then
+  CONF_DIR=$(uci -q get andey-proxy.main.confdir 2>/dev/null || true)
+  [ -n "$CONF_DIR" ] || CONF_DIR=/etc/andey-proxy
+fi
+case "$CONF_DIR" in
+  ""|/|/etc|/usr|/var|/tmp|/root|/home) CONF_DIR=/etc/andey-proxy ;;
+esac
+
 rm -f /usr/bin/$BIN_NAME
-rm -rf /etc/andey-proxy
-rm -f /etc/andey-proxy.key
+rm -rf "$CONF_DIR" "$CONF_DIR.key"
 rm -f /etc/config/andey-proxy
 
 # 移除随 .run 一起安装的 LuCI 界面（菜单/ACL/设置页/翻译）
@@ -172,13 +181,23 @@ UNEOF
     echo "错误：构建 .run 需要 RELEASE_SIGNING_KEY 指向 Ed25519 私钥" >&2
     exit 1
   fi
-  local size digest
+  local size digest files_digest
   size=$(wc -c < "$root/payload/andey-proxy" | tr -d ' ')
   digest=$(sha256_file "$root/payload/andey-proxy")
-  printf '{"version":"%s","goos":"linux","goarch":"%s","size":%s,"sha256":"%s"}' \
-    "$VERSION" "$goarch" "$size" "$digest" > "$root/payload/manifest.json"
+  # 覆盖整个载荷（二进制、init 脚本、LuCI 页面/ACL、卸载器、翻译）的摘要清单。
+  # 清单自身摘要进入被签名的 manifest.json，安装器据此逐个文件验真。
+  ( cd "$root/payload" && find . -type f ! -name manifest.json ! -name manifest.sig ! -name files.sha256 -print |
+      sed 's|^\./||' | LC_ALL=C sort |
+      while IFS= read -r f; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done ) > "$root/payload/files.sha256"
+  files_digest=$(sha256_file "$root/payload/files.sha256")
+  printf '{"version":"%s","goos":"linux","goarch":"%s","size":%s,"sha256":"%s","filesSha256":"%s"}' \
+    "$VERSION" "$goarch" "$size" "$digest" "$files_digest" > "$root/payload/manifest.json"
   "$NODE_BIN" -e 'const fs=require("fs"),c=require("crypto");const [m,k,o]=process.argv.slice(1);fs.writeFileSync(o,c.sign(null,fs.readFileSync(m),fs.readFileSync(k)).toString("base64"))' \
     "$root/payload/manifest.json" "$SIGNING_KEY" "$root/payload/manifest.sig"
+  if [ -z "$SIGNING_PUBKEY" ]; then
+    echo "错误：必须设置 RELEASE_SIGNING_PUBLIC_KEY 指向 Ed25519 公钥，以便构建时自验签" >&2
+    exit 1
+  fi
   if [ -n "$SIGNING_PUBKEY" ]; then
     if [ ! -f "$SIGNING_PUBKEY" ]; then
       echo "错误：RELEASE_SIGNING_PUBLIC_KEY 指向的公钥文件不存在: $SIGNING_PUBKEY" >&2
@@ -190,8 +209,6 @@ UNEOF
       exit 1
     fi
     echo "==> 签名自验通过（manifest.sig 与公钥匹配）"
-  else
-    echo "警告：未设置 RELEASE_SIGNING_PUBLIC_KEY，跳过签名自验，建议设置以确认密钥匹配" >&2
   fi
 
   sed -e "s/__VERSION__/$VERSION/g" -e "s/__ARCH__/$suffix/g" \

@@ -32,6 +32,7 @@ const cgiOutputLimit = 8 << 20
 // macOS does not permit exec on /dev/fd; its development fallback verifies the
 // canonical path and file identity. CGI directories must contain trusted files.
 func cgiHandler(rule config.SubRule) http.Handler {
+	directory := bindServiceDirectory(rule.RootDir)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !rule.BasicAuth && rule.AccessGroupID == "" {
 			http.Error(w, "403 CGI authentication required", 403)
@@ -56,7 +57,7 @@ func cgiHandler(rule config.SubRule) http.Handler {
 			http.Error(w, "413 CGI body exceeds 8 MiB", 413)
 			return
 		}
-		root, e := os.OpenRoot(rule.RootDir)
+		root, e := directory.open()
 		if e != nil {
 			http.Error(w, "503 CGI directory unavailable", 503)
 			return
@@ -103,6 +104,17 @@ func cgiHandler(rule config.SubRule) http.Handler {
 		cmd.Args = []string{rule.CGIEntry}
 		cmd.ExtraFiles = []*os.File{executable}
 		cmd.Dir = rule.RootDir
+		if runtime.GOOS == "linux" {
+			cwd, err := root.Open(".")
+			if err != nil {
+				http.Error(w, "503 CGI directory unavailable", 503)
+				return
+			}
+			defer cwd.Close()
+			// Go changes directory before remapping ExtraFiles in the child,
+			// so use the inherited parent descriptor number here.
+			cmd.Dir = fmt.Sprintf("/proc/self/fd/%d", cwd.Fd())
+		}
 		cmd.Env = cgiEnvironment(r, rule)
 		cmd.Stdin = http.MaxBytesReader(w, r.Body, 8<<20)
 		cmd.Stderr = io.Discard

@@ -50,8 +50,8 @@ func registerAccessRoutes(r chi.Router, cfg *config.Config, e *Engine) {
 	groupSave := func(create bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, q *http.Request) {
 			var g config.AccessGroup
-			if api.DecodeBody(q, &g) != nil {
-				api.Fail(w, 400, "请求格式错误")
+			if err := api.DecodeBody(q, &g); err != nil {
+				api.FailDecode(w, err, "请求格式错误")
 				return
 			}
 			if create {
@@ -91,8 +91,8 @@ func registerAccessRoutes(r chi.Router, cfg *config.Config, e *Engine) {
 				config.AccessUser
 				Password string `json:"password"`
 			}
-			if api.DecodeBody(q, &body) != nil {
-				api.Fail(w, 400, "请求格式错误")
+			if err := api.DecodeBody(q, &body); err != nil {
+				api.FailDecode(w, err, "请求格式错误")
 				return
 			}
 			u := body.AccessUser
@@ -219,8 +219,8 @@ func registerAccessRoutes(r chi.Router, cfg *config.Config, e *Engine) {
 	})
 	r.Post("/api/protection/access/grants", func(w http.ResponseWriter, q *http.Request) {
 		var grant AccessSession
-		if api.DecodeBody(q, &grant) != nil {
-			api.Fail(w, 400, "请求格式错误")
+		if err := api.DecodeBody(q, &grant); err != nil {
+			api.FailDecode(w, err, "请求格式错误")
 			return
 		}
 		if accessError(w, e.AddAccessGrant(grant)) {

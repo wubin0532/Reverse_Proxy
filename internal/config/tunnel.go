@@ -114,15 +114,27 @@ func (c *Config) tunnelSiteBindings(instances []TunnelInstance, enabledOnly bool
 		}
 		out[siteID][strings.ToLower(host)] = true
 	}
+	// 套接字路径 -> 站点 ID 索引，懒建一次。原实现对每条路由遍历全部站点并
+	// 逐个重算 TunnelSocketPath（每站点 2 次 sha256），而本函数在隧道入口的
+	// 每个请求上都会被调用。
+	var serviceSites map[string]string
 	addService := func(host, service string) {
 		if host == "" || !strings.HasPrefix(service, "unix:") {
 			return
 		}
-		for _, site := range c.Sites {
-			if service == "unix:"+TunnelSocketPath(c.Dir(), site.ID) {
-				add(site.ID, host)
+		if serviceSites == nil {
+			serviceSites = make(map[string]string, len(c.Sites))
+			for _, site := range c.Sites {
+				serviceSites["unix:"+TunnelSocketPath(c.Dir(), site.ID)] = site.ID
 			}
 		}
+		if id, ok := serviceSites[service]; ok {
+			add(id, host)
+		}
+	}
+	handleRoute := func(r TunnelRoute) {
+		addService(r.AppliedHostname, r.AppliedService)
+		addService(r.PendingHostname, r.PendingService)
 	}
 	for _, inst := range instances {
 		if enabledOnly && !inst.Enabled {
@@ -133,9 +145,12 @@ func (c *Config) tunnelSiteBindings(instances []TunnelInstance, enabledOnly bool
 				add(r.SiteID, r.Hostname)
 			}
 		}
-		for _, r := range append(append([]TunnelRoute{}, inst.Routes...), inst.RetiredRoutes...) {
-			addService(r.AppliedHostname, r.AppliedService)
-			addService(r.PendingHostname, r.PendingService)
+		// 不再为每个实例拼接一份合并切片（原实现每次调用都会分配）。
+		for _, r := range inst.Routes {
+			handleRoute(r)
+		}
+		for _, r := range inst.RetiredRoutes {
+			handleRoute(r)
 		}
 	}
 	return out

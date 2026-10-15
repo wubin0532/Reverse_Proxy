@@ -6,11 +6,22 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"time"
 
 	"andey-proxy/internal/config"
 	"andey-proxy/internal/ids"
 	"andey-proxy/internal/logcenter"
+)
+
+// 运行时安装的期限划分。cloudflared 约 40 MB，慢链路（<300 KB/s）远超原先
+// 覆盖全程的 5 分钟，会导致安装必然在下载阶段失败并回滚；这里把总上限放宽，
+// 下载阶段改为按进度续期的空闲超时，卡死连接仍会被及时终止。
+const (
+	maxRuntimeInstallDuration  = 40 * time.Minute
+	maxRuntimeDownloadDuration = 30 * time.Minute
+	runtimeDownloadIdleTimeout = 60 * time.Second
+	runtimeCommitTimeout       = 2 * time.Minute
 )
 
 func (m *Manager) runtimeView() Runtime {
@@ -72,7 +83,7 @@ func (m *Manager) installRuntime(releaseID string, restart bool, expected []stri
 	go func(op config.TunnelOperation) {
 		defer m.wg.Done()
 		defer m.mutation.Unlock()
-		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Minute)
+		ctx, cancel := context.WithTimeout(m.ctx, maxRuntimeInstallDuration)
 		defer cancel()
 		err := m.performRuntimeInstall(ctx, &op, release)
 		if err != nil {
@@ -174,7 +185,17 @@ func (m *Manager) performRuntimeInstall(ctx context.Context, op *config.TunnelOp
 	path := filepath.Join(runtimeDir(dir), ".download-"+op.ID)
 	defer os.Remove(path)
 	last := time.Now()
-	err = m.releases.download(ctx, release, path, func(n int64) {
+	// 下载阶段：绝对上限 + 空闲超时（每收到进度就续期）。慢链路不会因为总期限
+	// 过短而失败，卡死的连接也不会无限占用安装槽位。
+	downloadCtx, cancelDownload := context.WithTimeout(ctx, maxRuntimeDownloadDuration)
+	defer cancelDownload()
+	idle := time.AfterFunc(runtimeDownloadIdleTimeout, cancelDownload)
+	defer idle.Stop()
+	var idleMu sync.Mutex
+	err = m.releases.download(downloadCtx, release, path, func(n int64) {
+		idleMu.Lock()
+		idle.Reset(runtimeDownloadIdleTimeout)
+		idleMu.Unlock()
 		op.DownloadedBytes = n
 		if time.Since(last) > time.Second {
 			_ = m.recordOperation(*op)
@@ -184,6 +205,10 @@ func (m *Manager) performRuntimeInstall(ctx context.Context, op *config.TunnelOp
 	if err != nil {
 		return err
 	}
+	// 校验、切换与就绪确认不需要长预算，收紧期限避免整体卡住。
+	commitCtx, cancelCommit := context.WithTimeout(ctx, runtimeCommitTimeout)
+	defer cancelCommit()
+	ctx = commitCtx
 	if err = m.stage(op, "verifyRuntime"); err != nil {
 		return err
 	}

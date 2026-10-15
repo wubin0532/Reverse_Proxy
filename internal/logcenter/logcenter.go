@@ -36,20 +36,67 @@ type Entry struct {
 	EntityID string    `json:"entityId,omitempty"`
 	ClientIP string    `json:"clientIp,omitempty"`
 	Message  string    `json:"message"`
+
+	// seq 进程内单调递增序号（不序列化、不进 API）。分页游标用它而不是结果集
+	// 下标：下标会随新日志写入整体位移，导致翻页重复。跨类型合并查询也用它
+	// 唯一定位，因此序号在 Center 级共享而不是 per-store。
+	seq uint64
 }
 
 type Query struct {
 	Level, Source, Keyword, EntityID string
 	Type                             string // "" 全部，或 TypeAccess / TypeSystem
-	Limit, Cursor                    int
+	Limit                            int
+	Cursor                           int64 // 上一条返回条目的 seq，0 = 从头开始
 	From, To                         time.Time
+}
+
+// entryRing 固定容量环形缓冲：写满后原地覆盖最旧条目，读取时按时间顺序展开。
+// 早期实现用 append + 整体搬移，达到 maxMemoryEntries 后每条日志都要复制
+// 约 200KB（访问日志是逐请求写入的），这里改为零搬移写入。
+type entryRing struct {
+	buf   []Entry
+	start int // 最旧条目下标
+}
+
+func (r *entryRing) append(e Entry, limit int) {
+	if limit <= 0 {
+		return
+	}
+	if len(r.buf) < limit {
+		r.buf = append(r.buf, e)
+		return
+	}
+	r.buf[r.start] = e
+	r.start++
+	if r.start == len(r.buf) {
+		r.start = 0
+	}
+}
+
+func (r *entryRing) len() int { return len(r.buf) }
+
+// ordered 返回按时间升序（最旧在前）的副本。
+func (r *entryRing) ordered() []Entry {
+	if len(r.buf) == 0 {
+		return []Entry{}
+	}
+	out := make([]Entry, 0, len(r.buf))
+	out = append(out, r.buf[r.start:]...)
+	out = append(out, r.buf[:r.start]...)
+	return out
+}
+
+func (r *entryRing) reset() {
+	r.buf = r.buf[:0]
+	r.start = 0
 }
 
 // logStore 单类型日志存储：磁盘文件 + 内存索引，独立轮转。
 type logStore struct {
 	path    string
 	file    *os.File
-	entries []Entry
+	entries entryRing
 }
 
 type queuedLine struct {
@@ -67,6 +114,9 @@ type Center struct {
 	stop    chan struct{}
 	done    chan struct{}
 	hub     *streamHub
+
+	// nextSeq 由 mu 保护，为内存条目发放唯一序号（含启动时载入的历史条目）。
+	nextSeq uint64
 }
 
 var (
@@ -106,8 +156,13 @@ func New(dir string) (*Center, error) {
 		done:    make(chan struct{}),
 		hub:     newStreamHub(),
 	}
-	c.system.load()
-	c.access.load()
+	// 载入的历史条目也要有唯一序号：用本地计数器连续分配，加载完成后
+	// 把计数器交给 Center，避免两个库的序号碰撞（跨类型查询会合并两库）。
+	seq := uint64(0)
+	assign := func() uint64 { seq++; return seq }
+	c.system.load(assign)
+	c.access.load(assign)
+	c.nextSeq = seq
 	for _, st := range []*logStore{c.system, c.access} {
 		f, err := os.OpenFile(st.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {
@@ -202,10 +257,9 @@ func (c *Center) Add(e Entry) {
 	}
 	st := c.storeOf(e)
 	c.mu.Lock()
-	st.entries = append(st.entries, e)
-	if len(st.entries) > maxMemoryEntries {
-		st.entries = append([]Entry(nil), st.entries[len(st.entries)-maxMemoryEntries:]...)
-	}
+	c.nextSeq++
+	e.seq = c.nextSeq
+	st.entries.append(e, maxMemoryEntries)
 	c.mu.Unlock()
 	// 唯一落盘路径：json.Marshal 保证一行一个 JSON 对象，
 	// 消息内嵌的换行会被转义，不会破坏 NDJSON 结构。
@@ -284,7 +338,32 @@ func (c *Center) writeBatch(st *logStore, data []byte) {
 	}
 }
 
+// redactStems 覆盖下方四条脱敏规则可能命中的全部词干：token / secret /
+// password / passwd / api|access[_-]?key / auth[_-]?pass / webhook /
+// authorization / cookie / set-cookie / 带凭据的 URL。命中任一即执行完整脱敏，
+// 因此词干只需"宁可多"而不可遗漏。
+var redactStems = []string{"token", "secret", "password", "passwd", "key", "auth", "cookie", "webhook", "://"}
+
+// redactCandidate 廉价预筛：只有同时出现分隔符与敏感关键词的文本才可能命中
+// 脱敏规则。访问日志（"IP 路径 状态 耗时"）在这里直接放行，省去每行四次
+// 正则扫描与相应的分配。
+func redactCandidate(s string) bool {
+	if !strings.ContainsAny(s, "=:@/") {
+		return false
+	}
+	lower := strings.ToLower(s)
+	for _, kw := range redactStems {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 func Redact(s string) string {
+	if !redactCandidate(s) {
+		return s
+	}
 	s = userInfoPattern.ReplaceAllString(s, "$1[REDACTED]@")
 	s = headerSecretPattern.ReplaceAllString(s, "$1[REDACTED]")
 	s = jsonSecretPattern.ReplaceAllString(s, `$1[REDACTED]"`)
@@ -306,18 +385,19 @@ func entryMatches(e Entry, q Query) bool {
 func (c *Center) snapshotLocked(q Query) []Entry {
 	switch q.Type {
 	case TypeAccess:
-		return append([]Entry(nil), c.access.entries...)
+		return c.access.entries.ordered()
 	case TypeSystem:
-		return append([]Entry(nil), c.system.entries...)
+		return c.system.entries.ordered()
 	}
-	pool := make([]Entry, 0, len(c.system.entries)+len(c.access.entries))
-	pool = append(pool, c.system.entries...)
-	pool = append(pool, c.access.entries...)
+	system, access := c.system.entries.ordered(), c.access.entries.ordered()
+	pool := make([]Entry, 0, len(system)+len(access))
+	pool = append(pool, system...)
+	pool = append(pool, access...)
 	sort.SliceStable(pool, func(i, j int) bool { return pool[i].Time.Before(pool[j].Time) })
 	return pool
 }
 
-func (c *Center) Query(q Query) ([]Entry, int) {
+func (c *Center) Query(q Query) ([]Entry, int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	limit := q.Limit
@@ -334,17 +414,25 @@ func (c *Center) Query(q Query) ([]Entry, int) {
 			matched = append(matched, pool[i])
 		}
 	}
-	start := q.Cursor
-	if start < 0 {
-		start = 0
+	// 游标是上一条返回条目的 seq：用序号而不是结果集下标，翻页期间新写入的
+	// 日志不会让下标整体位移（原实现第 2 页会重复上一页尾部若干条）。
+	start := 0
+	if q.Cursor > 0 {
+		for i := range matched {
+			if matched[i].seq == uint64(q.Cursor) {
+				start = i + 1
+				break
+			}
+		}
+		// 找不到该条目（已被挤出内存或日志被清空）时从头开始：宁可重复不可漏。
 	}
 	if start >= len(matched) {
 		return []Entry{}, -1
 	}
 	end := start + limit
-	next := -1
+	next := int64(-1)
 	if end < len(matched) {
-		next = end
+		next = int64(matched[end-1].seq)
 	} else {
 		end = len(matched)
 	}
@@ -406,7 +494,7 @@ drained:
 			}
 			_ = os.Remove(p)
 		}
-		st.entries = nil
+		st.entries.reset()
 		f, err := os.OpenFile(st.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err == nil {
 			_ = f.Chmod(0o600)
@@ -471,7 +559,7 @@ func (s *logStore) rotateLocked() error {
 
 // load 逐行读入历史日志。用 bufio.Reader 而非 Scanner：单行无长度上限，
 // 一条超长或损坏的行只会被跳过，不会中断后续条目的加载。
-func (s *logStore) load() {
+func (s *logStore) load(assign func() uint64) {
 	for i := maxBackups; i >= 0; i-- {
 		p := s.path
 		if i > 0 {
@@ -488,7 +576,8 @@ func (s *logStore) load() {
 				var e Entry
 				if json.Unmarshal(line, &e) == nil {
 					e.Message = Redact(e.Message)
-					s.entries = append(s.entries, e)
+					e.seq = assign()
+					s.entries.append(e, maxMemoryEntries)
 				}
 			}
 			if err != nil {
@@ -496,8 +585,5 @@ func (s *logStore) load() {
 			}
 		}
 		f.Close()
-	}
-	if len(s.entries) > maxMemoryEntries {
-		s.entries = append([]Entry(nil), s.entries[len(s.entries)-maxMemoryEntries:]...)
 	}
 }

@@ -85,7 +85,9 @@ func (c *releaseCatalog) latest(ctx context.Context, force bool) (Release, error
 	if !force && c.cached.ID != "" && time.Since(c.checked) < time.Hour {
 		return c.cached, nil
 	}
-	if time.Since(c.attempted) < 10*time.Second {
+	// 去抖只约束自动轮询；用户显式点击"检查版本"（force）必须真正发起查询，
+	// 否则界面会继续显示旧版本且没有任何提示。
+	if !force && time.Since(c.attempted) < 10*time.Second {
 		if c.lastError != nil {
 			return c.cached, c.lastError
 		}

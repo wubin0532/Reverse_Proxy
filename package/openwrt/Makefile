@@ -14,7 +14,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-andeyproxy
-PKG_VERSION:=1.0.0
+PKG_VERSION:=1.5.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=Apache-2.0
@@ -92,7 +92,7 @@ if [ "$$(uci -q get andey-proxy.main.enabled)" = "1" ]; then
 fi
 rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
 /etc/init.d/rpcd restart 2>/dev/null
-echo "andey-Proxy 已安装，后台: https://<路由IP>:16606（首次密码见启动日志）"
+echo "andey-Proxy 已安装，后台: https://<路由IP>:16606（首次密码见 LuCI 设置页或 /etc/andey-proxy/initial-password）"
 echo "启动: /etc/init.d/andey-proxy start（或将 /etc/config/andey-proxy 中 enabled 置 1 后 reload）"
 exit 0
 endef
@@ -104,6 +104,7 @@ define Package/luci-app-andeyproxy/postrm
 rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
 [ "$$1" = "upgrade" ] && exit 0
 rm -rf /etc/andey-proxy
+rm -f /etc/andey-proxy.key
 rm -f /etc/config/andey-proxy-opkg
 exit 0
 endef

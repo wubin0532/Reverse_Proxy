@@ -304,7 +304,14 @@ func (s *Service) serveTCP(ctx context.Context, rule config.ForwardRule, ln net.
 			time.Sleep(time.Second)
 			continue
 		}
-		if ctx.Err() != nil || !reserveSlot(s.tcpSlots) {
+		if ctx.Err() != nil {
+			conn.Close()
+			continue
+		}
+		if !reserveSlot(s.tcpSlots) {
+			// 预算耗尽时静默关闭会让运维无从察觉容量瓶颈：按窗口聚合并计数。
+			addr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+			s.noteCapacityDrop(rule, "TCP 连接", addr)
 			conn.Close()
 			continue
 		}
@@ -365,11 +372,16 @@ func (s *Service) handleTCPConn(ctx context.Context, rule config.ForwardRule, sr
 	}()
 	select {
 	case <-done:
-		// 一侧 copy 结束：等待另一方向完成（半关闭场景），对端不按预期关闭时兜底退出
+		// 一侧 copy 结束：等待另一方向完成（半关闭场景）。兜底超时沿用规则空闲
+		// 超时（默认 600s）而不是固定 30s：客户端半关闭后后端仍需较长时间写完
+		// 大响应或长轮询时，固定 30s 会把响应截断。用可停止的 Timer 而非
+		// time.After，避免每个连接都留下一个 30s 的定时器对象。
+		fallback := time.NewTimer(timeout)
+		defer fallback.Stop()
 		select {
 		case <-done:
 		case <-ctx.Done():
-		case <-time.After(30 * time.Second):
+		case <-fallback.C:
 		}
 	case <-ctx.Done():
 	}
@@ -477,6 +489,10 @@ func (s *Service) serveUDP(ctx context.Context, rule config.ForwardRule, ln *net
 			}
 			if !reserveSlot(s.udpSlots) {
 				mu.Unlock()
+				// 先释放会话锁再记录：noteCapacityDrop 会取聚合锁并可能写日志，
+				// 不应压在逐包热路径的临界区里。
+				// 同上：UDP 会话预算耗尽也必须可见，否则端口表现为"时通时不通"。
+				s.noteCapacityDrop(rule, "UDP 会话", ip)
 				continue
 			}
 			target := pickTarget(rule.Targets)

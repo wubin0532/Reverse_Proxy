@@ -33,7 +33,11 @@ func reply(w http.ResponseWriter, data any, err error) {
 	}
 }
 func decode(r *http.Request, out any) error {
-	if api.DecodeBody(r, out) != nil {
+	if err := api.DecodeBody(r, out); err != nil {
+		// 会话在读取请求体期间被撤销时必须回 401，否则前端按参数错误处理。
+		if errors.Is(err, api.ErrSessionRevoked) {
+			return requestError{http.StatusUnauthorized, err.Error()}
+		}
 		return invalid("请求格式错误")
 	}
 	return nil

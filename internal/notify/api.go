@@ -64,7 +64,7 @@ type settingsRequest struct {
 func (h *handler) putSettings(w http.ResponseWriter, r *http.Request) {
 	var body settingsRequest
 	if err := api.DecodeBody(r, &body); err != nil {
-		api.Fail(w, 400, "请求格式错误")
+		api.FailDecode(w, err, "请求格式错误")
 		return
 	}
 	for _, t := range body.Types {

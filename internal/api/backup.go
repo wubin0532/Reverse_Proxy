@@ -19,7 +19,7 @@ func (s *Server) handleBackupExport(w http.ResponseWriter, r *http.Request) {
 		BackupPassword string `json:"backupPassword"`
 	}
 	if err := DecodeBody(r, &body); err != nil {
-		Fail(w, 400, "请求格式错误")
+		FailDecode(w, err, "请求格式错误")
 		return
 	}
 	if utf8.RuneCountInString(body.BackupPassword) < 8 || len(body.BackupPassword) > 256 {
@@ -66,8 +66,10 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 		BackupPassword string `json:"backupPassword"`
 		Backup         string `json:"backup"`
 	}
-	if err := DecodeBody(r, &body); err != nil {
-		Fail(w, 400, "请求格式错误")
+	// 备份是整份配置的密文，可能远大于普通 API 的 1 MiB 上限；导出无上限，
+	// 导入必须能接住同样的体量，否则用户会拿到一份无法恢复的备份。
+	if err := DecodeBodyLimit(r, &body, 64<<20); err != nil {
+		FailDecode(w, err, "请求格式错误")
 		return
 	}
 	if len(body.BackupPassword) > 256 {
@@ -110,12 +112,17 @@ func (s *Server) handleBackupImport(w http.ResponseWriter, r *http.Request) {
 	}
 	s.revokeSessionsLocked(w)
 	s.twoFactorMu.Unlock()
-	// 热重载各服务；失败只记日志，配置本身已生效，重启后也会加载。
+	// 热重载各服务。配置本身已落盘、重启后也会加载，但某个服务重载失败时
+	// 运行态仍停留在旧配置：必须回传给调用方，否则接口报成功而行为不符。
+	var warnings []string
 	if s.restoreHook != nil {
-		s.restoreHook()
+		warnings = s.restoreHook()
 	}
 	log.Printf("[security] 已从备份导入配置，全部会话已撤销，客户端: %s", directIP(r.RemoteAddr))
-	OK(w, map[string]bool{"loginRequired": true})
+	for _, warning := range warnings {
+		log.Printf("[security] 导入后热重载告警: %s", warning)
+	}
+	OK(w, map[string]any{"loginRequired": true, "warnings": warnings})
 }
 
 // confirmAdminPassword 已认证接口的管理密码二次确认（带限速）。

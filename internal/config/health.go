@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,18 +89,24 @@ func (c *Config) migrateRuleHealth(plain []byte) error {
 		return err
 	}
 	if _, present := fields["ruleHealthChecks"]; !present {
-		data, err := os.ReadFile(filepath.Join(c.Dir(), "webproxy-health.json"))
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("读取旧健康检查配置失败: %w", err)
-		}
-		if err == nil {
+		path := filepath.Join(c.Dir(), "webproxy-health.json")
+		data, err := os.ReadFile(path)
+		switch {
+		case os.IsNotExist(err):
+			// 无旁车文件：保持空配置。
+		case err != nil:
+			log.Printf("[config] 旧健康检查旁车文件不可读，已忽略: %v", err)
+		default:
 			var legacy struct {
 				Rules map[string]HealthCheckConf `json:"rules"`
 			}
 			if err := json.Unmarshal(data, &legacy); err != nil {
-				return fmt.Errorf("解析旧健康检查配置失败: %w", err)
+				// 旁车文件损坏不应让守护进程无法启动：改名保留后按无配置继续。
+				log.Printf("[config] 旧健康检查旁车文件损坏，已改名为 .corrupt 并忽略: %v", err)
+				_ = os.Rename(path, path+".corrupt")
+			} else {
+				c.RuleHealthChecks = legacy.Rules
 			}
-			c.RuleHealthChecks = legacy.Rules
 		}
 	}
 	return c.normalizeRuleHealth()

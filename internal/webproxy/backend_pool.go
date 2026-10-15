@@ -127,8 +127,8 @@ func (h *apiHandler) registerBackendPools(r chi.Router) {
 			h.mutationMu.Lock()
 			defer h.mutationMu.Unlock()
 			var p config.BackendPool
-			if api.DecodeBody(q, &p) != nil {
-				api.Fail(w, 400, "请求格式错误")
+			if err := api.DecodeBody(q, &p); err != nil {
+				api.FailDecode(w, err, "请求格式错误")
 				return
 			}
 			if err := p.Validate(); err != nil {
