@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "response": {
+    "code": 0,
+    "msg": "ok",
+    "data": {
+      "loginRequired": true,
+      "warnings": [
+        "Web 服务未按新配置生效: listen tcp 127.0.0.1:21607: bind: address already in use"
+      ]
+    }
+  }
+}

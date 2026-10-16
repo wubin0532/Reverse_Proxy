@@ -1,0 +1,44 @@
+=== RUN   TestMultiLineMessageRoundTrip
+--- PASS: TestMultiLineMessageRoundTrip (0.00s)
+=== RUN   TestLoadSurvivesLongAndCorruptLines
+--- PASS: TestLoadSurvivesLongAndCorruptLines (0.00s)
+=== RUN   TestAccessAndSystemStoresAreSeparate
+--- PASS: TestAccessAndSystemStoresAreSeparate (0.00s)
+=== RUN   TestAccessRotationKeepsSystemStore
+--- PASS: TestAccessRotationKeepsSystemStore (0.01s)
+=== RUN   TestClearTypeOnlyClearsOneStore
+--- PASS: TestClearTypeOnlyClearsOneStore (0.00s)
+=== RUN   TestStreamEndpoint
+--- PASS: TestStreamEndpoint (0.05s)
+=== RUN   TestStreamClientCap
+--- PASS: TestStreamClientCap (0.10s)
+=== RUN   TestStreamQueryRejectsInvalidType
+--- PASS: TestStreamQueryRejectsInvalidType (0.00s)
+=== RUN   TestStreamHubDropsOldestForSlowClient
+--- PASS: TestStreamHubDropsOldestForSlowClient (0.00s)
+=== RUN   TestWriteRedactsAndExtractsStructuredFields
+--- PASS: TestWriteRedactsAndExtractsStructuredFields (0.00s)
+=== RUN   TestLoadRedactsLegacyEntries
+--- PASS: TestLoadRedactsLegacyEntries (0.00s)
+=== RUN   TestRedactionAndRotationLimit
+2026/09/05 10:00:00 [security] 修改站点，ID: site-1，客户端 IP: 192.0.2.4 Authorization: [REDACTED]
+--- PASS: TestRedactionAndRotationLimit (0.01s)
+=== RUN   TestClearAfterCloseDoesNotBlock
+--- PASS: TestClearAfterCloseDoesNotBlock (0.00s)
+=== RUN   TestQueryCursorStableAcrossNewEntries
+--- PASS: TestQueryCursorStableAcrossNewEntries (0.00s)
+=== RUN   TestQueryCursorFallsBackWhenEntryEvicted
+--- PASS: TestQueryCursorFallsBackWhenEntryEvicted (0.00s)
+=== RUN   TestStreamStopsOnLogoutAndGlobalRevocation
+=== RUN   TestStreamStopsOnLogoutAndGlobalRevocation/logout
+=== RUN   TestStreamStopsOnLogoutAndGlobalRevocation/password
+2026/10/16 00:10:16 [security] 管理员登录成功，客户端 IP: 127.0.0.1
+2026/10/16 00:10:17 [security] 管理员登录成功，客户端 IP: 127.0.0.1
+2026/10/16 00:10:17 [security] 管理账号密码已修改，全部会话已撤销
+--- PASS: TestStreamStopsOnLogoutAndGlobalRevocation (0.34s)
+    --- PASS: TestStreamStopsOnLogoutAndGlobalRevocation/logout (0.12s)
+    --- PASS: TestStreamStopsOnLogoutAndGlobalRevocation/password (0.23s)
+=== RUN   TestHTTP2StreamSurvivesIdleWriteDeadline
+2026/10/16 00:10:17 [security] 管理员登录成功，客户端 IP: 127.0.0.1
+--- PASS: TestHTTP2StreamSurvivesIdleWriteDeadline (6.12s)
+PASS

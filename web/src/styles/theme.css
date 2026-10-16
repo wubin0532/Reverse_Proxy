@@ -305,6 +305,12 @@ h2 {
   .el-button {
     min-height: 44px;
   }
+  .header .el-button,
+  .header .user-info {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,51 +1,114 @@
-// Package adminweb 内嵌管理后台前端静态资源。
-// 前端构建前先放置占位页面；执行 make web 后产物输出到 dist/。
+// Package adminweb serves the embedded management frontend.
 package adminweb
 
 import (
-	"bytes"
+	"crypto/sha256"
 	"embed"
+	"fmt"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"path"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// Vite 配置会移除 chunk 名的前导下划线，避免 Go 的目录嵌入规则静默
-// 忽略这类文件。adminweb_test 会验证所有构建引用都确实进入二进制。
-//
 //go:embed dist
 var distFS embed.FS
 
-// Handler 返回静态资源 handler：仅对真实文件（非目录）走文件服务，其余路径回退
-// index.html 内容（SPA 深链接友好）。目录请求不再返回文件清单；带内容哈希的
-// assets/ 资源可长期缓存，index.html 不缓存以便及时拿到新构建。
 func Handler() http.Handler {
 	sub, err := fs.Sub(distFS, "dist")
 	if err != nil {
 		panic(err)
 	}
-	index, err := fs.ReadFile(sub, "index.html")
+	return assetHandler(sub)
+}
+
+// Precompressed representations are produced at build time. Only small metadata
+// is retained here; requests read directly from embed.FS without runtime compression.
+func assetHandler(files fs.FS) http.Handler {
+	etags := map[string]string{}
+	err := fs.WalkDir(files, ".", func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		f, err := files.Open(name)
+		if err != nil {
+			return err
+		}
+		sum := sha256.New()
+		_, err = io.Copy(sum, f)
+		_ = f.Close()
+		if err == nil {
+			etags[name] = fmt.Sprintf(`"%x"`, sum.Sum(nil))
+		}
+		return err
+	})
 	if err != nil {
 		panic(err)
 	}
-	fileServer := http.FileServer(http.FS(sub))
+	if _, ok := etags["index.html"]; !ok {
+		panic("embedded index.html missing")
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if path != "/" {
-			if info, err := fs.Stat(sub, path[1:]); err == nil && !info.IsDir() {
-				if strings.HasPrefix(path, "/assets/") {
-					// Vite 产物文件名带内容哈希，可长期不可变缓存。
-					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-				} else {
-					w.Header().Set("Cache-Control", "no-cache")
-				}
-				fileServer.ServeHTTP(w, r)
-				return
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if strings.HasSuffix(name, ".gz") || strings.HasSuffix(name, ".br") {
+			http.NotFound(w, r)
+			return
+		}
+		if _, ok := etags[name]; !ok {
+			name = "index.html"
+		}
+		if name == "index.html" {
+			w.Header().Set("Cache-Control", "no-store")
+		} else if strings.HasPrefix(name, "assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		_, hasBR := etags[name+".br"]
+		_, hasGzip := etags[name+".gz"]
+		if hasBR || hasGzip {
+			w.Header().Add("Vary", "Accept-Encoding")
+		}
+		encoding, ok := negotiateEncoding(r.Header.Get("Accept-Encoding"), hasBR, hasGzip, r.Header.Get("Range") != "")
+		if !ok {
+			http.Error(w, "No acceptable content encoding", http.StatusNotAcceptable)
+			return
+		}
+		original := name
+		switch encoding {
+		case "br":
+			name += ".br"
+		case "gzip":
+			name += ".gz"
+		}
+		f, err := files.Open(name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		seeker, ok := f.(io.ReadSeeker)
+		if !ok {
+			http.Error(w, "Resource unavailable", 500)
+			return
+		}
+		if encoding != "identity" {
+			w.Header().Set("Content-Encoding", encoding)
+			if info, err := f.Stat(); err == nil {
+				w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 			}
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
+		if typ := mime.TypeByExtension(path.Ext(original)); typ != "" {
+			w.Header().Set("Content-Type", typ)
+		}
+		w.Header().Set("ETag", etags[name])
+		http.ServeContent(w, r, path.Base(original), time.Time{}, seeker)
 	})
 }

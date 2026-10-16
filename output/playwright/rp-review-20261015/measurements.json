@@ -1,0 +1,608 @@
+{
+  "rows": [
+    {
+      "route": "dashboard",
+      "width": 390,
+      "actualPath": "/dashboard",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "概览",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "ddns",
+      "width": 390,
+      "actualPath": "/ddns",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "动态域名",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "web-service",
+      "width": 390,
+      "actualPath": "/web-service",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "certs",
+      "width": 390,
+      "actualPath": "/certs",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "证书管理",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "protection",
+      "width": 390,
+      "actualPath": "/protection",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "防护中心",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        },
+        {
+          "label": "刷新",
+          "w": 60,
+          "h": 36
+        },
+        {
+          "label": "＋ 新增策略",
+          "w": 105.5703125,
+          "h": 36
+        }
+      ]
+    },
+    {
+      "route": "forward",
+      "width": 390,
+      "actualPath": "/forward",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "端口转发",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "tunnels",
+      "width": 390,
+      "actualPath": "/tunnels",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "Cloudflare 隧道",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "logs",
+      "width": 390,
+      "actualPath": "/logs",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "日志中心",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "notifications",
+      "width": 390,
+      "actualPath": "/notifications",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "通知中心",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "settings",
+      "width": 390,
+      "actualPath": "/settings",
+      "scrollWidth": 390,
+      "bodyWidth": 390,
+      "title": "系统设置",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 44
+        },
+        {
+          "label": "选择语言",
+          "w": 26,
+          "h": 44
+        }
+      ]
+    },
+    {
+      "route": "dashboard",
+      "width": 1280,
+      "actualPath": "/dashboard",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "概览",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "暂停刷新",
+          "w": 88,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 60,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 78,
+          "h": 38
+        },
+        {
+          "label": "进入日志中心",
+          "w": 114,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "ddns",
+      "width": 1280,
+      "actualPath": "/ddns",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "动态域名",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "web-service",
+      "width": 1280,
+      "actualPath": "/web-service",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "certs",
+      "width": 1280,
+      "actualPath": "/certs",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "证书管理",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 60,
+          "h": 38
+        },
+        {
+          "label": "＋ 新增证书",
+          "w": 105.5703125,
+          "h": 38
+        },
+        {
+          "label": "证书 0",
+          "w": 67.4765625,
+          "h": 36.1484375
+        },
+        {
+          "label": "正常 0",
+          "w": 67.4765625,
+          "h": 36.1484375
+        },
+        {
+          "label": "需要关注 0",
+          "w": 93.4765625,
+          "h": 36.1484375
+        },
+        {
+          "label": "已停用 0",
+          "w": 80.4765625,
+          "h": 36.1484375
+        }
+      ]
+    },
+    {
+      "route": "protection",
+      "width": 1280,
+      "actualPath": "/protection",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "防护中心",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 60,
+          "h": 38
+        },
+        {
+          "label": "＋ 新增策略",
+          "w": 105.5703125,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "forward",
+      "width": 1280,
+      "actualPath": "/forward",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "端口转发",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 60,
+          "h": 38
+        },
+        {
+          "label": "新增规则",
+          "w": 88,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "tunnels",
+      "width": 1280,
+      "actualPath": "/tunnels",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "Cloudflare 隧道",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "账户凭据",
+          "w": 88,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 60,
+          "h": 38
+        },
+        {
+          "label": "添加实例",
+          "w": 88,
+          "h": 38
+        },
+        {
+          "label": "检查最新版本",
+          "w": 116,
+          "h": 38
+        },
+        {
+          "label": "安装受管理版本",
+          "w": 130,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "logs",
+      "width": 1280,
+      "actualPath": "/logs",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "日志中心",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "暂停刷新",
+          "w": 108,
+          "h": 38
+        },
+        {
+          "label": "下载筛选结果",
+          "w": 136,
+          "h": 38
+        },
+        {
+          "label": "清空",
+          "w": 80,
+          "h": 38
+        },
+        {
+          "label": "筛选",
+          "w": 80,
+          "h": 38
+        },
+        {
+          "label": "加载更多",
+          "w": 88,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "notifications",
+      "width": 1280,
+      "actualPath": "/notifications",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "通知中心",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 80,
+          "h": 38
+        },
+        {
+          "label": "配置渠道",
+          "w": 88,
+          "h": 38
+        },
+        {
+          "label": "发送测试消息",
+          "w": 116,
+          "h": 38
+        },
+        {
+          "label": "刷新",
+          "w": 78,
+          "h": 38
+        }
+      ]
+    },
+    {
+      "route": "settings",
+      "width": 1280,
+      "actualPath": "/settings",
+      "scrollWidth": 1280,
+      "bodyWidth": 1280,
+      "title": "系统设置",
+      "smallTargets": [
+        {
+          "label": "切换导航",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "刷新当前页面",
+          "w": 32,
+          "h": 38
+        },
+        {
+          "label": "打开账户安全",
+          "w": 116,
+          "h": 38
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

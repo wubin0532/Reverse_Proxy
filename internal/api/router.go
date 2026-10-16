@@ -152,14 +152,19 @@ func (s *Server) requestBudget(next http.Handler) http.Handler {
 			return
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			started := time.Now()
 			deadline := s.bodyReadTimeout
 			switch r.URL.Path {
 			case "/api/system/update/inspect", "/api/system/backup/import":
 				// 大请求体：慢链路上传 100 MiB 更新包或整份配置备份。
 				deadline = 10 * time.Minute
+				// The default server write deadline starts at header admission and
+				// would otherwise expire during a slow upload. Allow processing and
+				// the final response after the full upload budget.
+				_ = http.NewResponseController(w).SetWriteDeadline(started.Add(deadline + 2*time.Minute))
 			}
 			// httptest 等场景下 ResponseWriter 不支持读期限，忽略错误。
-			_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(deadline))
+			_ = http.NewResponseController(w).SetReadDeadline(started.Add(deadline))
 		}
 		next.ServeHTTP(w, r)
 	})

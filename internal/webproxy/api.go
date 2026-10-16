@@ -310,7 +310,9 @@ func (h *apiHandler) update(w http.ResponseWriter, r *http.Request) {
 
 func redactSites(sites []config.Site) {
 	for si := range sites {
-		sites[si].Rules = append([]config.SubRule(nil), sites[si].Rules...)
+		rules := make([]config.SubRule, len(sites[si].Rules))
+		copy(rules, sites[si].Rules)
+		sites[si].Rules = rules
 		for ri := range sites[si].Rules {
 			r := &sites[si].Rules[ri]
 			r.AuthPass = ""

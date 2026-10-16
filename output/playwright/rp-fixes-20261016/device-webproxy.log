@@ -1,0 +1,300 @@
+=== RUN   TestAdvancedCORSRewriteHeadersAndAccessLog
+2026/10/15 09:31:13 [webproxy] 站点 Site 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestAdvancedCORSRewriteHeadersAndAccessLog (0.01s)
+=== RUN   TestAdvancedRejectsProtocolHeadersAndUnsafeCORS
+--- PASS: TestAdvancedRejectsProtocolHeadersAndUnsafeCORS (0.00s)
+=== RUN   TestAdvancedCustomProxyError
+--- PASS: TestAdvancedCustomProxyError (0.00s)
+=== RUN   TestRuleAPICRUDToggleOrderAndSecretPreservation
+2026/10/15 09:31:13 [webproxy] 站点 站点 开始监听 127.0.0.1:35549 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:13 [security] 修改 Web 子规则，站点 ID: s1，规则 ID: r1
+2026/10/15 09:31:13 [security] 切换 Web 子规则，站点 ID: s1，规则 ID: r1，启用: false
+2026/10/15 09:31:13 [security] 调整 Web 子规则顺序，站点 ID: s1
+2026/10/15 09:31:13 [security] 新增 Web 子规则，站点 ID: s1，规则 ID: 2220c01c0c361b78bfb8d2632c3e8f27
+--- PASS: TestRuleAPICRUDToggleOrderAndSecretPreservation (0.01s)
+=== RUN   TestRuleAPIRejectsIncompleteOrderWithoutChangingConfig
+2026/10/15 09:31:13 [security] 删除 Web 子规则，站点 ID: s1，规则 ID: 2220c01c0c361b78bfb8d2632c3e8f27
+2026/10/15 09:31:13 [webproxy] 站点 站点 开始监听 127.0.0.1:38685 (TLS=false, forceHTTPS=false)
+--- PASS: TestRuleAPIRejectsIncompleteOrderWithoutChangingConfig (0.00s)
+=== RUN   TestBackendPoolWeightedAndHotUpdate
+2026/10/15 09:31:13 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestBackendPoolWeightedAndHotUpdate (0.02s)
+=== RUN   TestBackendPoolAdmissionSharedAcrossRulesAndReload
+2026/10/15 09:31:13 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestBackendPoolAdmissionSharedAcrossRulesAndReload (0.01s)
+=== RUN   TestBackendPoolAPIRevisionReferencesAndBackup
+--- PASS: TestBackendPoolAPIRevisionReferencesAndBackup (0.00s)
+=== RUN   TestBackendPoolRetirementReleasesUnusedRuntime
+2026/10/15 09:31:13 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:13 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestBackendPoolRetirementReleasesUnusedRuntime (0.04s)
+=== RUN   TestPinnedCertificateFallbackRejectsWrongHostname
+2026/10/15 09:31:13 [webproxy] 站点 pinned 证书 pinned 不可用于当前连接，使用自签证书
+--- PASS: TestPinnedCertificateFallbackRejectsWrongHostname (0.14s)
+=== RUN   TestMatchRuleHostFilter
+--- PASS: TestMatchRuleHostFilter (0.00s)
+=== RUN   TestMatchRuleLongestPrefix
+--- PASS: TestMatchRuleLongestPrefix (0.00s)
+=== RUN   TestRedirectPlaceholders
+--- PASS: TestRedirectPlaceholders (0.00s)
+=== RUN   TestForceHTTPSRedirect
+--- PASS: TestForceHTTPSRedirect (0.00s)
+=== RUN   TestGuardIPUAAndBasicAuth
+--- PASS: TestGuardIPUAAndBasicAuth (0.00s)
+=== RUN   TestEmptySiteAPIRulesRemainArrays
+2026/10/15 09:31:13 管理后台正在使用自签 TLS 证书，SHA-256 指纹: EF:8A:B2:A3:76:EC:53:55:B0:43:E6:C2:74:D7:84:40:BB:AF:53:7A:0B:84:BE:B6:39:AD:C7:CF:F3:F8:EF:96，请核对后信任
+--- PASS: TestEmptySiteAPIRulesRemainArrays (0.00s)
+=== RUN   TestHealthBackupRestoreUpdatesLiveProberAndRollsBackFailedSave
+2026/10/15 09:31:13 [security] 新增 Web 站点，ID: 6ccd843c0e7732483614a34545f7f51c
+2026/10/15 09:31:13 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestHealthBackupRestoreUpdatesLiveProberAndRollsBackFailedSave (0.01s)
+=== RUN   TestHealthCheckConfValidate
+--- PASS: TestHealthCheckConfValidate (0.00s)
+=== RUN   TestHealthStorePersistence
+--- PASS: TestHealthStorePersistence (0.00s)
+=== RUN   TestHealthProberTCP
+--- PASS: TestHealthProberTCP (1.01s)
+=== RUN   TestHealthProberHTTP
+--- PASS: TestHealthProberHTTP (3.00s)
+=== RUN   TestPassiveFailureMarksDownWithActiveCheck
+--- PASS: TestPassiveFailureMarksDownWithActiveCheck (0.00s)
+=== RUN   TestHealthAPI
+--- PASS: TestHealthAPI (0.00s)
+=== RUN   TestHijackedConnTracked
+--- PASS: TestHijackedConnTracked (0.00s)
+=== RUN   TestImportReplacementDuringVerifiedSNIAndNoSNIHandshakes
+2026/10/15 09:31:17 [webproxy] 站点 站点 开始监听 127.0.0.1:40009 (TLS=false, forceHTTPS=false)
+--- PASS: TestImportReplacementDuringVerifiedSNIAndNoSNIHandshakes (0.07s)
+=== RUN   TestProxyTransportPoolAndTimeouts
+--- PASS: TestProxyTransportPoolAndTimeouts (0.00s)
+=== RUN   TestReverseConnectionReuseAndResponseHeaderTimeout
+--- PASS: TestReverseConnectionReuseAndResponseHeaderTimeout (1.50s)
+=== RUN   TestStripPrefixPreservesBackendBaseAndQuery
+--- PASS: TestStripPrefixPreservesBackendBaseAndQuery (0.00s)
+=== RUN   TestRewriteLocationAndCookiesIsScoped
+--- PASS: TestRewriteLocationAndCookiesIsScoped (0.00s)
+=== RUN   TestRateLimiterUsesDirectIPAndStaysBounded
+--- PASS: TestRateLimiterUsesDirectIPAndStaysBounded (0.00s)
+=== RUN   TestMaxRequestBodyRejectsKnownAndStreamingBodies
+--- PASS: TestMaxRequestBodyRejectsKnownAndStreamingBodies (0.50s)
+=== RUN   TestRuleHotReloadKeepsListenerAndInflightRequest
+2026/10/15 09:31:19 [webproxy] 站点 hot 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestRuleHotReloadKeepsListenerAndInflightRequest (0.00s)
+=== RUN   TestTLSListenerSupportsHTTP2
+2026/10/15 09:31:19 [webproxy] 站点 h2 开始监听 127.0.0.1:0 (TLS=true, forceHTTPS=false)
+2026/10/15 09:31:19 管理后台正在使用自签 TLS 证书，SHA-256 指纹: 2E:FD:ED:76:10:6D:0A:58:83:2E:71:7F:A9:16:77:1E:E5:5D:AB:7F:45:E8:2F:58:B0:FB:35:23:DB:65:C3:DA，请核对后信任
+--- PASS: TestTLSListenerSupportsHTTP2 (0.07s)
+=== RUN   TestReverseWebSocketAndSSEStreaming
+--- PASS: TestReverseWebSocketAndSSEStreaming (0.00s)
+=== RUN   TestBackendConnectionTestDoesNotSendHTTPOrLeakURL
+2026/10/15 09:31:19 http: TLS handshake error from 127.0.0.1:58498: EOF
+2026/10/15 09:31:19 [security] 后端连接测试成功: https://127.0.0.1:38335/private
+2026/10/15 09:31:19 http: TLS handshake error from 127.0.0.1:58526: EOF
+--- PASS: TestBackendConnectionTestDoesNotSendHTTPOrLeakURL (0.01s)
+=== RUN   TestListenerChangeFailureRollsBackConfigAndService
+--- PASS: TestListenerChangeFailureRollsBackConfigAndService (0.00s)
+=== RUN   TestReverseBackendFailover
+2026/10/15 09:31:19 http: TLS handshake error from 127.0.0.1:58542: remote error: tls: bad certificate
+2026/10/15 09:31:19 [webproxy] 站点 old 开始监听 127.0.0.1:36047 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 new 监听 127.0.0.1:44659 失败: listen tcp 127.0.0.1:44659: bind: address already in use
+2026/10/15 09:31:19 [webproxy] 站点 old 开始监听 127.0.0.1:36047 (TLS=false, forceHTTPS=false)
+--- PASS: TestReverseBackendFailover (0.00s)
+=== RUN   TestStripPrefixLocationRoundTrip
+--- PASS: TestStripPrefixLocationRoundTrip (0.00s)
+=== RUN   TestConcurrentRollbackPreservesWorkingConfig
+2026/10/15 09:31:19 [webproxy] 站点 site 开始监听 127.0.0.1:40895 (TLS=false, forceHTTPS=false)
+    rollback_location_test.go:87: update=409, toggle=200, restoredListen=true, enabled=false
+--- PASS: TestConcurrentRollbackPreservesWorkingConfig (0.05s)
+=== RUN   TestLocationReversePathMapping
+=== RUN   TestLocationReversePathMapping/root_mount
+=== RUN   TestLocationReversePathMapping/backend_subtree
+=== RUN   TestLocationReversePathMapping/encoded_slash
+=== RUN   TestLocationReversePathMapping/unicode_prefix
+=== RUN   TestLocationReversePathMapping/encoded_base
+=== RUN   TestLocationReversePathMapping/outside_subtree
+=== RUN   TestLocationReversePathMapping/external_host
+=== RUN   TestLocationReversePathMapping/relative_location
+=== RUN   TestLocationReversePathMapping/no_prefix_stripping
+=== RUN   TestLocationReversePathMapping/ambiguous_path
+--- PASS: TestLocationReversePathMapping (0.00s)
+    --- PASS: TestLocationReversePathMapping/root_mount (0.00s)
+    --- PASS: TestLocationReversePathMapping/backend_subtree (0.00s)
+    --- PASS: TestLocationReversePathMapping/encoded_slash (0.00s)
+    --- PASS: TestLocationReversePathMapping/unicode_prefix (0.00s)
+    --- PASS: TestLocationReversePathMapping/encoded_base (0.00s)
+    --- PASS: TestLocationReversePathMapping/outside_subtree (0.00s)
+    --- PASS: TestLocationReversePathMapping/external_host (0.00s)
+    --- PASS: TestLocationReversePathMapping/relative_location (0.00s)
+    --- PASS: TestLocationReversePathMapping/no_prefix_stripping (0.00s)
+    --- PASS: TestLocationReversePathMapping/ambiguous_path (0.00s)
+=== RUN   TestSecurityRegressionFailoverPreservesRequest
+2026/10/15 09:31:19 [webproxy] 站点 site 监听 127.0.0.1:44931 失败: listen tcp 127.0.0.1:44931: bind: address already in use
+2026/10/15 09:31:19 [webproxy] 站点 site 开始监听 127.0.0.1:40895 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [security] 切换 Web 子规则，站点 ID: s，规则 ID: r，启用: false
+--- PASS: TestSecurityRegressionFailoverPreservesRequest (0.00s)
+=== RUN   TestSecurityRegressionEmptyPOSTNotReplayed
+--- PASS: TestSecurityRegressionEmptyPOSTNotReplayed (0.00s)
+=== RUN   TestSecurityRegressionSilentClientDoesNotBlockAccept
+--- PASS: TestSecurityRegressionSilentClientDoesNotBlockAccept (0.00s)
+=== RUN   TestSecurityRegressionStaleSnapshotDoesNotPoisonCache
+--- PASS: TestSecurityRegressionStaleSnapshotDoesNotPoisonCache (0.00s)
+=== RUN   TestSecurityRegressionFileServerConfinesSymlinks
+--- PASS: TestSecurityRegressionFileServerConfinesSymlinks (0.00s)
+=== RUN   TestSecurityRegressionPathGuardCanonicalization
+--- PASS: TestSecurityRegressionPathGuardCanonicalization (0.00s)
+=== RUN   TestSecurityRegressionStripPrefixPreservesEscapedSlash
+--- PASS: TestSecurityRegressionStripPrefixPreservesEscapedSlash (0.00s)
+=== RUN   TestFailoverWithStripPrefixAndBodyLimit
+--- PASS: TestFailoverWithStripPrefixAndBodyLimit (0.00s)
+=== RUN   TestStripPrefixEncodedBoundaryAndTrailingSlash
+--- PASS: TestStripPrefixEncodedBoundaryAndTrailingSlash (0.00s)
+=== RUN   TestUpdatePreservesUnchangedPoolAndRejectsOldReverseRule
+--- PASS: TestUpdatePreservesUnchangedPoolAndRejectsOldReverseRule (0.00s)
+=== RUN   TestFileServerAllowsInternalSymlinkAndRegularFile
+--- PASS: TestFileServerAllowsInternalSymlinkAndRegularFile (0.00s)
+=== RUN   TestSniffPendingLimitAndClose
+--- PASS: TestSniffPendingLimitAndClose (0.13s)
+=== RUN   TestSniffRecoversTemporaryAcceptError
+--- PASS: TestSniffRecoversTemporaryAcceptError (0.01s)
+=== RUN   TestSecurityRegressionAdminCookieNotForwarded
+--- PASS: TestSecurityRegressionAdminCookieNotForwarded (0.00s)
+=== RUN   TestSecurityRegressionAdminCookieOnlyDropsHeader
+--- PASS: TestSecurityRegressionAdminCookieOnlyDropsHeader (0.00s)
+=== RUN   TestStripCookieHeader
+--- PASS: TestStripCookieHeader (0.00s)
+=== RUN   TestSiteSeriesBuffer
+--- PASS: TestSiteSeriesBuffer (0.00s)
+=== RUN   TestSiteSeriesAPIView
+--- PASS: TestSiteSeriesAPIView (0.00s)
+=== RUN   TestWebDAVAliasRetargetCannotModifyCGICode
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestWebDAVAliasRetargetCannotModifyCGICode (0.00s)
+=== RUN   TestServiceDirectoryReplacementBeforeFirstRequestIsRejected
+=== RUN   TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/webdav/symlink
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+=== RUN   TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/webdav/directory
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+=== RUN   TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/cgi/symlink
+=== RUN   TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/cgi/directory
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestServiceDirectoryReplacementBeforeFirstRequestIsRejected (0.01s)
+    --- PASS: TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/webdav/symlink (0.00s)
+    --- PASS: TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/webdav/directory (0.00s)
+    --- PASS: TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/cgi/symlink (0.00s)
+    --- PASS: TestServiceDirectoryReplacementBeforeFirstRequestIsRejected/cgi/directory (0.00s)
+=== RUN   TestReverseEndToEnd
+--- PASS: TestReverseEndToEnd (0.00s)
+=== RUN   TestValidateSiteRejectsUnsafeAndBrokenRules
+2026/10/15 09:31:19 [webproxy] 站点 站点1 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestValidateSiteRejectsUnsafeAndBrokenRules (0.00s)
+=== RUN   TestReversePreserveHost
+--- PASS: TestReversePreserveHost (0.00s)
+=== RUN   TestReverseRoundRobin
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestReverseRoundRobin (0.00s)
+=== RUN   TestReverseBackendDown
+--- PASS: TestReverseBackendDown (0.00s)
+=== RUN   TestSiteDispatchAndNotFound
+--- PASS: TestSiteDispatchAndNotFound (0.00s)
+=== RUN   TestFileServer
+--- PASS: TestFileServer (0.00s)
+=== RUN   TestGuardEndToEnd
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestGuardEndToEnd (0.00s)
+=== RUN   TestTLSSelfSignedFallback
+2026/10/15 09:31:19 [webproxy] 站点 TLS站点 开始监听 127.0.0.1:0 (TLS=true, forceHTTPS=false)
+2026/10/15 09:31:19 管理后台正在使用自签 TLS 证书，SHA-256 指纹: A3:87:FD:91:1E:89:26:4C:75:F3:49:6B:F2:CE:63:27:29:BF:86:21:B0:6B:E2:18:BA:F5:B6:5F:C9:48:9B:E5，请核对后信任
+--- PASS: TestTLSSelfSignedFallback (0.07s)
+=== RUN   TestBackendTLSVerifyIsIsolatedPerRule
+2026/10/15 09:31:19 http: TLS handshake error from 127.0.0.1:37630: remote error: tls: bad certificate
+--- PASS: TestBackendTLSVerifyIsIsolatedPerRule (0.01s)
+=== RUN   TestReloadAddRemoveSite
+2026/10/15 09:31:19 [webproxy] 站点 A 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 B 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestReloadAddRemoveSite (0.00s)
+=== RUN   TestAccessLogContent
+--- PASS: TestAccessLogContent (0.00s)
+=== RUN   TestForceHTTPSSniffEndToEnd
+2026/10/15 09:31:19 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:19 [webproxy] 站点 强制HTTPS 开始监听 127.0.0.1:0 (TLS=true, forceHTTPS=true)
+2026/10/15 09:31:19 [webproxy] 站点 强制HTTPS 证书 c1 不可用于当前连接，使用自签证书
+2026/10/15 09:31:19 管理后台正在使用自签 TLS 证书，SHA-256 指纹: A8:82:FC:EA:0D:11:64:70:84:76:A3:3E:D5:F4:8A:93:27:1F:19:F6:E3:BE:03:87:EB:75:66:82:9A:2C:7E:EA，请核对后信任
+--- PASS: TestForceHTTPSSniffEndToEnd (0.06s)
+=== RUN   TestProxyErrorLogSanitization
+--- PASS: TestProxyErrorLogSanitization (0.00s)
+=== RUN   TestWebDAVReadWriteAuthenticationAndRootConfinement
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestWebDAVReadWriteAuthenticationAndRootConfinement (0.00s)
+=== RUN   TestCGIFixedExecutableAuthenticationSecretsAndTimeout
+2026/10/15 09:31:19 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestCGIFixedExecutableAuthenticationSecretsAndTimeout (1.00s)
+=== RUN   TestDiscoveryExplicitBoundsActualTCPAndShutdown
+--- PASS: TestDiscoveryExplicitBoundsActualTCPAndShutdown (0.01s)
+=== RUN   TestProxyRemovesAuthenticationAndReservedCookies
+--- PASS: TestProxyRemovesAuthenticationAndReservedCookies (0.00s)
+=== RUN   TestLiveHTTPDefenseBoundPolicies
+2026/10/15 09:31:20 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:21 [webproxy] 站点 App 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestLiveHTTPDefenseBoundPolicies (0.09s)
+=== RUN   TestWebDAVAtomicUploadAndCopyPreserveExistingFile
+2026/10/15 09:31:21 [webproxy] 站点 Services 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestWebDAVAtomicUploadAndCopyPreserveExistingFile (0.01s)
+=== RUN   TestSiteStatsCounting
+2026/10/15 09:31:21 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestSiteStatsCounting (0.00s)
+=== RUN   TestRuleStatsExposeActiveRequests
+2026/10/15 09:31:21 [webproxy] 站点 空站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:21 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestRuleStatsExposeActiveRequests (0.00s)
+=== RUN   TestSiteStatsSurviveReload
+2026/10/15 09:31:21 [webproxy] 站点 站点 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestSiteStatsSurviveReload (0.01s)
+=== RUN   TestDisabledSiteClosesHTTPStream
+2026/10/15 09:31:21 [webproxy] 站点 stream 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestDisabledSiteClosesHTTPStream (5.00s)
+=== RUN   TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval
+=== RUN   TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/rename
+=== RUN   TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/delete
+=== RUN   TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/switch_site
+2026/10/15 09:31:26 [webproxy] 站点 stream 关闭异常: context deadline exceeded
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+=== RUN   TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/direct_target
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval (0.01s)
+    --- PASS: TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/rename (0.00s)
+    --- PASS: TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/delete (0.00s)
+    --- PASS: TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/switch_site (0.00s)
+    --- PASS: TestPublishedOriginSurvivesDraftChangesUntilCloudRemoval/direct_target (0.00s)
+=== RUN   TestRemovingTunnelOriginClosesItsWebSocketOnly
+--- PASS: TestRemovingTunnelOriginClosesItsWebSocketOnly (0.00s)
+=== RUN   TestTunnelIdentityGuardHeadersRateLimitsAndSocketPermissions
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestTunnelIdentityGuardHeadersRateLimitsAndSocketPermissions (0.00s)
+=== RUN   TestTunnelForceHTTPSAndLocationRewrite
+--- PASS: TestTunnelForceHTTPSAndLocationRewrite (0.00s)
+=== RUN   TestTunnelWebSocketAndSSE
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=true, forceHTTPS=true)
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestTunnelWebSocketAndSSE (0.05s)
+=== RUN   TestTunnelHostRestrictionAndSiteLifecycle
+2026/10/15 09:31:26 [webproxy] 站点 test 开始监听 127.0.0.1:0 (TLS=false, forceHTTPS=false)
+--- PASS: TestTunnelHostRestrictionAndSiteLifecycle (0.00s)
+=== RUN   TestRuleHealthAtomicSaveAndStaleRevision
+2026/10/15 09:31:26 [security] 修改 Web 子规则，站点 ID: s，规则 ID: r
+--- PASS: TestRuleHealthAtomicSaveAndStaleRevision (0.00s)
+=== RUN   TestDefaultResponseCannotBypassSitePolicyOrSpoofClient
+2026/10/15 09:31:26 [webproxy] 站点 site 开始监听 127.0.0.1:38083 (TLS=false, forceHTTPS=false)
+--- PASS: TestDefaultResponseCannotBypassSitePolicyOrSpoofClient (0.00s)
+=== RUN   TestSiteCertificateReferenceMustExistAtCommit
+--- PASS: TestSiteCertificateReferenceMustExistAtCommit (0.00s)
+PASS

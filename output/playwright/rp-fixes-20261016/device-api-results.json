@@ -1,0 +1,10 @@
+{
+  "device": "192.168.199.7",
+  "logoutClosedStreamSeconds": 0.026,
+  "revokedCookieStatus": 401,
+  "readonlyEndpointsPassed": 13,
+  "embeddedOriginalsVerified": 71,
+  "bothEncodingsVerified": true,
+  "allAssetsOriginalBytes": 1540657,
+  "allAssetsBrotliTransferBytes": 446096
+}

@@ -104,10 +104,11 @@ return view.extend({
 			versionEl.textContent = _('Unknown');
 		});
 
-		// 首次登录时展示一次性初始密码；管理员改密后程序会删除该文件，
-		// 这里的读取随之失败，页面不再显示。持有本插件 ACL 的账号都能读到
-		// 该文件，因此只应把 ACL 授予管理员。
-		fs.read(confdir + '/initial-password').then(function(content) {
+		// Only the write role may read the bootstrap credential; the ACL enforces
+		// this independently of the UI. Changing the password removes the file.
+		if (!L.hasViewPermission()) {
+			passwordEl.textContent = _('Administrator permission is required to view the initial password.');
+		} else fs.read(confdir + '/initial-password').then(function(content) {
 			var pwd = (content || '').trim();
 			if (!pwd) {
 				passwordEl.textContent = _('Not generated yet');

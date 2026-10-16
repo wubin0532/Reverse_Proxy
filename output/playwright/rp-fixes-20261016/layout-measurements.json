@@ -1,0 +1,565 @@
+{
+  "rows": [
+    {
+      "width": 390,
+      "route": "dashboard",
+      "title": "概览",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "ddns",
+      "title": "动态域名",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "web-service",
+      "title": "Web 服务站点",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "certs",
+      "title": "证书管理",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "protection",
+      "title": "防护中心",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "forward",
+      "title": "端口转发",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "tunnels",
+      "title": "Cloudflare 隧道",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "logs",
+      "title": "日志中心",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "notifications",
+      "title": "通知中心",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "title": "系统设置",
+      "scrollWidth": 390,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "选择语言",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 68,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "dashboard",
+      "title": "概览",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "ddns",
+      "title": "动态域名",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "web-service",
+      "title": "Web 服务站点",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "certs",
+      "title": "证书管理",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "protection",
+      "title": "防护中心",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "forward",
+      "title": "端口转发",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "tunnels",
+      "title": "Cloudflare 隧道",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "logs",
+      "title": "日志中心",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "notifications",
+      "title": "通知中心",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "route": "settings",
+      "title": "系统设置",
+      "scrollWidth": 1280,
+      "headerButtons": [
+        {
+          "name": "切换导航",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "刷新当前页面",
+          "width": 32,
+          "height": 38
+        },
+        {
+          "name": "选择语言",
+          "width": 64,
+          "height": 44
+        },
+        {
+          "name": "账户菜单：admin",
+          "width": 117.3828125,
+          "height": 44
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

@@ -3,6 +3,18 @@ import { ElMessage } from 'element-plus'
 import i18n from '../locales'
 
 const { t } = i18n.global
+let deferredRedirects = 0
+
+// A restore revokes the current session before service reloads finish. Keep
+// unrelated polling 401s from unloading the page before its result is saved.
+export function deferUnauthorizedRedirects() {
+  deferredRedirects++
+  let released = false
+  return () => {
+    if (!released) deferredRedirects--
+    released = true
+  }
+}
 
 const request = axios.create({
   baseURL: '/',
@@ -46,6 +58,7 @@ request.interceptors.response.use(
 )
 
 function redirectToLogin() {
+  if (deferredRedirects) return
   if (window.location.pathname !== '/login') {
     const redirect = encodeURIComponent(window.location.pathname + window.location.search)
     window.location.href = `/login?redirect=${redirect}`

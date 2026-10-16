@@ -1,0 +1,3 @@
+Logout: 200
+Old session /api/me: 401
+Pending site creation after revocation: 401 {'code': 401, 'msg': '登录已失效，请重新登录'}

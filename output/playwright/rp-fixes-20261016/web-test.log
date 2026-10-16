@@ -1,0 +1,16 @@
+
+> andey-proxy-web@1.5.1 test
+> vitest run
+
+
+ RUN  v5.0.0 /Users/wubin/.codex/worktrees/296e/Reverse Proxy/web
+
+
+ Test Files  25 passed (25)
+      Tests  82 passed (82)
+   Start at  08:20:42
+   Duration  3.92s (environment 34%, import 31%, tests 24%, transform 11%)
+
+Environment  jsdom was created 25 times · 10.68s total, 34% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments

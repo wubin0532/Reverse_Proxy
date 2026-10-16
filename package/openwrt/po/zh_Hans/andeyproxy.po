@@ -170,5 +170,8 @@ msgstr "管理面板"
 msgid "Admin login"
 msgstr "后台登录"
 
+msgid "Administrator permission is required to view the initial password."
+msgstr "需要管理员权限才能查看初始密码。"
+
 msgid "The admin account is separate from the router root account. HTTPS is enabled by default; use the panel URL above."
 msgstr "管理后台账户与路由器 root 账户相互独立。默认启用 HTTPS，请使用上方后台地址访问。"

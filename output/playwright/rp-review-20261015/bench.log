@@ -1,0 +1,26 @@
+goos: darwin
+goarch: arm64
+pkg: andey-proxy/internal/guard
+cpu: Apple M4
+BenchmarkCheckGlobal-10          	44343715	         7.040 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHTTPPoliciesEmpty-10    	142054197	         2.120 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	andey-proxy/internal/guard	1.558s
+goos: darwin
+goarch: arm64
+pkg: andey-proxy/internal/webproxy
+cpu: Apple M4
+BenchmarkRuleLimiterAllowAtCapacity-10    	 8050538	        37.67 ns/op	      16 B/op	       1 allocs/op
+PASS
+ok  	andey-proxy/internal/webproxy	0.897s
+goos: darwin
+goarch: arm64
+pkg: andey-proxy/internal/logcenter
+cpu: Apple M4
+BenchmarkEntryRingAppendAtCapacity-10    	80000895	         3.853 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRedactAccessLine-10             	 2679726	       113.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRedactSecretLine-10             	   46732	      6426 ns/op	     641 B/op	      16 allocs/op
+PASS
+ok  	andey-proxy/internal/logcenter	1.498s
+PASS
+ok  	andey-proxy/internal/forward	0.532s

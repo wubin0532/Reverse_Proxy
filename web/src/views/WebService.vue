@@ -122,7 +122,7 @@
           :aria-pressed="!groupFilter"
           @click="groupFilter = ''"
         >
-          {{ labels.allGroups }} <small>{{ activeSite.rules.length }}</small>
+          {{ labels.allGroups }} <small>{{ (activeSite.rules || []).length }}</small>
         </button>
         <button
           v-for="group in groups"
@@ -658,7 +658,7 @@ async function load(showLoading = true) {
   if (showLoading) loading.value = true
   try {
     const res = await request.get('/api/sites')
-    sites.value = res.data || []
+    sites.value = (res.data || []).map((site) => ({ ...site, rules: site.rules || [] }))
     if (!sites.value.some((site) => site.id === selectedSiteId.value)) {
       selectedSiteId.value = sites.value[0]?.id || ''
     }

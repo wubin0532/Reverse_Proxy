@@ -1,0 +1,9 @@
+{
+  "config": 27,
+  "guard": 16,
+  "webproxy": 93,
+  "api": 25,
+  "auth": 5,
+  "logcenter": 17,
+  "adminweb": 5
+}

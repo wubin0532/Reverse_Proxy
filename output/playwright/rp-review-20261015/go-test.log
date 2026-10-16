@@ -1,0 +1,21 @@
+?   	andey-proxy	[no test files]
+ok  	andey-proxy/internal/acme	8.536s
+ok  	andey-proxy/internal/adminweb	1.448s
+ok  	andey-proxy/internal/api	54.679s
+ok  	andey-proxy/internal/auth	1.410s
+ok  	andey-proxy/internal/backup	4.807s
+ok  	andey-proxy/internal/config	2.177s
+ok  	andey-proxy/internal/configlock	1.394s
+?   	andey-proxy/internal/dashboard	[no test files]
+ok  	andey-proxy/internal/ddns	3.095s
+ok  	andey-proxy/internal/firewall	2.053s
+ok  	andey-proxy/internal/forward	5.792s
+ok  	andey-proxy/internal/guard	9.168s
+?   	andey-proxy/internal/ids	[no test files]
+ok  	andey-proxy/internal/logcenter	2.245s
+ok  	andey-proxy/internal/metrics	2.199s
+?   	andey-proxy/internal/netutil	[no test files]
+ok  	andey-proxy/internal/notify	2.066s
+ok  	andey-proxy/internal/tunnel	37.379s
+ok  	andey-proxy/internal/upgrade	2.058s
+ok  	andey-proxy/internal/webproxy	17.663s

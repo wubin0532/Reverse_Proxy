@@ -62,6 +62,7 @@ func AcquireVerifySlot(wait time.Duration) (func(), bool) {
 type tokenEntry struct {
 	expires   time.Time
 	createdAt time.Time
+	revoked   chan struct{}
 }
 
 // TokenStore 内存 token 会话存储。
@@ -86,6 +87,7 @@ func (s *TokenStore) Issue() (string, error) {
 	now := time.Now()
 	for key, entry := range s.tokens {
 		if !entry.expires.After(now) || !entry.createdAt.Add(maxTokenAge).After(now) {
+			close(entry.revoked)
 			delete(s.tokens, key)
 		}
 	}
@@ -97,9 +99,10 @@ func (s *TokenStore) Issue() (string, error) {
 				oldestKey, oldest = key, entry.expires
 			}
 		}
+		close(s.tokens[oldestKey].revoked)
 		delete(s.tokens, oldestKey)
 	}
-	s.tokens[digest] = tokenEntry{expires: now.Add(tokenTTL), createdAt: now}
+	s.tokens[digest] = tokenEntry{expires: now.Add(tokenTTL), createdAt: now, revoked: make(chan struct{})}
 	s.mu.Unlock()
 	return tok, nil
 }
@@ -113,6 +116,9 @@ func (s *TokenStore) Valid(tok string) bool {
 	now := time.Now()
 	absolute := entry.createdAt.Add(maxTokenAge)
 	if !ok || now.After(entry.expires) || !absolute.After(now) {
+		if ok {
+			close(entry.revoked)
+		}
 		delete(s.tokens, digest)
 		return false
 	}
@@ -120,7 +126,8 @@ func (s *TokenStore) Valid(tok string) bool {
 	if renewed.After(absolute) {
 		renewed = absolute
 	}
-	s.tokens[digest] = tokenEntry{expires: renewed, createdAt: entry.createdAt}
+	entry.expires = renewed
+	s.tokens[digest] = entry
 	return true
 }
 
@@ -128,12 +135,32 @@ func (s *TokenStore) Valid(tok string) bool {
 func (s *TokenStore) Revoke(tok string) {
 	digest := sha256.Sum256([]byte(tok))
 	s.mu.Lock()
+	if entry, ok := s.tokens[digest]; ok {
+		close(entry.revoked)
+	}
 	delete(s.tokens, digest)
 	s.mu.Unlock()
 }
 
 func (s *TokenStore) RevokeAll() {
 	s.mu.Lock()
+	for _, entry := range s.tokens {
+		close(entry.revoked)
+	}
 	s.tokens = make(map[[32]byte]tokenEntry)
 	s.mu.Unlock()
+}
+
+// Done lets admitted long-lived requests stop immediately on logout, eviction
+// or global revocation. Expiry is also checked by the stream before each write.
+func (s *TokenStore) Done(tok string) <-chan struct{} {
+	digest := sha256.Sum256([]byte(tok))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entry, ok := s.tokens[digest]; ok {
+		return entry.revoked
+	}
+	done := make(chan struct{})
+	close(done)
+	return done
 }

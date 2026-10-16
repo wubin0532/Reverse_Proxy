@@ -45,6 +45,16 @@ function setupRequests(siteRows = sites) {
 afterEach(() => vi.clearAllMocks())
 
 describe('WebService master detail layout', () => {
+  it('renders the first empty site even when an older API returns null rules', async () => {
+    setupRequests([{ ...sites[0], rules: null }])
+    const wrapper = mount(WebService, { global: { plugins: [ElementPlus, i18n] } })
+    await flushPromises()
+    expect(wrapper.find('.site-identity h2').text()).toBe('主站')
+    expect(wrapper.find('.group-pills').text()).toContain('0')
+    expect(wrapper.findAll('.rule-row')).toHaveLength(0)
+    expect(wrapper.text()).toContain(i18n.global.t('webService.addRule'))
+    wrapper.unmount()
+  })
   it('selects the first site and switches the visible rule panel', async () => {
     setupRequests()
     const wrapper = mount(WebService, { global: { plugins: [ElementPlus, i18n] } })

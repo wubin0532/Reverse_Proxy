@@ -6,12 +6,20 @@ import (
 )
 
 type admissionKey struct{}
+type sessionDoneKey struct{}
 type admissionCheck func() bool
 
 // Modules can recheck admission after slow body/password verification.
 func CurrentSession(r *http.Request) bool {
 	check, ok := r.Context().Value(admissionKey{}).(admissionCheck)
 	return !ok || check()
+}
+
+// SessionDone is closed when an admitted session is revoked. A nil channel in
+// standalone module tests is deliberately disabled in select statements.
+func SessionDone(r *http.Request) <-chan struct{} {
+	done, _ := r.Context().Value(sessionDoneKey{}).(<-chan struct{})
+	return done
 }
 
 func (s *Server) admitSession(r *http.Request, token string) *http.Request {
@@ -23,7 +31,9 @@ func (s *Server) admitSession(r *http.Request, token string) *http.Request {
 		defer s.twoFactorMu.Unlock()
 		return generation == s.authGeneration && s.tokens.Valid(token)
 	})
-	return r.WithContext(context.WithValue(r.Context(), admissionKey{}, check))
+	ctx := context.WithValue(r.Context(), admissionKey{}, check)
+	ctx = context.WithValue(ctx, sessionDoneKey{}, s.tokens.Done(token))
+	return r.WithContext(ctx)
 }
 
 func (s *Server) lockRequestCredentials(w http.ResponseWriter, r *http.Request, proof credentialProof) bool {

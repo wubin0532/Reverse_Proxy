@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { localeResources } from './build/locales.js'
+import { precompressedAssets } from './build/compression.js'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
@@ -14,7 +15,8 @@ export default defineConfig({
       dts: false
     }),
     // 构建期预编译 locale 消息为函数，运行时不再依赖 eval（管理后台 CSP 禁止 unsafe-eval）
-    localeResources(__dirname)
+    localeResources(__dirname),
+    precompressedAssets()
   ],
   define: {
     // 启用 JIT 编译：预编译的 AST 消息在运行时不经 eval 直接组合成函数

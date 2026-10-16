@@ -1,0 +1,81 @@
+
+> andey-proxy-web@1.5.0 build
+> vite build --outDir /tmp/rp-audit-20261015/web-dist
+
+vite v6.4.3 building for production...
+transforming...
+✓ 1871 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../../../../../tmp/rp-audit-20261015/web-dist/index.html                                     0.72 kB │ gzip:  0.37 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/NavIcon-CtMfaQoW.css                    0.11 kB │ gzip:  0.12 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Logs-kWHpcEXq.css                       0.69 kB │ gzip:  0.31 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Forward-CvFr20up.css                    0.76 kB │ gzip:  0.37 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Login-DWOG9cjK.css                      0.86 kB │ gzip:  0.40 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/WorkspaceHeader-ByMLxuFo.css            0.87 kB │ gzip:  0.37 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/HelpHint-CeDFK3ki.css                   0.90 kB │ gzip:  0.46 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Settings-WStx_EUr.css                   1.00 kB │ gzip:  0.44 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/SiteTrafficChart-b0tpa5vB.css           1.84 kB │ gzip:  0.77 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Notifications-C8L7grKi.css              2.02 kB │ gzip:  0.64 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Tunnels-BxU_J4F9.css                    2.39 kB │ gzip:  0.70 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Certs-BpUy1mf2.css                      2.94 kB │ gzip:  0.85 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Layout-BJsWJhbO.css                     4.02 kB │ gzip:  1.30 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Protection-ps4r-5c9.css                 5.29 kB │ gzip:  1.22 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/DDNS-CbIpOF6p.css                       5.32 kB │ gzip:  1.33 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Dashboard-CEH7jsip.css                  5.89 kB │ gzip:  1.35 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/WebService-Cox3Z7v7.css                15.61 kB │ gzip:  3.04 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/index-BpfSAjEc.css                    229.92 kB │ gzip: 31.68 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/numbers-CXlhhiiX.js                     0.05 kB │ gzip:  0.07 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/list-Djx8YcUo.js                        0.09 kB │ gzip:  0.10 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/validator-viG8f6Ce.js                   0.09 kB │ gzip:  0.10 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/strings-OnNO_ep6.js                     0.15 kB │ gzip:  0.15 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/format-DuxLPMrz.js                      0.39 kB │ gzip:  0.31 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/useIntervalFn-BXM2tfo-.js               0.51 kB │ gzip:  0.32 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/useCrudDialog-D8lq0GGt.js               0.56 kB │ gzip:  0.37 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-WWzHRU0v.js                      0.62 kB │ gzip:  0.39 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/HelpHint-OwpwjXck.js                    0.81 kB │ gzip:  0.54 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/WorkspaceHeader-DOF1EJ38.js             0.91 kB │ gzip:  0.49 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-FrTBsKkv.js                      1.25 kB │ gzip:  0.57 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-CQumxmg2.js                      1.63 kB │ gzip:  0.57 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/validate-5xxX1U6a.js                    1.75 kB │ gzip:  0.77 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-38ZKFETE.js                      2.01 kB │ gzip:  0.96 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/NavIcon-DJlZVMXp.js                     2.49 kB │ gzip:  1.06 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-DjqN1hKY.js                      2.93 kB │ gzip:  1.30 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Login-OIAV9yo-.js                       3.83 kB │ gzip:  1.63 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-jCEThDFH.js                      4.40 kB │ gzip:  1.82 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-tLFzFd9_.js                      4.43 kB │ gzip:  1.98 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-DNW05xKH.js                      4.51 kB │ gzip:  1.64 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/help-DkVh2Alc.js                        4.60 kB │ gzip:  2.76 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-D_oSlUsL.js                      5.08 kB │ gzip:  2.33 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-vQ43VsWC.js                      5.16 kB │ gzip:  1.80 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-VUeal3zC.js                      5.45 kB │ gzip:  2.24 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-3Mm2A-lg.js                      7.40 kB │ gzip:  2.97 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-BLCSuVUW.js                      8.54 kB │ gzip:  3.46 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Notifications-BS8-N4kc.js               8.95 kB │ gzip:  2.87 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-p8ML1eha.js                      9.56 kB │ gzip:  3.41 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-CgGIl1qC.js                     10.02 kB │ gzip:  4.15 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Forward--cwpHNts.js                    10.08 kB │ gzip:  3.48 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-DL4BBzHZ.js                     12.00 kB │ gzip:  4.64 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-BBtDCLNe.js                     12.84 kB │ gzip:  5.35 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Dashboard-DaK4FIRT.js                  18.20 kB │ gzip:  6.11 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/icons-BKUvNxSm.js                      20.43 kB │ gzip:  5.24 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Certs-BY3T64c-.js                      23.18 kB │ gzip:  7.78 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-DDGEgVhF.js                     26.54 kB │ gzip:  9.08 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/plugin-vue_export-helper-qe5Y3cgU.js   30.42 kB │ gzip: 11.60 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Settings-n35WEOmJ.js                   31.78 kB │ gzip: 10.48 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Layout-DOeHjSOW.js                     32.40 kB │ gzip: 10.59 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-DXfaf6MA.js                     32.66 kB │ gzip: 11.12 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/DDNS-IPm6OBhs.js                       35.19 kB │ gzip: 11.33 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Protection-CyrOsTDT.js                 37.56 kB │ gzip: 11.88 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Tunnels-hHdQOhUn.js                    37.76 kB │ gzip: 10.53 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-BhWHLN9e.js                     40.49 kB │ gzip: 14.51 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-BJ_IQCY6.js                     42.83 kB │ gzip: 14.73 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/axios-BCn5QfZZ.js                      51.44 kB │ gzip: 19.49 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/SiteTrafficChart-CD8uPsWx.js           56.31 kB │ gzip: 25.21 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/index-B8SSaJ3U.js                      70.95 kB │ gzip: 27.64 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/WebService-CeelAx-g.js                 78.44 kB │ gzip: 22.90 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/shared-DsKXwgRP.js                     81.75 kB │ gzip: 28.35 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/vue-SZO5nHNm.js                       110.05 kB │ gzip: 42.95 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/Logs-Bk9qjjXV.js                      111.45 kB │ gzip: 31.57 kB
+../../../../../../../tmp/rp-audit-20261015/web-dist/assets/locales-C3uVj8eh.js                   155.07 kB │ gzip: 43.58 kB
+✓ built in 2.73s

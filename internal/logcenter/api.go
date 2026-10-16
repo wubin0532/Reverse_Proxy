@@ -44,7 +44,7 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 			api.Fail(w, 400, "日志类型无效")
 			return
 		}
-		flusher, ok := w.(http.Flusher)
+		_, ok := w.(http.Flusher)
 		if !ok {
 			api.Fail(w, 500, "当前环境不支持流式输出")
 			return
@@ -55,13 +55,28 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 			return
 		}
 		defer c.hub.unsubscribe(sub)
-		// 主服务设有 WriteTimeout（120s），长连接须清除写期限，否则流会被中途切断。
-		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+		// Refresh a short deadline per write; an idle SSE connection is allowed,
+		// but a client that stops reading cannot retain a subscription forever.
+		controller := http.NewResponseController(w)
+		write := func(data string) bool {
+			if !api.CurrentSession(req) {
+				return false
+			}
+			_ = controller.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			// HTTP/2 implements this as an active stream timer. Clear it after
+			// flushing so an idle, healthy stream survives until its heartbeat.
+			defer controller.SetWriteDeadline(time.Time{})
+			if _, err := fmt.Fprint(w, data); err != nil {
+				return false
+			}
+			return controller.Flush() == nil
+		}
 		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("X-Accel-Buffering", "no")
-		fmt.Fprint(w, ": connected\n\n")
-		flusher.Flush()
+		if !write(": connected\n\n") {
+			return
+		}
 		heartbeat := time.NewTicker(streamHeartbeat)
 		defer heartbeat.Stop()
 		for {
@@ -74,11 +89,15 @@ func RegisterRoutes(r chi.Router, c *Center, cfg *config.Config) {
 				if err != nil {
 					continue
 				}
-				fmt.Fprintf(w, "event: log\ndata: %s\n\n", data)
-				flusher.Flush()
+				if !write(fmt.Sprintf("event: log\ndata: %s\n\n", data)) {
+					return
+				}
 			case <-heartbeat.C:
-				fmt.Fprint(w, ": keepalive\n\n")
-				flusher.Flush()
+				if !write(": keepalive\n\n") {
+					return
+				}
+			case <-api.SessionDone(req):
+				return
 			case <-req.Context().Done():
 				return
 			}

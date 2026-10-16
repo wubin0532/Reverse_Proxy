@@ -1,0 +1,21 @@
+### Page
+- Page URL: http://127.0.0.1:21606/web-service
+- Page Title: andey-proxy 管理后台
+- Console: 1 errors, 0 warnings
+### Snapshot
+```yaml
+- generic [active] [ref=f47e1]:
+  - generic [ref=f47e4]:
+    - generic [ref=f47e5]:
+      - generic [ref=f47e6]:
+        - button "切换导航" [ref=f47e7] [cursor=pointer]
+        - generic [ref=f47e12]: Web服务
+      - generic [ref=f47e14]:
+        - button "刷新当前页面" [ref=f47e15] [cursor=pointer]
+        - button "选择语言" [ref=f47e21] [cursor=pointer]
+        - button "账户菜单：admin" [ref=f47e26] [cursor=pointer]:
+          - generic [ref=f47e27]: A
+    - main [ref=f47e31]
+  - alert [ref=f47e154]:
+    - paragraph [ref=f47e158]: 保存成功
+```

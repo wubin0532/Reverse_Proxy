@@ -72,11 +72,11 @@ make build          # 构建前端 + 本机二进制(输出 andey-proxy)
 
 ### 安装与环境检查
 
-v1.5.0 正式发行只提供五种架构的签名 `.run`，不发布 `.ipk`、`.apk` 或裸二进制包。先下载匹配架构的文件，并按 `checksums.txt` 核对摘要：
+v1.5.1 正式发行只提供五种架构的签名 `.run`，不发布 `.ipk`、`.apk` 或裸二进制包。先下载匹配架构的文件，并按 `checksums.txt` 核对摘要：
 
 ```bash
-sh andey-proxy_1.5.0_linux_x86_64.run --check
-sudo sh andey-proxy_1.5.0_linux_x86_64.run
+sh andey-proxy_1.5.1_linux_x86_64.run --check
+sudo sh andey-proxy_1.5.1_linux_x86_64.run
 ```
 
 `--check` 检查 Linux/CPU 架构、MIPS大小端、解压/摘要工具、系统 CA 证书、临时及安装目录空间，并核对被签名的文件清单与逐文件摘要；不替换程序、不修改配置、不启停服务，也不执行载荷。Go 程序为静态编译，不需要 Go、Node.js 或额外 libc；`cloudflared` 仅为隧道功能的可选独立依赖。

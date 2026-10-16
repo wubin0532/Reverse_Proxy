@@ -1,0 +1,33 @@
+=== RUN   TestAccessSessionScopeExpiryAndRevocation
+--- PASS: TestAccessSessionScopeExpiryAndRevocation (0.29s)
+=== RUN   TestAccessAPIWriteOnlyPasswordAndRevision
+--- PASS: TestAccessAPIWriteOnlyPasswordAndRevision (0.15s)
+=== RUN   TestBusinessAccessVerificationHasSeparateBudget
+--- PASS: TestBusinessAccessVerificationHasSeparateBudget (0.15s)
+=== RUN   Test404OnlyProtectionReclaimsExpiredCapacity
+--- PASS: Test404OnlyProtectionReclaimsExpiredCapacity (0.01s)
+=== RUN   Test404OnlyProtectionDoesNotAllocateForSuccessfulClients
+--- PASS: Test404OnlyProtectionDoesNotAllocateForSuccessfulClients (0.00s)
+=== RUN   TestSharedPolicyHotReloadBanAndBoundedEvents
+--- PASS: TestSharedPolicyHotReloadBanAndBoundedEvents (0.00s)
+=== RUN   TestProtectionAPIReferenceAndInvalidBan
+--- PASS: TestProtectionAPIReferenceAndInvalidBan (0.00s)
+=== RUN   TestCompiledIPMatcher
+--- PASS: TestCompiledIPMatcher (0.00s)
+=== RUN   TestCorazaCRSBlockingAndObservation
+--- PASS: TestCorazaCRSBlockingAndObservation (0.15s)
+=== RUN   TestWAFBodyPreservationAndCapacity
+--- PASS: TestWAFBodyPreservationAndCapacity (0.19s)
+=== RUN   TestCCWindowAnd404Ban
+--- PASS: TestCCWindowAnd404Ban (0.00s)
+=== RUN   TestWAFCombinedPoliciesPreserveStrictestBodyLimit
+--- PASS: TestWAFCombinedPoliciesPreserveStrictestBodyLimit (0.00s)
+=== RUN   TestTrapListenerExemptionsFailureRollbackAndStop
+--- PASS: TestTrapListenerExemptionsFailureRollbackAndStop (0.01s)
+=== RUN   TestTrapBanBusinessReleaseExpiryAndWhitelist
+--- PASS: TestTrapBanBusinessReleaseExpiryAndWhitelist (0.00s)
+=== RUN   TestTrapAPIPersistenceConflictsAndReload
+--- PASS: TestTrapAPIPersistenceConflictsAndReload (0.00s)
+=== RUN   TestTrapConcurrentApplyStopAndCapture
+--- PASS: TestTrapConcurrentApplyStopAndCapture (0.00s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestTokenStoreUsesDigestsAndBoundsSessions
+--- PASS: TestTokenStoreUsesDigestsAndBoundsSessions (0.00s)
+=== RUN   TestTokenStoreAbsoluteExpiry
+--- PASS: TestTokenStoreAbsoluteExpiry (0.00s)
+=== RUN   TestTokenStoreSlidingRenewalCappedByAbsoluteAge
+--- PASS: TestTokenStoreSlidingRenewalCappedByAbsoluteAge (0.00s)
+=== RUN   TestSessionRevocationNotifiesLiveRequests
+--- PASS: TestSessionRevocationNotifiesLiveRequests (0.00s)
+=== RUN   TestTOTPWindowAndRecoveryCodes
+--- PASS: TestTOTPWindowAndRecoveryCodes (0.00s)
+PASS

@@ -1,0 +1,77 @@
+=== RUN   TestConfigEncryptedAndTamperFailsClosed
+--- PASS: TestConfigEncryptedAndTamperFailsClosed (0.00s)
+=== RUN   TestPlaintextConfigMigratesWithoutBackup
+--- PASS: TestPlaintextConfigMigratesWithoutBackup (0.00s)
+=== RUN   TestMissingKeyFailsWithoutReplacingRecoveryState
+--- PASS: TestMissingKeyFailsWithoutReplacingRecoveryState (0.00s)
+=== RUN   TestEncryptedLegacyFieldsArePurged
+--- PASS: TestEncryptedLegacyFieldsArePurged (0.00s)
+=== RUN   TestSaveFailureRollsBackMemory
+--- PASS: TestSaveFailureRollsBackMemory (0.00s)
+=== RUN   TestConcurrentUpdatesDoNotLoseChanges
+--- PASS: TestConcurrentUpdatesDoNotLoseChanges (0.00s)
+=== RUN   TestLoadRejectsFilesystemRoot
+--- PASS: TestLoadRejectsFilesystemRoot (0.00s)
+=== RUN   TestDecryptRejectsMalformedNonceAndCiphertext
+--- PASS: TestDecryptRejectsMalformedNonceAndCiphertext (0.00s)
+=== RUN   TestLoadRejectsUnsafeConfigDir
+=== RUN   TestLoadRejectsUnsafeConfigDir/除属主外可写
+=== RUN   TestLoadRejectsUnsafeConfigDir/符号链接
+=== RUN   TestLoadRejectsUnsafeConfigDir/非目录
+--- PASS: TestLoadRejectsUnsafeConfigDir (0.00s)
+    --- PASS: TestLoadRejectsUnsafeConfigDir/除属主外可写 (0.00s)
+    --- PASS: TestLoadRejectsUnsafeConfigDir/符号链接 (0.00s)
+    --- PASS: TestLoadRejectsUnsafeConfigDir/非目录 (0.00s)
+=== RUN   TestLoadKeepsExistingDirPermissions
+--- PASS: TestLoadKeepsExistingDirPermissions (0.00s)
+=== RUN   TestLegacyHealthChecksMigrateOnceAndSurviveBackupRestore
+--- PASS: TestLegacyHealthChecksMigrateOnceAndSurviveBackupRestore (0.00s)
+=== RUN   TestHealthChecksRollbackOnSaveFailureAndRejectInvalidBackup
+--- PASS: TestHealthChecksRollbackOnSaveFailureAndRejectInvalidBackup (0.00s)
+=== RUN   TestServiceRootConflictRollsBackMutationAndRestore
+--- PASS: TestServiceRootConflictRollsBackMutationAndRestore (0.00s)
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap/same_directory
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap/DAV_alias
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap/CGI_alias
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap/nested_CGI
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap/nested_DAV
+=== RUN   TestServiceRootsRejectRealDirectoryOverlap/missing_nested_DAV
+--- PASS: TestServiceRootsRejectRealDirectoryOverlap (0.00s)
+    --- PASS: TestServiceRootsRejectRealDirectoryOverlap/same_directory (0.00s)
+    --- PASS: TestServiceRootsRejectRealDirectoryOverlap/DAV_alias (0.00s)
+    --- PASS: TestServiceRootsRejectRealDirectoryOverlap/CGI_alias (0.00s)
+    --- PASS: TestServiceRootsRejectRealDirectoryOverlap/nested_CGI (0.00s)
+    --- PASS: TestServiceRootsRejectRealDirectoryOverlap/nested_DAV (0.00s)
+    --- PASS: TestServiceRootsRejectRealDirectoryOverlap/missing_nested_DAV (0.00s)
+=== RUN   TestServiceRootsPersistCanonicalPathsAndRejectUnsafeAliases
+=== RUN   TestServiceRootsPersistCanonicalPathsAndRejectUnsafeAliases/system_root
+=== RUN   TestServiceRootsPersistCanonicalPathsAndRejectUnsafeAliases/dangling
+--- PASS: TestServiceRootsPersistCanonicalPathsAndRejectUnsafeAliases (0.00s)
+    --- PASS: TestServiceRootsPersistCanonicalPathsAndRejectUnsafeAliases/system_root (0.00s)
+    --- PASS: TestServiceRootsPersistCanonicalPathsAndRejectUnsafeAliases/dangling (0.00s)
+=== RUN   TestConcurrentStateFlushKeepsAllUpdates
+--- PASS: TestConcurrentStateFlushKeepsAllUpdates (0.00s)
+=== RUN   TestStateStoreUpdateFlushClose
+--- PASS: TestStateStoreUpdateFlushClose (0.00s)
+=== RUN   TestStateStoreDebounceCoalescesWrites
+--- PASS: TestStateStoreDebounceCoalescesWrites (0.04s)
+=== RUN   TestStateStoreSeedDoesNotOverwriteExisting
+--- PASS: TestStateStoreSeedDoesNotOverwriteExisting (0.00s)
+=== RUN   TestLoadMigratesRuntimeStateFromLegacyConfig
+--- PASS: TestLoadMigratesRuntimeStateFromLegacyConfig (0.00s)
+=== RUN   TestRestoreStripsAndSeedsRuntimeState
+--- PASS: TestRestoreStripsAndSeedsRuntimeState (0.00s)
+=== RUN   TestTunnelSecretsEncryptedAndRestoreDisablesInstances
+--- PASS: TestTunnelSecretsEncryptedAndRestoreDisablesInstances (0.00s)
+=== RUN   TestTunnelUpdateRollbackIncludesNewCollections
+--- PASS: TestTunnelUpdateRollbackIncludesNewCollections (0.00s)
+=== RUN   TestPublishedReferencesRecognizeOnlyKnownLocalSockets
+--- PASS: TestPublishedReferencesRecognizeOnlyKnownLocalSockets (0.00s)
+=== RUN   TestWorkspaceRollbackRestoreAndReferenceValidation
+--- PASS: TestWorkspaceRollbackRestoreAndReferenceValidation (0.00s)
+=== RUN   TestLegacyWorkspaceDoesNotInventBindings
+--- PASS: TestLegacyWorkspaceDoesNotInventBindings (0.00s)
+=== RUN   TestWorkspaceRejectsInvalidNewFieldsOnRestore
+--- PASS: TestWorkspaceRejectsInvalidNewFieldsOnRestore (0.00s)
+PASS

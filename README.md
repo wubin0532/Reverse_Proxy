@@ -72,11 +72,11 @@ Frontend assets are embedded into the binary via `go:embed`, so `make web` (or `
 
 ### Installation and environment checks
 
-v1.5.0 distributes signed `.run` installers for five architectures only. No `.ipk`, `.apk` or standalone binary downloads are published. Download the matching file and verify it against `checksums.txt`:
+v1.5.1 distributes signed `.run` installers for five architectures only. No `.ipk`, `.apk` or standalone binary downloads are published. Download the matching file and verify it against `checksums.txt`:
 
 ```bash
-sh andey-proxy_1.5.0_linux_x86_64.run --check
-sudo sh andey-proxy_1.5.0_linux_x86_64.run
+sh andey-proxy_1.5.1_linux_x86_64.run --check
+sudo sh andey-proxy_1.5.1_linux_x86_64.run
 ```
 
 `--check` verifies Linux/CPU compatibility, MIPS endianness, archive/hash tools, system CA certificates, temporary/install disk space, the signed file listing and per-file digests. It does not replace files, change configuration, stop/start services or execute the payload. The Go binary is statically compiled; Go, Node.js and an additional libc are not required. `cloudflared` remains an optional dependency for Tunnel functionality.

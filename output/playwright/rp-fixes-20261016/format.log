@@ -1,0 +1,6 @@
+
+> andey-proxy-web@1.5.1 format:check
+> prettier --check "src/**/*.{js,vue,css}" vite.config.js
+
+Checking formatting...
+All matched files use Prettier code style!

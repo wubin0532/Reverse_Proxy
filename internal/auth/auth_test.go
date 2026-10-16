@@ -72,3 +72,32 @@ func TestTokenStoreSlidingRenewalCappedByAbsoluteAge(t *testing.T) {
 		t.Fatalf("renewal exceeded absolute age: expires=%s createdAt=%s", renewed.expires, renewed.createdAt)
 	}
 }
+
+func TestSessionRevocationNotifiesLiveRequests(t *testing.T) {
+	s := NewTokenStore()
+	first, _ := s.Issue()
+	second, _ := s.Issue()
+	a, b := s.Done(first), s.Done(second)
+	s.Revoke(first)
+	select {
+	case <-a:
+	default:
+		t.Fatal("logout did not signal stream")
+	}
+	select {
+	case <-b:
+		t.Fatal("logout revoked another session")
+	default:
+	}
+	s.RevokeAll()
+	select {
+	case <-b:
+	default:
+		t.Fatal("global revocation did not signal stream")
+	}
+	select {
+	case <-s.Done("unknown"):
+	default:
+		t.Fatal("unknown session should already be revoked")
+	}
+}

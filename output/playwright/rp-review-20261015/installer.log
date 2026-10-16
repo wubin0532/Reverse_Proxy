@@ -1,0 +1,1 @@
+Installer gates passed: check-only, digest chain, payload tamper, path traversal, manifest mismatch, missing listing, pubkey gates, CPU mismatch, missing tool, low disk space, corrupt payload.

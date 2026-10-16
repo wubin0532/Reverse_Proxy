@@ -1,0 +1,18 @@
+### Result
+{"route":"/dashboard","files":35,"transfer":1008967,"encoded":998467,"decoded":998467,"fcp":76,"load":15.199999988079071}
+### Ran Playwright code
+```js
+await (async page => {
+ const cdp=await page.context().newCDPSession(page);
+ await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled',{cacheDisabled:true});
+ await page.goto('http://127.0.0.1:21606/dashboard');await page.waitForLoadState('networkidle');
+ const results=await page.evaluate(()=>{let r=performance.getEntriesByType('resource').filter(x=>x.name.includes('/assets/'));return {route:location.pathname,files:r.length,transfer:r.reduce((a,x)=>a+x.transferSize,0),encoded:r.reduce((a,x)=>a+x.encodedBodySize,0),decoded:r.reduce((a,x)=>a+x.decodedBodySize,0),fcp:performance.getEntriesByName('first-contentful-paint')[0]?.startTime,load:performance.getEntriesByType('navigation')[0]?.loadEventEnd}});
+ await cdp.send('Network.setCacheDisabled',{cacheDisabled:false});await cdp.detach();return results;
+}
+)(page);
+```
+### Page
+- Page URL: http://127.0.0.1:21606/dashboard
+- Page Title: andey-proxy 管理后台
+### Events
+- New console entries: .playwright-cli/console-2026-10-15T09-11-34-893Z.log#L17-L72

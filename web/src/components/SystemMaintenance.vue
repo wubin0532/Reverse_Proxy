@@ -44,6 +44,7 @@
           <el-empty v-else :description="$t('dashboard.update.inspectPrompt')" :image-size="54" />
         </div>
       </div>
+      <el-progress v-if="inspecting" :percentage="uploadProgress" :stroke-width="8" />
       <div class="update-actions">
         <el-button
           type="primary"
@@ -171,13 +172,15 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
-import request from '../api'
+import request, { deferUnauthorizedRedirects } from '../api'
 import { useIntervalFn } from '../composables/useIntervalFn'
+import { setRestoreWarnings } from '../utils/restore-notice'
 const { t } = useI18n()
 const emit = defineEmits(['updated'])
 const router = useRouter(),
   uploadFile = ref(null),
   inspecting = ref(false),
+  uploadProgress = ref(0),
   inspection = ref(null),
   installOpen = ref(false),
   installPassword = ref(''),
@@ -218,8 +221,16 @@ async function inspectPackage() {
   const form = new FormData()
   form.append('package', uploadFile.value)
   inspecting.value = true
+  uploadProgress.value = 0
   try {
-    inspection.value = (await request.post('/api/system/update/inspect', form, { timeout: 120000 })).data
+    inspection.value = (
+      await request.post('/api/system/update/inspect', form, {
+        timeout: 13 * 60 * 1000,
+        onUploadProgress: ({ loaded, total }) => {
+          uploadProgress.value = total ? Math.min(100, Math.round((loaded * 100) / total)) : 0
+        }
+      })
+    ).data
     ElMessage.success(t('dashboard.update.signOk'))
   } finally {
     inspecting.value = false
@@ -316,19 +327,23 @@ async function importBackup() {
   if (!importForm.backup) return ElMessage.warning(t('dashboard.backup.chooseFileFirst'))
   if (!importForm.password || !importForm.backupPassword) return ElMessage.warning(t('dashboard.backup.enterPasswords'))
   importing.value = true
+  const releaseRedirects = deferUnauthorizedRedirects()
   try {
-    await request.post(
+    const response = await request.post(
       '/api/system/backup/import',
       { password: importForm.password, backupPassword: importForm.backupPassword, backup: importForm.backup },
-      { timeout: 30000 }
+      { timeout: 13 * 60 * 1000 }
     )
+    setRestoreWarnings(response.data?.warnings || [])
     importOpen.value = false
-    ElMessage.success(t('dashboard.backup.importSuccess'))
-    setTimeout(() => {
-      window.location.href = '/login'
-    }, 1500)
-  } catch {
+    // Restore revokes the session. Keep the warning above both login and
+    // authenticated routes until it is acknowledged, including after reload.
+    if (!response.data?.warnings?.length) ElMessage.success(t('dashboard.backup.importSuccess'))
+    await router.replace('/login')
+  } catch (error) {
+    if (error.response?.status === 401) await router.replace('/login')
   } finally {
+    releaseRedirects()
     importing.value = false
   }
 }

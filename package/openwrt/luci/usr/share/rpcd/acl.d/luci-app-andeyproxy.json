@@ -1,6 +1,6 @@
 {
 	"luci-app-andeyproxy": {
-		"description": "andey-Proxy 设置与状态访问。初始密码仅在首次登录、尚未改密前可读（改密后程序会删除该文件）；若需对只读账号隐藏它，请从下面的 file 读授权中移除 /etc/andey-proxy/initial-password 一行。",
+		"description": "andey-Proxy 设置与状态访问。初始密码仅授权给拥有本插件写权限的管理员，改密后程序会删除该文件。",
 		"read": {
 			"uci": [ "andey-proxy" ],
 			"ubus": {
@@ -10,12 +10,14 @@
 				"file": [ "read" ]
 			},
 			"file": {
-				"/etc/andey-proxy/version": [ "read" ],
-				"/etc/andey-proxy/initial-password": [ "read" ]
+				"/etc/andey-proxy/version": [ "read" ]
 			}
 		},
 		"write": {
 			"uci": [ "andey-proxy" ],
+			"file": {
+				"/etc/andey-proxy/initial-password": [ "read" ]
+			},
 			"ubus": {
 				"luci": [ "setInitAction" ]
 			}

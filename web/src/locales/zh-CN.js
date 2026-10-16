@@ -361,7 +361,10 @@ export default {
       readFailed: '读取备份文件失败',
       chooseFileFirst: '请先选择备份文件',
       enterPasswords: '请输入管理密码和备份口令',
-      importSuccess: '配置已导入，请使用备份中的管理账号重新登录'
+      importSuccess: '配置已导入，请使用备份中的管理账号重新登录',
+      partialTitle: '配置已恢复，但部分服务尚未生效',
+      partialDescription: '请使用备份中的账号重新登录，并处理以下问题。此提示会保留到你确认。',
+      acknowledgeWarnings: '已了解并记录问题'
     }
   },
   logs: {

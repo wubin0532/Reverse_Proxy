@@ -370,7 +370,11 @@ export default {
       readFailed: 'Failed to read the backup file',
       chooseFileFirst: 'Please choose a backup file first',
       enterPasswords: 'Please enter the admin password and backup passphrase',
-      importSuccess: 'Configuration imported. Log in again with the admin account from the backup'
+      importSuccess: 'Configuration imported. Log in again with the admin account from the backup',
+      partialTitle: 'Configuration restored; some services are not active',
+      partialDescription:
+        'Sign in with the account from the backup and resolve the issues below. This notice stays until acknowledged.',
+      acknowledgeWarnings: 'I have recorded these issues'
     }
   },
   logs: {

@@ -1,0 +1,6 @@
+SSE open: 200
+Greeting: : connected
+Revoke: 200
+Revoked cookie /api/me: 401
+New login event: 200
+SSE after revoke: ['event: log', 'data: {"time":"2026-10-15T17:07:48.85939+08:00","level":"info","source":"security","clientIp":"127.0.0.1","message":"管理员登录成功，客户端 IP: 127.0.0.1"}']
